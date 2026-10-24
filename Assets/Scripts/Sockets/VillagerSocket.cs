@@ -29,6 +29,7 @@ namespace CalHacks
 
         public override SocketType Type => SocketType.Villager;
         public override IReadOnlyList<Trait> SolvingTraits => Wants;
+        public override string Goal => $"something the {socketId} will accept";
 
         protected override void Awake()
         {

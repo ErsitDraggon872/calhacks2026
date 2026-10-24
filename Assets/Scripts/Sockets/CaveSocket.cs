@@ -25,6 +25,7 @@ namespace CalHacks
 
         public override SocketType Type => SocketType.Light;
         public override IReadOnlyList<Trait> SolvingTraits => Lights;
+        public override string Goal => "light up the dark cave";
 
         protected override void Awake()
         {

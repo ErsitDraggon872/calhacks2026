@@ -11,6 +11,8 @@ namespace CalHacks
         public string socket_id;
         public int run_id;
         public string[] accepted_labels;
+        /// <summary>The socket's puzzle in words, for POST /interpret's tie-breaker. "" for a free build.</summary>
+        public string goal;
     }
 
     [Serializable]

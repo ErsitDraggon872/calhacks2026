@@ -26,6 +26,7 @@ namespace CalHacks
         PlayerController player;
 
         public override SocketType Type => SocketType.Gap;
+        public override string Goal => "get B across the gap";
 
         float FarLedgeX => anchor.position.x + span.x * 0.5f;
 

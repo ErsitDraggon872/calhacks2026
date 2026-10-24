@@ -7,18 +7,18 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Unity reads the whiteboard itself: grabs a BoardCamera frame, cuts the ink out locally, and hands the capture
-    /// to an <see cref="IInterpreter"/> for the label.
+    /// Unity reads the whiteboard itself: grabs a frame (the BoardCamera webcam, or saved photos for replay), cuts the
+    /// ink out locally, and hands the capture to an <see cref="IInterpreter"/> for the label.
     /// </summary>
     public class WebcamVisionClient : IVisionClient
     {
         readonly GameConfig config;
-        readonly BoardCamera camera;
+        readonly IBoardFrameSource camera;
         readonly IInterpreter interpreter;
         readonly Dictionary<string, BoardCapture> pending = new Dictionary<string, BoardCapture>();
         int nextId;
 
-        public WebcamVisionClient(GameConfig config, BoardCamera camera, IInterpreter interpreter)
+        public WebcamVisionClient(GameConfig config, IBoardFrameSource camera, IInterpreter interpreter)
         {
             this.config = config;
             this.camera = camera;

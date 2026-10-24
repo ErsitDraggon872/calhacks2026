@@ -41,6 +41,8 @@ namespace CalHacks
         public string[] AcceptedLabels => acceptedLabels;
         /// <summary>Traits that solve this socket, any one of them: anything edible feeds the villager.</summary>
         public virtual IReadOnlyList<Trait> SolvingTraits => Array.Empty<Trait>();
+        /// <summary>The puzzle in words, sent with the drawing as POST /interpret's tie-breaker (never what decides it).</summary>
+        public virtual string Goal => "";
         public bool Solved { get; private set; }
         public abstract SocketType Type { get; }
         public Vector3 CastPoint => transform.position;

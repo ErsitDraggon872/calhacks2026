@@ -86,8 +86,10 @@ namespace CalHacks
                 case CaptureSource.Webcam:
                     var boardCamera = GetComponent<BoardCamera>();
                     if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
-                    // No interpreter backend yet (POST /interpret, docs/interpret-contract.md): every drawing is "unknown".
-                    vision = new WebcamVisionClient(config, boardCamera, new NoInterpreter());
+                    vision = new WebcamVisionClient(config, boardCamera, CreateInterpreter());
+                    break;
+                case CaptureSource.Replay:
+                    vision = new WebcamVisionClient(config, new ReplayFrameSource(config.ResolveReplayFolder()), CreateInterpreter());
                     break;
                 default:
                     mock = new MockVisionClient(config);
@@ -107,6 +109,13 @@ namespace CalHacks
             startPosition = start.position;
             startRotation = start.rotation;
             GameInput.Enable();
+        }
+
+        /// <summary>The /interpret backend when one is configured; otherwise no AI, and every drawing is "unknown".</summary>
+        IInterpreter CreateInterpreter()
+        {
+            var url = config.ResolveInterpretUrl();
+            return string.IsNullOrEmpty(url) ? new NoInterpreter() : new HttpInterpreter(url, config.interpretTimeout);
         }
 
         // Button presses are latched from `performed` callbacks rather than polled with WasPressedThisFrame,
@@ -191,6 +200,7 @@ namespace CalHacks
                 socket_id = socket != null ? socket.SocketId : FreeBuildId,
                 run_id = runId,
                 accepted_labels = socket != null && socket.AcceptedLabels != null ? socket.AcceptedLabels : Array.Empty<string>(),
+                goal = socket != null ? socket.Goal : "",
             };
             Debug.Log($"[Run] CAST run_id={runId} socket={request.socket_id}");
 
@@ -234,6 +244,16 @@ namespace CalHacks
                     return;
                 }
                 State.EndRequest();
+                if (!label.Ok && socket != null && socket.SolvingTraits.Count > 0)
+                {
+                    // Only what the drawing is can solve this socket, so a failed reading mustn't look like a wrong
+                    // answer: keep the drawing, say so, and let BUILD go again straight away.
+                    LastError = label.Error;
+                    Debug.LogWarning("[Run] Interpretation failed: " + label.Error);
+                    State.StartCooldown(0f);
+                    Subtitles.ShowNow("Couldn't read that drawing. Press BUILD to try again.");
+                    return;
+                }
                 var spec = SpecFor(label, runId, out var stale);
                 if (stale)
                 {
@@ -399,6 +419,7 @@ namespace CalHacks
         /// <summary>The "AI understood" line: "Looks like: flaming rubber skateboard (glows, hot)."</summary>
         static string Understood(InventionSpec spec)
         {
+            if (spec.Name == SocketLogic.Unknown) return "Couldn't tell what that is, so it's just a solid shape.";
             var shown = spec.Traits.Where(t => t == Trait.Glows || t == Trait.Hot || t == Trait.Cold || t == Trait.Edible
                     || t == Trait.Hostile || t == Trait.Bouncy || t == Trait.Slippery || t == Trait.Sticky)
                 .OrderBy(t => t).Select(t => InventionSpec.Snake(t)).ToArray();
