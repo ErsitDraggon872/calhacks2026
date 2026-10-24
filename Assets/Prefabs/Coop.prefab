@@ -50,7 +50,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8b46b953ad97547aa995d9fc4dddf1cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game::CalHacks.ThinkInkSession
-  serverUri: https://maincloud.spacetimedb.com
+  serverUri: http://127.0.0.1:3000
   databaseName: thinkink
   identitySlot: A
   levelId: level1

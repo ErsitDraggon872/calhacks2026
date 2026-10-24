@@ -26,7 +26,7 @@ namespace CalHacks
         /// <summary>True once this client is in a room. Local single-player flows (CAST from the local webcam) step aside.</summary>
         public static bool InRoom => Instance != null && Instance.Room != null;
 
-        [SerializeField] string serverUri = "https://maincloud.spacetimedb.com";
+        [SerializeField] string serverUri = "http://127.0.0.1:3000";
         [SerializeField] string databaseName = "thinkink";
         [Tooltip("Each slot keeps its own identity, so two clients on one machine are two players. -thinkink-slot=B on the command line overrides it.")]
         [SerializeField] string identitySlot = "A";
@@ -64,6 +64,11 @@ namespace CalHacks
         public string LastError { get; private set; }
         public float LastErrorTime { get; private set; }
         public DbConnection Connection => conn;
+        public bool IsLocal => IsLocalEndpoint(serverUri);
+
+        public static bool IsLocalEndpoint(string endpoint) =>
+            Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == "http" || uri.Scheme == "https") && uri.IsLoopback;
 
         public event Action RoomChanged;
         public event Action<DrawingStroke> StrokeAdded;
@@ -90,7 +95,7 @@ namespace CalHacks
             identitySlot = ArgValue("-thinkink-slot=") ?? identitySlot;
             serverUri = ArgValue("-thinkink-server=") ?? serverUri;
             databaseName = ArgValue("-thinkink-db=") ?? databaseName;
-            syncKey = FindSyncKey();
+            syncKey = IsLocal ? null : FindSyncKey();
         }
 
         // ---- Sync key ----------------------------------------------------------------------------------------
@@ -117,14 +122,16 @@ namespace CalHacks
 
         void SendSyncKey()
         {
-            if (string.IsNullOrEmpty(syncKey))
+            if (string.IsNullOrEmpty(syncKey) && !IsLocal)
             {
                 KeyState = SyncKeyState.Missing;
                 Fail("No sync key: add thinkink.key, or start with -thinkink-key=...");
                 return;
             }
             KeyState = SyncKeyState.Sent;
-            conn.Reducers.Authorize(syncKey);
+            // A fresh local module has no shared-password requirement. Still call authorize so readiness
+            // follows the normal server acknowledgement. The cloud's shared-key check is unchanged.
+            conn.Reducers.Authorize(syncKey ?? "");
         }
 
         void OnAuthorized(ReducerEventContext ctx, string _)
@@ -152,7 +159,7 @@ namespace CalHacks
             conn?.Disconnect();
         }
 
-        string TokenKey => "ThinkInk.Token." + databaseName + "." + identitySlot;
+        string TokenKey => "ThinkInk.Token." + serverUri + "." + databaseName + "." + identitySlot;
 
         public void Connect()
         {

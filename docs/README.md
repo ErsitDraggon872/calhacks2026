@@ -29,8 +29,8 @@ Free inventions support bounce, thrust, lift, glide, roll and attach (E activate
 
 ## Running it
 - **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.
-- **Unity:** defaults to Henry's browser whiteboard (`DigitalBoard`), opened from F4 > **Open browser drawing pad**. It syncs drawings through SpacetimeDB; one Unity Editor is sufficient. See [`coop-spacetimedb.md`](coop-spacetimedb.md). The Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
-- **Digital board instead of the whiteboard:** `-capture=digital` (`CaptureSource.DigitalBoard`). The judge draws in Henry's browser whiteboard (`tools/whiteboard/index.html`) and taps BUILD there; Unity joins its SpacetimeDB room and runs the same BUILD on the drawing. It needs `thinkink.key` and internet. See [`coop-spacetimedb.md`](coop-spacetimedb.md#the-digital-board-one-game-machine).
+- **Unity:** defaults to Henry's browser whiteboard (`DigitalBoard`), opened from F4 > **Create room + open drawing pad**. It syncs drawings through a local SpacetimeDB server, started automatically with Play mode; one Unity Editor is sufficient and no ThinkInk key is needed. See [`coop-spacetimedb.md`](coop-spacetimedb.md). The Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
+- **Digital board instead of the whiteboard:** `-capture=digital` (`CaptureSource.DigitalBoard`). The judge draws in Henry's browser whiteboard (`tools/whiteboard/index.html`) and taps BUILD there; Unity joins its SpacetimeDB room and runs the same BUILD on the drawing. The default same-PC mode needs no ThinkInk key or cloud database. The AI backend still needs internet for real recognition. See [`coop-spacetimedb.md`](coop-spacetimedb.md#the-digital-board-one-game-machine).
 - **Checking the backend:** `python tools/interpret_check.py --dir <photos>` checks a running backend against the demo expectations.
 
 ## Current docs
@@ -40,6 +40,7 @@ Free inventions support bounce, thrust, lift, glide, roll and attach (E activate
 | [`interpret-contract.md`](interpret-contract.md) | The `POST /interpret` request and response between Unity and the backend |
 | [`interpret-prompt.md`](interpret-prompt.md) | The system prompt the backend sends to the model, and why models over-answer "bridge" |
 | [`coop-spacetimedb.md`](coop-spacetimedb.md) | Henry's SpacetimeDB co-op: the browser whiteboard as the digital board, the two-machine Creator/Explorer mode, the sync key and the server |
+| [`handoff-digital-board.md`](handoff-digital-board.md) | State of the browser board, the local room server and Andy's invention physics: how to run them, what's verified, what's left |
 | [`handoff-interpret-backend.md`](handoff-interpret-backend.md) | **Andy:** what to build for `/interpret`, in priority order, with acceptance tests |
 | [`DEERAI-SETUP.md`](DEERAI-SETUP.md) | Running the `/interpret` backend (`tools/thinkink_backend.py`): key, fake mode, health check. Its "apply patch" step and DRAW mode come from Andy's branch and don't apply on `main` |
 | [`unity-implementation-notes.md`](unity-implementation-notes.md) | How the Unity half is put together: station keys, free builds, the demo level |

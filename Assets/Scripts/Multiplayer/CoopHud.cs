@@ -40,7 +40,8 @@ namespace CalHacks
             y += 12f;
             var w = PanelWidth - 32f;
 
-            GUI.Label(new Rect(x, y, w, 30f), $"<color={LinkColor(session.Link)}>●</color> {session.Link}  ·  key {KeyText(session.KeyState)}", text);
+            var connection = session.IsLocal ? "Local drawing server" : "key " + KeyText(session.KeyState);
+            GUI.Label(new Rect(x, y, w, 30f), $"<color={LinkColor(session.Link)}>●</color> {session.Link}  ·  {connection}", text);
             y += 32f;
 
             if (session.Room == null)
@@ -80,13 +81,19 @@ namespace CalHacks
 
         float Lobby(ThinkInkSession session, float x, float y, float w)
         {
+            var digital = RunManager.Instance != null && RunManager.Instance.UsesDigitalBoard;
             GUI.enabled = session.Link == CoopLink.Online;
-            if (GUI.Button(new Rect(x, y, w, 44f), "Create room (Creator: draws)", button)) session.CreateRoom();
+            var createLabel = digital ? "Create room + open drawing pad" : "Create room (Creator: draws)";
+            if (GUI.Button(new Rect(x, y, w, 44f), createLabel, button))
+            {
+                if (digital) session.OpenTestWhiteboard();
+                else session.CreateRoom();
+            }
             y += 54f;
             code = GUI.TextField(new Rect(x, y, 120f, 44f), code, 4, field).ToUpperInvariant();
             if (GUI.Button(new Rect(x + 130f, y, w - 130f, 44f), "Join (Explorer: plays)", button)) session.JoinRoom(code);
             y += 54f;
-            if (ThinkInkSession.TestWhiteboardPath != null)
+            if (!digital && ThinkInkSession.TestWhiteboardPath != null)
             {
                 var label = session.WaitingForWhiteboard ? "Waiting for the browser tab..." : "Open browser drawing pad";
                 if (GUI.Button(new Rect(x, y, w, 44f), label, button)) session.OpenTestWhiteboard();

@@ -51,7 +51,8 @@
 </main>
 <script>
 const params = new URLSearchParams(location.search);
-const SERVER = (params.get('server') || 'https://maincloud.spacetimedb.com').replace(/\/$/, '');
+const SERVER = (params.get('server') || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const LOCAL_SERVER = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(SERVER).hostname);
 const DB = params.get('db') || 'thinkink';
 const INVITE = params.get('invite') || Math.random().toString(16).slice(2, 14);
 // The digital board: BUILD hands the drawing to the game, which interprets and builds it itself.
@@ -61,9 +62,9 @@ if (BOARD_MODE) {
   document.getElementById('hint').textContent = 'Draw, then BUILD: the game reads the drawing and builds it.';
 }
 // Per tab (sessionStorage), so every tab is its own device with its own identity and room.
-const TOKEN_KEY = 'thinkink.whiteboard.token.' + DB;
+const TOKEN_KEY = 'thinkink.whiteboard.token.' + SERVER + '.' + DB;
 // The shared sync key: from the #fragment Unity adds (never sent to any server), else asked for once per tab.
-const KEY_KEY = 'thinkink.whiteboard.key.' + DB;
+const KEY_KEY = 'thinkink.whiteboard.key.' + SERVER + '.' + DB;
 const hashKey = new URLSearchParams(location.hash.slice(1)).get('key');
 if (hashKey) { sessionStorage.setItem(KEY_KEY, hashKey); history.replaceState(null, '', location.pathname + location.search); }
 function syncKey() {
@@ -280,8 +281,8 @@ async function refresh() {
 async function start() {
   try {
     if (!token) await newIdentity();
-    const key = syncKey();
-    if (!key) throw new Error('No sync key: open this tab from Unity, or reload and paste the key.');
+    const key = LOCAL_SERVER ? (sessionStorage.getItem(KEY_KEY) || '') : syncKey();
+    if (!key && !LOCAL_SERVER) throw new Error('No sync key: open this tab from Unity, or reload and paste the key.');
     try {
       await call('authorize', [key]);
     } catch (e) {
