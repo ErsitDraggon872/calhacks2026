@@ -38,9 +38,9 @@ namespace CalHacks
 
         [Header("Follow")]
         [Tooltip("Seconds to catch up with the target on X.")]
-        [SerializeField] float smoothTime = 0.2f;
+        [SerializeField] float smoothTime = 0.06f;
         [Tooltip("Seconds to catch up on Y; slower, so jumps don't bob the shot.")]
-        [SerializeField] float verticalSmoothTime = 0.45f;
+        [SerializeField] float verticalSmoothTime = 0.15f;
         [Tooltip("Share of the target's depth (Z) movement the camera follows: 0 never, 1 fully.")]
         [Range(0f, 1f)] [SerializeField] float depthFollow = 0.3f;
         [Tooltip("Depth (Z) the camera centres on when the target stands there.")]
