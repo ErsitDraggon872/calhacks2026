@@ -28,12 +28,12 @@ from pathlib import Path
 GOALS = {"gap": "get B across the gap", "gatekeeper": "something the gatekeeper will accept", "free": ""}
 EDIBLE = {"apple", "banana", "sandwich", "pizza", "carrot", "cake", "burger", "fish"}
 NOT_EDIBLE = {"bridge", "ladder", "plank", "rock", "rocket"}
+# The eight fields every component carries; emit_kind / range_m are optional (JsonUtility defaults them).
 COMPONENT_FIELDS = {"type": str, "activation": str, "anchor_x": (int, float), "anchor_y": (int, float),
                     "launch_speed": (int, float), "angle_deg": (int, float), "acceleration": (int, float),
-                    "duration_s": (int, float), "emit_kind": str, "range_m": (int, float)}
+                    "duration_s": (int, float)}
 TOP_FIELDS = {"status": str, "capture_id": str, "run_id": int, "name": str, "message": str, "adjectives": list,
-              "material": str, "weight": str, "body": str, "traits": list, "width_m": (int, float),
-              "ink_cost": int, "components": list}
+              "material": str, "traits": list, "width_m": (int, float), "ink_cost": int, "components": list}
 TIMEOUT_S = 15
 
 
@@ -80,7 +80,7 @@ def schema_problems(reply, capture_id, run_id):
             continue
         for field, kind in COMPONENT_FIELDS.items():
             if field not in component:
-                problems.append(f"components[{i}] missing {field} (unused fields are 0 / \"\")")
+                problems.append(f"components[{i}] missing {field} (unused fields are 0)")
             elif not isinstance(component[field], kind) or component[field] is None:
                 problems.append(f"components[{i}].{field} has the wrong type")
     return problems

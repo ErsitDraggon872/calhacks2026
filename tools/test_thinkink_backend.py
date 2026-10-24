@@ -127,4 +127,45 @@ class BackendTests(unittest.TestCase):
         self.assertIn('chat_template_kwargs',observed[0])
         self.assertNotIn('chat_template_kwargs',observed[1])
 
+    def test_identity_passes_through_and_is_filtered(self):
+        out=b.validate({'status':'ok','name':'Apple','material':'PLANT','traits':['Edible','tasty','edible','lighter-than-air'],
+                        'adjectives':['Red'],'components':[b.support()]})
+        self.assertEqual((out['name'],out['material']),('apple','plant'))
+        self.assertEqual(out['traits'],['edible','lighter_than_air'])
+        self.assertEqual(out['adjectives'],['red'])
+        self.assertEqual(len(out['attributes']),15)
+    def test_identity_defaults_and_limits(self):
+        out=b.validate({'status':'ok','material':'unobtainium','traits':['hot','cold',*b.TRAITS],'components':[b.support()]})
+        self.assertEqual(out['material'],'wood')
+        self.assertIn('hot',out['traits'])
+        self.assertNotIn('cold',out['traits'])
+        self.assertEqual(len(out['traits']),b.MAX_TRAITS)
+        self.assertEqual(b.validate({'status':'ok','components':[b.support()]})['traits'],[])
+    def test_fake_foods_are_edible_and_bridge_is_not(self):
+        for food in ('apple','banana','sandwich'):
+            out=b.fake_demo(food)
+            self.assertEqual(out['name'],food)
+            self.assertIn('edible',out['traits'])
+        self.assertNotIn('edible',b.fake_demo('bridge')['traits'])
+        self.assertEqual(b.fake_demo('blank board')['status'],'rejected')
+    def test_fake_sequence_answers_each_build_in_turn(self):
+        sample=base64.b64encode(b.PNG+b'seq').decode()
+        with patch.object(b,'FAKE',True),patch.object(b,'_FAKE_SEQUENCE',['bridge','apple']),patch.object(b,'_FAKE_STEP',[0]):
+            names=[b.interpret({'board_png_base64':sample,'capture_id':str(i),'run_id':i,
+                                'goal':'something the gatekeeper will accept'})['name'] for i in range(3)]
+        self.assertEqual(names,['rope bridge','apple','rope bridge'])
+    def test_image_goes_before_goal(self):
+        import re
+        from types import SimpleNamespace
+        seen=[]
+        def respond(args,input,text,capture_output,timeout):
+            path=re.search(r'data-binary = "@([^"\n]+)"',input).group(1)
+            with open(path) as stream: seen.append(json.load(stream))
+            return SimpleNamespace(returncode=0,stdout=json.dumps({'choices':[{'message':{'content':'{"status":"ok","components":[{"type":"support"}]}'}}]})+'\n200',stderr='')
+        with patch.dict(os.environ,{'BITDEER_API_KEY':'test_not_real'}),patch('subprocess.run',side_effect=respond):
+            b.model_call('dummy','get B across the gap',5)
+        content=seen[0]['messages'][1]['content']
+        self.assertEqual([c['type'] for c in content],['image_url','text'])
+        self.assertIn('tie-breaker',content[1]['text'])
+
 if __name__=='__main__':unittest.main()

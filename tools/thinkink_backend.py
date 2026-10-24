@@ -41,6 +41,14 @@ _CACHE_CAPACITY = 48
 
 FIELDS = ['type','activation','anchor_x','anchor_y','launch_speed','angle_deg','acceleration','duration_s']
 ABILITIES = ('bounce', 'thrust', 'lift', 'glide', 'roll', 'attach', 'tether', 'hinge', 'push_pull')
+# Identity (docs/interpret-contract.md): what the drawing IS. Puzzles check these traits, never the name,
+# so a gatekeeper takes an apple and a banana alike because both are edible. Unity adds material-implied traits.
+MATERIALS = ('wood','stone','metal','rubber','cloth','paper','glass','ice','jelly','plant','flesh','cloud')
+TRAITS = ('glows','hot','cold','wet','flammable','fireproof','waterproof',
+          'floats','lighter_than_air','bouncy','slippery','sticky','soft','fragile','sharp','conductive','magnetic',
+          'alive','edible','hostile','friendly','noisy','smelly',
+          'climbable','rideable','holdable','container')
+MAX_TRAITS = 8
 # width_m is the sixteenth universal attribute and remains at top level for compatibility.
 ATTR_BOUNDS = {
     'mass_kg': (0.5,20,3), 'load_capacity_kg': (0,20,8),
@@ -72,10 +80,14 @@ PART_SCHEMA = {'type':'object','properties':{
 SCHEMA = {'type':'object','properties':{
     'status':{'type':'string','enum':['ok','rejected']},
     'name':{'type':'string'}, 'message':{'type':'string'},
+    'adjectives':{'type':'array','items':{'type':'string'}},
+    'material':{'type':'string','enum':list(MATERIALS)},
+    'traits':{'type':'array','items':{'type':'string','enum':list(TRAITS)}},
     'width_m':{'type':'number'}, 'components':{'type':'array','items':PART_SCHEMA},
     'attributes':{'type':'object','properties':{k:{'type':'integer' if k == 'direction_deg' else 'number'} for k in ATTR_BOUNDS},
                  'required':list(ATTR_BOUNDS),'additionalProperties':False}
-},'required':['status','name','message','width_m','components','attributes'],'additionalProperties':False}
+},'required':['status','name','message','adjectives','material','traits','width_m','components','attributes'],
+   'additionalProperties':False}
 
 
 def clamp(value, lo, hi, default):
@@ -143,8 +155,27 @@ def validate(raw):
             a['duration_s']=0
         result.append(a)
     if status == 'rejected': result = [support()]
-    return {'status':status,'name':name,'message':message,'width_m':width,
+    return {'status':status,'name':name,'message':message,**identity(raw),'width_m':width,
             'components':result,'attributes':attributes(raw.get('attributes'),width)}
+
+
+def words(value):
+    """Lower-case strings from a list, with spaces or hyphens folded to underscores."""
+    if isinstance(value, str): value = [value]
+    if not isinstance(value, list): return []
+    return [re.sub(r'[\s-]+','_',str(v).strip().lower()) for v in value if isinstance(v,(str,int,float))]
+
+
+def identity(raw):
+    # Unknown words are dropped, not errors; Unity checks the same vocabulary again.
+    material = (words(raw.get('material')) or ['wood'])[0]
+    traits = []
+    for trait in words(raw.get('traits')):
+        if trait in TRAITS and trait not in traits: traits.append(trait)
+    if 'hot' in traits and 'cold' in traits: traits.remove('cold')
+    adjectives = [a.replace('_',' ')[:24] for a in words(raw.get('adjectives'))][:4]
+    return {'adjectives':adjectives,'material':material if material in MATERIALS else 'wood',
+            'traits':traits[:MAX_TRAITS]}
 
 
 def ink_cost(output):
@@ -162,10 +193,35 @@ def ink_cost(output):
     return int(clamp(round(cost),5,100,5))
 
 
+FAKE_FOODS = ('apple','banana','sandwich','pizza','carrot')
+# THINKINK_FAKE_SEQUENCE=bridge,bridge,apple makes fake mode answer each BUILD in turn (then repeats), so a
+# whole route can be played in Unity without a key. Unset: fixtures are chosen from the goal and intent text.
+_FAKE_SEQUENCE = [s.strip() for s in os.getenv('THINKINK_FAKE_SEQUENCE','').split(',') if s.strip()]
+_FAKE_STEP = [0]
+
+
+def next_fake_text(text):
+    if not _FAKE_SEQUENCE: return text
+    with _CACHE_LOCK:
+        step = _FAKE_SEQUENCE[_FAKE_STEP[0] % len(_FAKE_SEQUENCE)]
+        _FAKE_STEP[0] += 1
+    return step
+
+
 def fake_demo(goal):
     """Deterministic integration fixtures for testing Unity, NOT image recognition."""
     goal = goal.lower()
-    if 'bird' in goal or 'eagle' in goal:
+    food = next((f for f in FAKE_FOODS if f in goal), None)
+    if food:
+        spec = {'status':'ok','name':food,'message':f'A {food}! Someone hungry will love this.',
+                'material':'plant','traits':['edible'],'width_m':0.8,'components':[support()]}
+    elif 'bridge' in goal or 'plank' in goal:
+        spec = {'status':'ok','name':'rope bridge','message':'A rope bridge. Walk across!',
+                'material':'wood','traits':['climbable'],'width_m':5,'components':[support()]}
+    elif 'blank' in goal:
+        spec = {'status':'rejected','name':'','message':'The board looks blank. Draw something!',
+                'components':[support()]}
+    elif 'bird' in goal or 'eagle' in goal:
         large = 'large' in goal or 'giant' in goal or 'eagle' in goal
         width = 4.2 if large else 1.1
         spec = {'status':'ok','name':'giant bird' if large else 'tiny bird',
@@ -323,18 +379,20 @@ def model_call(image_b64, goal, timeout, intent="", intent_mode="auto", mime="im
     key = os.getenv('BITDEER_API_KEY','').strip()
     if not key:
         raise RuntimeError('BITDEER_API_KEY is not set.')
-    prompt_text = ('Puzzle goal: ' + goal + '\n'
+    # The image goes first and the goal last, as a tie-breaker: read first, the goal leaks into recognition
+    # ("get across the gap" turns every drawing into a bridge; docs/interpret-prompt.md).
+    prompt_text = ('Identify the drawing first. Analyze it, including functional clues, labels, and arrows.\n'
                    'Creator intended action: ' + (intent or 'not supplied') + '\n'
                    'Creator selected mechanic: ' + intent_mode + '\n'
-                   'Analyze the drawing, including functional clues, labels, and arrows. '
+                   'Puzzle goal (tie-breaker only, never changes what was drawn): ' + goal + '\n'
                    'Return only the required JSON. /no_think')
     body = {
         'model': MODEL,
         'messages': [
             {'role':'system','content':PROMPT},
             {'role':'user','content':[
-                {'type':'text','text':prompt_text},
-                {'type':'image_url','image_url':{'url':f'data:{mime};base64,{image_b64}'}}
+                {'type':'image_url','image_url':{'url':f'data:{mime};base64,{image_b64}'}},
+                {'type':'text','text':prompt_text}
             ]}
         ],
         'max_tokens':max(650,min(2200,int(os.getenv('BITDEER_MAX_TOKENS','1100')))),
@@ -446,7 +504,7 @@ def interpret(req):
         print('[Vision] Inference cache hit',flush=True)
     elif FAKE:
         # Only verifies wiring; does NOT recognize the picture.
-        spec = fake_demo(goal + ' ' + intent)
+        spec = fake_demo(next_fake_text(goal + ' ' + intent))
     else:
         image_b64, mime, image_info = prepare_vision_image(raw_image)
         print(f'[Vision] Sending cropped image: {image_info}, mode={intent_mode}',flush=True)
@@ -471,7 +529,7 @@ def interpret(req):
             while len(_CACHE) > _CACHE_CAPACITY:
                 _CACHE.popitem(last=False)
     if spec is None:
-        spec = {'status':'error','name':'','message':'AI unavailable. Try again.',
+        spec = {'status':'error','name':'','message':'AI unavailable. Try again.',**identity({}),
                 'width_m':0.5,'components':[support()], 'attributes':attributes({},0.5)}
     spec.update(base)
     spec['ink_cost'] = ink_cost(spec)
@@ -507,7 +565,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as err:
             print(f'[Backend] unexpected failure: {err}',flush=True)
             return self.reply(200,{'status':'error','message':'AI unavailable. Try again.',
-                                   'name':'','width_m':0.5,'components':[support()], 'attributes':attributes({},0.5),
+                                   'name':'',**identity({}),'width_m':0.5,'components':[support()], 'attributes':attributes({},0.5),
                                    'capture_id':body.get('capture_id','') if isinstance(body,dict) else '',
                                    'run_id':body.get('run_id',0) if isinstance(body,dict) else 0,
                                    'ink_cost':0,'provider':'bitdeer','latency_ms':0})
@@ -515,7 +573,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print(f'ThinkInk backend listening on http://127.0.0.1:8000, model={MODEL}, fake={FAKE}',flush=True)
-    ThreadingHTTPServer(('127.0.0.1',8000),Handler).serve_forever()
+    port = int(os.getenv('THINKINK_PORT', '8000'))
+    print(f'ThinkInk backend listening on http://127.0.0.1:{port}, model={MODEL}, fake={FAKE}',flush=True)
+    ThreadingHTTPServer(('127.0.0.1',port),Handler).serve_forever()
 
 if __name__=='__main__': main()
