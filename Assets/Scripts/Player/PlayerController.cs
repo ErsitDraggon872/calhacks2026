@@ -34,6 +34,8 @@ namespace CalHacks
 
         CharacterController controller;
         float verticalVelocity;
+        // The last fall speed in the air: the ground ray snaps verticalVelocity to -2 just before touchdown.
+        float airVelocity;
         float jumpPressedAt = float.NegativeInfinity;
         Vector3 visualScale = Vector3.one;
         Vector3 visualPosition;
@@ -125,6 +127,7 @@ namespace CalHacks
             else
             {
                 verticalVelocity -= gravity * Time.deltaTime;
+                airVelocity = verticalVelocity;
             }
 
             // In the air, and on normal ground, walking speed changes instantly; on a slippery build it slides.
@@ -137,7 +140,11 @@ namespace CalHacks
             // Bumped a ceiling: start falling instead of sticking to it.
             if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
             var landed = (flags & CollisionFlags.Below) != 0;
-            if (landed) ground = standingOn;
+            if (landed)
+            {
+                ground = standingOn;
+                airVelocity = 0f;
+            }
             FollowDrawingPlane(landed);
 
             if (move.x > 0.1f) SetFacing(1f);
@@ -148,6 +155,14 @@ namespace CalHacks
         // under the capsule gives a tilted normal); walls don't.
         void OnControllerColliderHit(ControllerColliderHit hit)
         {
+            // Andy's stomp: a real downward landing squashes a small living cutout into paper confetti.
+            // Stepping onto a freshly built one doesn't.
+            var motion = hit.collider.GetComponentInParent<InventionMotion>();
+            if (motion != null && motion.TrySquash(Mathf.Min(verticalVelocity, airVelocity), hit))
+            {
+                Launch(new Vector3(0f, 2.5f, 0f));
+                return;
+            }
             var ability = hit.collider.GetComponentInParent<InventionPhysics>();
             if (ability != null)
             {
