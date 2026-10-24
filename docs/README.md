@@ -22,6 +22,8 @@ The high-ledge build slot is still in the level, but it's off the rehearsed rout
 | Gatekeeper decides on `edible` | Burning, extinguishing, floating, cutting, conductivity |
 | "Apple → food → lets you through" card | Approve screen with ghost placement |
 | Surface traits (`bouncy`, `slippery`, `sticky`) as a possible extra | `bounce`, `thrust`, `emit` (non-light) and `explode` components |
+| | Grappling rope (`tether`): cut |
+| | Andy's in-Unity drawing pad (`DigitalDrawingCanvas`): dropped; Henry's SpacetimeDB browser whiteboard covers digital drawing |
 
 Unity still parses the deferred parts. Anything it can't run yet is built as a plain solid in the drawn shape: a rocket is a rocket-shaped solid.
 
