@@ -90,7 +90,8 @@ namespace CalHacks.EditorTools
             var puzzles = new GameObject("Puzzles").transform;
             Place("GapSocket", puzzles, new Vector3(12.3f, 0f, 0f)); // its Hint says "Too far to jump!"
             Place("Checkpoint", puzzles, new Vector3(17f, 0f, 0.5f)).name = "Checkpoint 1";
-            AddHint(puzzles, "Hint High Ledge", new Vector3(22.5f, 0f, -0.5f), new Vector3(30f, 2f, 3f), "Too high to climb!");
+            AddHint(puzzles, "Hint High Ledge", new Vector3(22.5f, 0f, -0.5f), new Vector3(30f, 2f, 3f), "Too high to climb!",
+                buildGhost: true);
             Place("Exit", puzzles, new Vector3(38f, 4f, 0.5f));
             GoalFlag(puzzles, new Vector3(39.3f, 4f, 1.8f));
 
@@ -147,13 +148,16 @@ namespace CalHacks.EditorTools
             return go;
         }
 
-        /// <summary>A HintZone trigger filling <paramref name="min"/>..<paramref name="max"/>.</summary>
-        static void AddHint(Transform parent, string name, Vector3 min, Vector3 max, string text)
+        /// <summary>
+        /// A HintZone trigger filling <paramref name="min"/>..<paramref name="max"/>. <paramref name="buildGhost"/>: a
+        /// free-build obstacle, so the build ghost shows while B is inside.
+        /// </summary>
+        static void AddHint(Transform parent, string name, Vector3 min, Vector3 max, string text, bool buildGhost = false)
         {
             var go = Place("HintZone", parent, (min + max) * 0.5f);
             go.name = name;
             go.GetComponent<BoxCollider>().size = max - min;
-            GameAssetBuilder.Fields(go.GetComponent<HintZone>(), ("text", text));
+            GameAssetBuilder.Fields(go.GetComponent<HintZone>(), ("text", text), ("showBuildGhost", buildGhost));
         }
 
         /// <summary>Goal flag on the island: looks only, no colliders (the Exit trigger next to it wins).</summary>

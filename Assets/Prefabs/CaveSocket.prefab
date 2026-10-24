@@ -186,6 +186,7 @@ MonoBehaviour:
   text: It's too dark to go in there.
   socket: {fileID: 4985465913824555197}
   cooldown: 8
+  showBuildGhost: 0
 --- !u!1 &7429357995221293854
 GameObject:
   m_ObjectHideFlags: 0

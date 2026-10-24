@@ -75,11 +75,11 @@ The request/response contract is in `docs/interpret-contract.md`: `POST /interpr
 Prove each step end to end before widening it.
 1. **Camera → cutout** *(done)*: webcam preview (P), Enter → frame → cutout, cooldown replaces NEW BOARD.
    - Done when five different black-marker drawings become recognisable, correctly oriented cutouts in the **standalone build**, and repeated Enter presses and F5 don't break it. Every label is still `unknown`.
-2. **Side-view world + drawings you can stand on** *(current step)*: the Paper Mario camera (tight opening on the gap, wide after the first build), paper B with Space jump, and the demo level greybox (start ledge, gap, hub, high ledge, floating island).
+2. **Side-view world + drawings you can stand on** *(current step)*: the Paper Mario camera (tight opening on the gap; at the first checkpoint it pulls out to show the world, then back), paper B with Space jump, and the demo level greybox (start ledge, gap, hub, high ledge, floating island).
    BUILD at the gap still snaps across it. Anywhere else it's a free build: a Support at a fixed size (3 × 2.5 m box, aspect kept), its silhouette extruded 2 m deep, standing just in front of B. No labels needed.
    - Done when a free build is standable at several depths, the high ledge is reachable with one invention plus a jump, the island is reachable by stacking and the flag wins, and F5 resets inventions, camera and gap.
 3. **One drawing → one ability → one obstacle:** `HttpInterpreter` plus a fake backend; the interpreted `support` component drives the invention.
-4. Approve screen with ghost placement; Ink bar and pickups.
+4. Approve screen with ghost placement; Ink bar and pickups. Make free-build placement more intuitive here (step 2's "beside B, on the side B faces" is hard to read and can clip into the level): snap to the obstacle or let the player nudge or confirm the spot, and keep step 2's build ghost (orange outline in free-build hint zones, G toggles) showing the real landing spot.
 5. `bounce`, then `thrust` (with `contact` / `button` activation).
 6. Plane lock while riding; B's E.
 7. The rideable controller (mount, E to fire, A/D steer midair, Space to dismount).

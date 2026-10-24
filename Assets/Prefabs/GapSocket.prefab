@@ -380,3 +380,4 @@ MonoBehaviour:
   text: Too far to jump!
   socket: {fileID: 7409049749128913591}
   cooldown: 8
+  showBuildGhost: 0

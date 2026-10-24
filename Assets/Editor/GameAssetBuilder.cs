@@ -63,6 +63,10 @@ namespace CalHacks.EditorTools
             AlphaClip("PlayerPaper", SaveTexture(paper, "PlayerPaper"), Color.white);
 
             // Dashed "draw here" outline at the gap, sized like GapSocket's DrawHere quad (4.6 x 2.2 m).
+            // The same outline for the build ghost, sized like the largest invention (GameConfig.inventionSize, 3 x 2.5 m)
+            // at the same pixels per metre, so the dashes match.
+            AlphaClip("BuildGhost", SaveTexture(MockDrawingGenerator.DrawHereOutline(682, 568), "BuildGhost"),
+                new Color(1f, 0.62f, 0.15f));
             AlphaClip("DrawHere", SaveTexture(MockDrawingGenerator.DrawHereOutline(1046, 500), "DrawHere"),
                 new Color(1f, 0.62f, 0.15f));
 
@@ -225,7 +229,13 @@ namespace CalHacks.EditorTools
                 new Vector3(width, height, 1f), "PlayerPaper");
             quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
 
+            // Build ghost: outside Visual, so it doesn't flip; BuildGhost places and sizes it every frame.
+            var ghost = root.AddComponent<BuildGhost>();
+            var outline = Visual(PrimitiveType.Quad, "BuildGhost", root.transform, Vector3.zero, Vector3.one, "BuildGhost");
+            outline.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+
             Fields(controller, ("config", config), ("visual", visual.transform));
+            Fields(ghost, ("config", config), ("outline", outline.transform));
             return root;
         }
 

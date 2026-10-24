@@ -69,3 +69,4 @@ MonoBehaviour:
   text: Something is in the way.
   socket: {fileID: 0}
   cooldown: 8
+  showBuildGhost: 0

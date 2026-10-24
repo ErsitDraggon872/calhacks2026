@@ -8,6 +8,7 @@ How the Unity half is put together, for Wesley, Henry, Andy and Person 4. The sp
 |---|---|
 | Enter (main or numpad) | BUILD (`Cast` action). Next to an unsolved socket the drawing goes to it; anywhere else it's a free build (see below). A 3 s cooldown starts once the cutout or invention appears, shown bottom right; a capture in flight also blocks it |
 | P | Live webcam preview (camera setup) |
+| G | Toggle the build ghost (on by default) |
 | Space | Player B jump (about 1.2 m, `GameConfig.jumpHeight`; only when grounded) |
 | Backspace | Reserved: reject during Approve (NEW BOARD is gone) |
 | F5 | Reset level |
@@ -39,7 +40,9 @@ How the Unity half is put together, for Wesley, Henry, Andy and Person 4. The sp
 BUILD with no unsolved socket within 5 m makes an `Invention` (every one is a Support for now; labels are ignored).
 - **Size is fixed:** each drawing is fitted inside `GameConfig.inventionSize` (3 × 2.5 m), keeping its aspect. How big it was drawn on the board doesn't matter.
 - **Placement** (until the Approve/placement step exists): it stands at B's feet height and depth, on the side B faces, with 0.4 m clear between B and its near edge (`InventionPlacement`).
-- **Flat to look at, thick to stand on:** the visual is a camera-facing `Cutout`. The colliders are the paper silhouette rebuilt from 0.15 m cells (`GameConfig.inventionCell`, `SilhouetteBoxes`), each `GameConfig.inventionDepth` (2 m) deep along Z and centred on the drawing. What you see is what you stand on, so hollow shapes are hollow and a diagonal line is a staircase.
+- **Build ghost:** an orange dashed outline (the gap's "draw here" look) of the largest invention, exactly where the next free build will land, so whatever is drawn ends up inside it (`BuildGhost` on the Player, `InventionPlacement.GhostBottomCentre`). It only shows while B is inside a `HintZone` with `showBuildGhost` on, which the level builder sets for "Too high to climb!" only. Socket hints stay off, because sockets have their own outline. G toggles it (`RunManager.BuildGhostVisible`).
+- **Follow-up: make placement more intuitive.** "Beside B, on the side B faces" is hard to read and can put a build inside the ledge, because nothing checks for level geometry. Revisit this with the Approve step: snap to the obstacle, let the player nudge or confirm the spot, and keep the ghost showing the real landing spot.
+- **Flat to look at, thick to stand on:** the visual is a camera-facing `Cutout`. The colliders are the paper silhouette rebuilt from 0.15 m cells (`GameConfig.inventionCell`, `SilhouetteBoxes`), each `GameConfig.inventionDepth` (2 m) deep along Z and centred on the drawing. What you see is what you stand on: the paper cutout has no holes (`PaperTexture.MakePaper` fills enclosed areas), so an outlined shape is solid, and a diagonal line is a staircase.
 - **Stacking:** building while standing on an invention puts the next one at that height, floating beside you.
 - F5 removes every invention. The F3 overlay shows how many there are.
 

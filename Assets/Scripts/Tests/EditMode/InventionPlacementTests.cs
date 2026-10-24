@@ -46,6 +46,27 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void EveryFittedBuildLandsInsideTheGhost()
+        {
+            var box = new Vector2(3f, 2.5f);
+            foreach (var facing in new[] { 1f, -1f })
+            {
+                var ghost = InventionPlacement.GhostBottomCentre(Feet, facing, Radius, box);
+                foreach (var (w, h) in new[] { (400, 100), (100, 400), (300, 250), (1, 1), (1000, 10) })
+                {
+                    var size = InventionPlacement.FitInside(w, h, box);
+                    var p = InventionPlacement.BottomCentre(Feet, facing, Radius, size.x);
+                    var msg = $"facing {facing}, drawing {w}x{h}";
+                    Assert.GreaterOrEqual(p.x - size.x * 0.5f, ghost.x - box.x * 0.5f - 1e-4f, msg);
+                    Assert.LessOrEqual(p.x + size.x * 0.5f, ghost.x + box.x * 0.5f + 1e-4f, msg);
+                    Assert.AreEqual(ghost.y, p.y, 1e-4f, msg);
+                    Assert.AreEqual(ghost.z, p.z, 1e-4f, msg);
+                    Assert.LessOrEqual(size.y, box.y + 1e-4f, msg);
+                }
+            }
+        }
+
+        [Test]
         public void FitKeepsAspectInsideTheBox()
         {
             var box = new Vector2(3f, 2.5f);

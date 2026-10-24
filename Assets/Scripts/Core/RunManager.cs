@@ -50,6 +50,8 @@ namespace CalHacks
         public float FinalTime { get; private set; }
         public bool OverlayVisible { get; private set; }
         public bool PreviewVisible { get; private set; }
+        /// <summary>The build ghost outline in free-build hint zones. On by default; G toggles.</summary>
+        public bool BuildGhostVisible { get; private set; } = true;
         public string VisionName => vision?.Name ?? "-";
         public string LastProvider { get; private set; }
         public float LastLatencyMs { get; private set; } = -1f;
@@ -115,6 +117,7 @@ namespace CalHacks
             Bind(GameInput.ManualReject, _ => ManualReject());
             Bind(GameInput.DebugOverlay, _ => OverlayVisible = !OverlayVisible);
             Bind(GameInput.CameraPreview, _ => PreviewVisible = !PreviewVisible);
+            Bind(GameInput.BuildGhost, _ => BuildGhostVisible = !BuildGhostVisible);
             Bind(GameInput.Recalibrate, _ => Recalibrate());
             Bind(GameInput.MockPick, control => PickMockDrawing(control as KeyControl));
         }

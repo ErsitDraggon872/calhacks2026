@@ -23,6 +23,13 @@ namespace CalHacks
         }
 
         /// <summary>
+        /// Bottom-centre of the build ghost: the largest invention, <paramref name="box"/>. Every drawing is fitted
+        /// inside the box and placed with its near edge at the same spot, so whatever is drawn lands inside the ghost.
+        /// </summary>
+        public static Vector3 GhostBottomCentre(Vector3 feet, float facingSign, float playerRadius, Vector2 box) =>
+            BottomCentre(feet, facingSign, playerRadius, box.x);
+
+        /// <summary>
         /// Largest size with the drawing's aspect (<paramref name="width"/> / <paramref name="height"/> pixels) that fits
         /// inside <paramref name="box"/>. How big it was drawn doesn't matter, only its shape.
         /// </summary>
