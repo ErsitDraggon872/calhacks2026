@@ -45,25 +45,122 @@ namespace CalHacks.Tests
             }
         }
 
+        // The level's high-ledge slot: 3 x 1.2 m against the ledge's left face (x 24), at the ledge's depth.
+        static readonly Vector3 SlotBottom = new Vector3(22.5f, 0f, 1.75f);
+        static readonly Vector2 SlotBox = BuildSlot.DefaultBox;
+        static readonly (int w, int h)[] Drawings = { (400, 100), (100, 400), (300, 250), (1, 1), (1000, 10), (250, 300) };
+
         [Test]
-        public void EveryFittedBuildLandsInsideTheGhost()
+        public void EveryFittedSlotBuildLandsInsideTheGhost()
         {
-            var box = new Vector2(3f, 2.5f);
-            foreach (var facing in new[] { 1f, -1f })
+            foreach (var align in new[] { 1f, -1f, 0f })
+            foreach (var (w, h) in Drawings)
             {
-                var ghost = InventionPlacement.GhostBottomCentre(Feet, facing, Radius, box);
-                foreach (var (w, h) in new[] { (400, 100), (100, 400), (300, 250), (1, 1), (1000, 10) })
-                {
-                    var size = InventionPlacement.FitInside(w, h, box);
-                    var p = InventionPlacement.BottomCentre(Feet, facing, Radius, size.x);
-                    var msg = $"facing {facing}, drawing {w}x{h}";
-                    Assert.GreaterOrEqual(p.x - size.x * 0.5f, ghost.x - box.x * 0.5f - 1e-4f, msg);
-                    Assert.LessOrEqual(p.x + size.x * 0.5f, ghost.x + box.x * 0.5f + 1e-4f, msg);
-                    Assert.AreEqual(ghost.y, p.y, 1e-4f, msg);
-                    Assert.AreEqual(ghost.z, p.z, 1e-4f, msg);
-                    Assert.LessOrEqual(size.y, box.y + 1e-4f, msg);
-                }
+                var size = InventionPlacement.FitInside(w, h, SlotBox);
+                var p = InventionPlacement.SlotBottomCentre(SlotBottom, SlotBox, size, align);
+                var msg = $"align {align}, drawing {w}x{h}";
+                Assert.GreaterOrEqual(p.x - size.x * 0.5f, SlotBottom.x - SlotBox.x * 0.5f - 1e-4f, msg);
+                Assert.LessOrEqual(p.x + size.x * 0.5f, SlotBottom.x + SlotBox.x * 0.5f + 1e-4f, msg);
+                Assert.AreEqual(SlotBottom.y, p.y, 1e-4f, msg);
+                Assert.AreEqual(SlotBottom.z, p.z, 1e-4f, msg);
+                Assert.LessOrEqual(size.y, SlotBox.y + 1e-4f, msg);
             }
+        }
+
+        [Test]
+        public void SlotBuildTouchesTheSideItIsPushedTo()
+        {
+            foreach (var (w, h) in Drawings)
+            {
+                var size = InventionPlacement.FitInside(w, h, SlotBox);
+                var right = InventionPlacement.SlotBottomCentre(SlotBottom, SlotBox, size, 1f);
+                Assert.AreEqual(SlotBottom.x + SlotBox.x * 0.5f, right.x + size.x * 0.5f, 1e-4f, $"drawing {w}x{h}");
+                var left = InventionPlacement.SlotBottomCentre(SlotBottom, SlotBox, size, -1f);
+                Assert.AreEqual(SlotBottom.x - SlotBox.x * 0.5f, left.x - size.x * 0.5f, 1e-4f, $"drawing {w}x{h}");
+            }
+        }
+
+        [Test]
+        public void AlmostAnyDrawingMakesAStepOntoTheHighLedge()
+        {
+            // Measured with B's CharacterController: from the floor it lands on steps up to 1.6 m, and from a step of
+            // 0.7 m or more it reaches the 2.3 m ledge. Anything up to 4:1 wide (or any tall shape) fits that window.
+            foreach (var (w, h) in new[] { (400, 100), (100, 400), (300, 250), (1, 1), (250, 300), (1, 20) })
+            {
+                var size = InventionPlacement.FitInside(w, h, SlotBox);
+                Assert.That(size.y, Is.InRange(0.7f, 1.6f), $"drawing {w}x{h}");
+            }
+        }
+
+        static readonly Bounds Floor = Box(new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f));
+        static readonly Bounds Ledge = Box(new Vector3(24f, 0f, 0.5f), new Vector3(30f, 2.3f, 3f));
+        static readonly Bounds FrontEdge = Box(new Vector3(14.6f, 0f, -2.4f), new Vector3(40f, 8f, -2f));
+
+        static Bounds Box(Vector3 min, Vector3 max)
+        {
+            var b = new Bounds();
+            b.SetMinMax(min, max);
+            return b;
+        }
+
+        [Test]
+        public void RestingOnTheFloorIsNotAnOverlap()
+        {
+            var build = InventionPlacement.BuildBounds(new Vector3(20f, 0f, 1f), new Vector2(3f, 2.5f), 2f);
+            Assert.IsFalse(InventionPlacement.Overlaps(build, Floor));
+            Assert.IsTrue(InventionPlacement.ClearSpot(build, new[] { Floor, Ledge, FrontEdge }, 1f, out var shift));
+            Assert.AreEqual(Vector3.zero, shift);
+        }
+
+        [Test]
+        public void BuildInsideTheLedgeMovesOutOfIt()
+        {
+            var obstacles = new[] { Floor, Ledge, FrontEdge };
+            // B at the back of the hub, right of the ledge, facing it: today's spot is inside the ledge.
+            foreach (var z in new[] { 0.5f, 1.5f, 2.5f })
+            {
+                var feet = new Vector3(31f, 0.05f, z);
+                var size = new Vector2(3f, 2.5f);
+                var bottom = InventionPlacement.BottomCentre(feet, -1f, Radius, size.x);
+                var build = InventionPlacement.BuildBounds(bottom, size, 2f);
+                Assert.IsTrue(InventionPlacement.Overlaps(build, Ledge), $"z {z}: setup");
+                Assert.IsTrue(InventionPlacement.ClearSpot(build, obstacles, -1f, out var shift), $"z {z}");
+                var moved = new Bounds(build.center + shift, build.size);
+                foreach (var obstacle in obstacles) Assert.IsFalse(InventionPlacement.Overlaps(moved, obstacle), $"z {z}");
+                Assert.LessOrEqual(shift.z, 0f, $"z {z}: only toward the camera");
+                Assert.LessOrEqual(shift.x, 0f, $"z {z}: only further from B");
+            }
+        }
+
+        [Test]
+        public void ClearSpotPrefersTheSmallestMove()
+        {
+            // Just poking into the ledge's front face: a small step toward the camera clears it.
+            var build = InventionPlacement.BuildBounds(new Vector3(26f, 0f, -0.3f), new Vector2(2f, 1f), 2f);
+            Assert.IsTrue(InventionPlacement.ClearSpot(build, new[] { Floor, Ledge, FrontEdge }, 1f, out var shift));
+            Assert.AreEqual(0f, shift.x, 1e-4f);
+            Assert.AreEqual(-0.25f, shift.z, 1e-4f);
+        }
+
+        [Test]
+        public void NoRoomMeansNoBuild()
+        {
+            var build = InventionPlacement.BuildBounds(new Vector3(0f, 0f, 0f), new Vector2(1f, 1f), 1f);
+            var wall = Box(new Vector3(-20f, -1f, -20f), new Vector3(20f, 5f, 20f));
+            Assert.IsFalse(InventionPlacement.ClearSpot(build, new[] { wall }, 1f, out var shift));
+            Assert.AreEqual(Vector3.zero, shift);
+        }
+
+        [Test]
+        public void LiftsOnlyAPlayerTheBuildAppearedAround()
+        {
+            var step = Box(new Vector3(21f, 0f, 0.5f), new Vector3(24f, 1.2f, 3f));
+            var inside = new Bounds(new Vector3(23f, 1.05f, 2.5f), new Vector3(0.8f, 2f, 0.8f));
+            Assert.AreEqual(1.2f, InventionPlacement.LiftTo(inside, new[] { step }).Value, 1e-4f);
+            var beside = new Bounds(new Vector3(19f, 1.05f, 2.5f), new Vector3(0.8f, 2f, 0.8f));
+            Assert.IsNull(InventionPlacement.LiftTo(beside, new[] { step }));
+            var onTop = new Bounds(new Vector3(23f, 2.25f, 2.5f), new Vector3(0.8f, 2f, 0.8f));
+            Assert.IsNull(InventionPlacement.LiftTo(onTop, new[] { step }));
         }
 
         [Test]

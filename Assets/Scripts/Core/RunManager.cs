@@ -261,7 +261,10 @@ namespace CalHacks
             }
         }
 
-        /// <summary>Stands the drawing just in front of the explorer, on the side they face. False if nothing was built.</summary>
+        /// <summary>
+        /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
+        /// front of them on the side they face, moved out of the level's geometry. False if nothing was built.
+        /// </summary>
         bool PlaceInvention(Texture2D paper)
         {
             if (player == null || inventionMaterial == null)
@@ -270,13 +273,71 @@ namespace CalHacks
                 Destroy(paper);
                 return false;
             }
-            var size = InventionPlacement.FitInside(paper.width, paper.height, config.inventionSize);
-            var bottom = InventionPlacement.BottomCentre(player.transform.position, player.FacingSign, player.Radius, size.x);
-            var invention = Invention.Create(paper, config.inventionSize, bottom, config.inventionDepth, inventionMaterial,
-                inventionRoot, config.inventionCell);
+            var feet = player.transform.position;
+            var slot = BuildSlot.At(feet);
+            var box = slot != null ? slot.Box : config.inventionSize;
+            var depth = slot != null ? slot.Depth : config.inventionDepth;
+            var size = InventionPlacement.FitInside(paper.width, paper.height, box);
+            Vector3 bottom;
+            if (slot != null)
+            {
+                bottom = slot.BottomCentreFor(size);
+                RemoveInvention(slot.Occupant);
+            }
+            else
+            {
+                bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
+                var build = InventionPlacement.BuildBounds(bottom, size, depth);
+                if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
+                {
+                    Destroy(paper);
+                    Subtitles.ShowNow("No room to build here!");
+                    return false;
+                }
+                bottom += shift;
+            }
+
+            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
             inventions.Add(invention);
-            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}");
+            if (slot != null) slot.Occupant = invention;
+            LiftPlayerOnto(invention);
+            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
             return true;
+        }
+
+        /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
+        List<Bounds> ObstaclesAround(Bounds build)
+        {
+            var reach = InventionPlacement.MaxShift + 1f;
+            var hits = Physics.OverlapBox(build.center, build.extents + new Vector3(reach, 1f, reach), Quaternion.identity,
+                Physics.AllLayers, QueryTriggerInteraction.Ignore);
+            var obstacles = new List<Bounds>(hits.Length);
+            foreach (var hit in hits)
+            {
+                if (hit.GetComponentInParent<PlayerController>() == null) obstacles.Add(hit.bounds);
+            }
+            return obstacles;
+        }
+
+        /// <summary>If the new build appeared around the explorer (a slot build where they stand), puts them on top of it.</summary>
+        void LiftPlayerOnto(Invention invention)
+        {
+            Physics.SyncTransforms();
+            var body = player.GetComponent<Collider>();
+            if (body == null) return;
+            var top = InventionPlacement.LiftTo(body.bounds,
+                invention.GetComponentsInChildren<BoxCollider>().Select(box => box.bounds));
+            if (top == null) return;
+            var feet = player.transform.position;
+            player.Teleport(new Vector3(feet.x, top.Value + 0.05f, feet.z),
+                Quaternion.LookRotation(Vector3.right * player.FacingSign));
+        }
+
+        void RemoveInvention(Invention invention)
+        {
+            if (invention == null) return;
+            inventions.Remove(invention);
+            Destroy(invention.gameObject);
         }
 
         void ClearInventions()

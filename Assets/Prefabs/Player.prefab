@@ -128,7 +128,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5474f0d2e3f884469bdba6ef4bcf75e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game::CalHacks.BuildGhost
-  config: {fileID: 11400000, guid: 87f0dbeabbfa0904cbd55de4cb393002, type: 2}
   outline: {fileID: 344342169168654768}
 --- !u!1 &3017712471856496158
 GameObject:

@@ -90,8 +90,11 @@ namespace CalHacks.EditorTools
             var puzzles = new GameObject("Puzzles").transform;
             Place("GapSocket", puzzles, new Vector3(12.3f, 0f, 0f)); // its Hint says "Too far to jump!"
             Place("Checkpoint", puzzles, new Vector3(17f, 0f, 0.5f)).name = "Checkpoint 1";
-            AddHint(puzzles, "Hint High Ledge", new Vector3(22.5f, 0f, -0.5f), new Vector3(30f, 2f, 3f), "Too high to climb!",
-                buildGhost: true);
+            AddHint(puzzles, "Hint High Ledge", new Vector3(20f, 0f, -2f), new Vector3(30f, 2f, 3f), "Too high to climb!");
+            // A build made anywhere on the floor near the ledge lands as a step against its left face, at the ledge's
+            // depth (the ghost shows the box). 3 x 1.2 m keeps almost any fitted drawing a 0.7-1.6 m step: jump on, jump off.
+            AddBuildSlot(puzzles, "Build Slot High Ledge", new Vector3(18f, 0f, -2f), new Vector3(30f, 1f, 3f),
+                new Vector3(24f - BuildSlot.DefaultBox.x * 0.5f, 0f, 1.75f), 2.5f);
             Place("Exit", puzzles, new Vector3(38f, 4f, 0.5f));
             GoalFlag(puzzles, new Vector3(39.3f, 4f, 1.8f));
 
@@ -148,16 +151,30 @@ namespace CalHacks.EditorTools
             return go;
         }
 
-        /// <summary>
-        /// A HintZone trigger filling <paramref name="min"/>..<paramref name="max"/>. <paramref name="buildGhost"/>: a
-        /// free-build obstacle, so the build ghost shows while B is inside.
-        /// </summary>
-        static void AddHint(Transform parent, string name, Vector3 min, Vector3 max, string text, bool buildGhost = false)
+        /// <summary>A HintZone trigger filling <paramref name="min"/>..<paramref name="max"/>.</summary>
+        static void AddHint(Transform parent, string name, Vector3 min, Vector3 max, string text)
         {
             var go = Place("HintZone", parent, (min + max) * 0.5f);
             go.name = name;
             go.GetComponent<BoxCollider>().size = max - min;
-            GameAssetBuilder.Fields(go.GetComponent<HintZone>(), ("text", text), ("showBuildGhost", buildGhost));
+            GameAssetBuilder.Fields(go.GetComponent<HintZone>(), ("text", text));
+        }
+
+        /// <summary>
+        /// A <see cref="BuildSlot"/> (box <see cref="BuildSlot.DefaultBox"/>, pushed right) standing on
+        /// <paramref name="slotBottom"/>, <paramref name="depth"/> deep, used while B's on the floor within
+        /// <paramref name="min"/>..<paramref name="max"/>.
+        /// </summary>
+        static void AddBuildSlot(Transform parent, string name, Vector3 min, Vector3 max, Vector3 slotBottom, float depth)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.position = (min + max) * 0.5f;
+            var area = go.AddComponent<BoxCollider>();
+            area.isTrigger = true;
+            area.size = max - min;
+            GameAssetBuilder.Fields(go.AddComponent<BuildSlot>(), ("bottomCentre", slotBottom), ("box", BuildSlot.DefaultBox),
+                ("depth", depth), ("align", 1f));
         }
 
         /// <summary>Goal flag on the island: looks only, no colliders (the Exit trigger next to it wins).</summary>

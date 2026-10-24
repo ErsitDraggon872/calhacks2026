@@ -69,7 +69,6 @@ MonoBehaviour:
   text: 'Villager: I''m sooo hungry... I''d love something fresh from the river.'
   socket: {fileID: 3691424327689087291}
   cooldown: 8
-  showBuildGhost: 0
 --- !u!1 &3941662584564732767
 GameObject:
   m_ObjectHideFlags: 0
