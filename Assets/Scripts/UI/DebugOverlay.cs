@@ -29,7 +29,7 @@ namespace CalHacks
             sb.AppendLine($"Build cooldown: {(s.CooldownRemaining > 0f ? s.CooldownRemaining.ToString("0.0") + " s" : "ready")}   in flight: {(s.InFlight ? "YES" : "no")}");
             if (BoardCamera.Instance != null) sb.AppendLine($"Camera: {BoardCamera.Instance.Status}   (P preview)");
             sb.AppendLine($"Bound socket: {run.BoundSocketId ?? "-"}   nearest in range: {run.NearestSocketId ?? "-"}");
-            sb.AppendLine($"Solved: {run.SolvedSummary}");
+            sb.AppendLine($"Solved: {run.SolvedSummary}   free builds: {run.InventionCount}");
             var h = run.LastHealth;
             sb.AppendLine(run.LastHealthError != null
                 ? $"Health: ERROR {run.LastHealthError}"

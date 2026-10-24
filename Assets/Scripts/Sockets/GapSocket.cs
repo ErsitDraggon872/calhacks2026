@@ -3,8 +3,9 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Tutorial gap: any non-empty drawing becomes the bridge on /capture, without waiting for the label.
-    /// The drawing is stretched to span the gap (Span.x), its top edge at deck level, on both sides of the walkway.
+    /// Tutorial gap: any non-empty drawing becomes the bridge on /capture, without waiting for the label, so the
+    /// first build never fails. The drawing is stretched to span the gap (Span.x), its top edge at deck level, and the
+    /// hidden deck collider is what B walks on. Solving it reveals the world (the camera's Wide framing).
     /// </summary>
     public class GapSocket : PuzzleSocket
     {
@@ -12,20 +13,19 @@ namespace CalHacks
         [SerializeField] GameObject rails;
         [Tooltip("Paper walkway shown with the deck.")]
         [SerializeField] GameObject deckVisual;
+        [Tooltip("Dashed \"draw here\" outline shown until the gap is solved.")]
+        [SerializeField] GameObject drawHint;
         [Tooltip("How far the top of the drawing sits above the deck, so drawn railings stick up.")]
         [SerializeField] float railHeight = 0.4f;
         [Tooltip("Shortest the drawing is squashed to, however wide it is.")]
         [SerializeField] float minHeight = 1f;
-        [Tooltip("Distance from the far face (at the anchor) to the near face of the bridge.")]
-        [SerializeField] float bridgeWidth = 3.2f;
 
         public override SocketType Type => SocketType.Gap;
 
         protected override void Awake()
         {
             base.Awake();
-            if (rails != null) rails.SetActive(false);
-            if (deckVisual != null) deckVisual.SetActive(false);
+            ShowSolved(false);
         }
 
         protected override Cutout CreateCutout(Texture2D texture, bool ownsTexture)
@@ -33,9 +33,7 @@ namespace CalHacks
             var aspect = texture.height > 0 ? (float)texture.width / texture.height : 1f;
             var size = new Vector2(span.x, Mathf.Clamp(span.x / aspect, minHeight, span.y));
             var bottom = anchor.position + Vector3.up * (railHeight - size.y);
-            var cutout = Cutout.Create(texture, ownsTexture, cutoutMaterial, bottom, anchor.eulerAngles.y, size, transform);
-            cutout.AddParallelFace(-bridgeWidth);
-            return cutout;
+            return Cutout.Create(texture, ownsTexture, cutoutMaterial, bottom, anchor.eulerAngles.y, size, transform);
         }
 
         protected override void OnCaptured(CaptureResponse capture)
@@ -45,14 +43,18 @@ namespace CalHacks
 
         protected override void OnSolved()
         {
-            if (rails != null) rails.SetActive(true);
-            if (deckVisual != null) deckVisual.SetActive(true);
+            ShowSolved(true);
+            var follow = FindFirstObjectByType<CameraFollow>();
+            if (follow != null) follow.SetFraming(CameraFraming.Wide);
         }
 
-        protected override void OnReset()
+        protected override void OnReset() => ShowSolved(false);
+
+        void ShowSolved(bool solved)
         {
-            if (rails != null) rails.SetActive(false);
-            if (deckVisual != null) deckVisual.SetActive(false);
+            if (rails != null) rails.SetActive(solved);
+            if (deckVisual != null) deckVisual.SetActive(solved);
+            if (drawHint != null) drawHint.SetActive(!solved);
         }
     }
 }

@@ -9,7 +9,9 @@ using UnityEngine.InputSystem.Controls;
 namespace CalHacks
 {
     /// <summary>
-    /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, checkpoints, reset and win.
+    /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, free builds, checkpoints, reset and win.
+    /// BUILD next to an unsolved socket hands the drawing to that socket; anywhere else it becomes a free-standing
+    /// <see cref="Invention"/> just in front of the explorer.
     /// </summary>
     public class RunManager : MonoBehaviour
     {
@@ -17,8 +19,13 @@ namespace CalHacks
 
         [SerializeField] GameConfig config;
         [SerializeField] PlayerController player;
-        [SerializeField] IsoCameraFollow cameraFollow;
+        [SerializeField] CameraFollow cameraFollow;
         [SerializeField] Transform startPoint;
+        [Tooltip("Base material for free-built inventions (the Cutout material).")]
+        [SerializeField] Material inventionMaterial;
+
+        /// <summary>socket_id sent with a capture that isn't for any socket.</summary>
+        public const string FreeBuildId = "free";
 
         IVisionClient vision;
         MockVisionClient mock;
@@ -28,6 +35,8 @@ namespace CalHacks
         CancellationTokenSource runCts = new CancellationTokenSource();
         CancellationTokenSource requestCts;
         PuzzleSocket boundSocket;
+        readonly List<Invention> inventions = new List<Invention>();
+        Transform inventionRoot;
         Checkpoint currentCheckpoint;
         Vector3 startPosition;
         Quaternion startRotation;
@@ -56,6 +65,7 @@ namespace CalHacks
             ? "-"
             : string.Join(", ", sockets.Select(s => $"{s.SocketId} {(s.Solved ? "✓" : "·")}"));
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
+        public int InventionCount => inventions.Count;
 
         void Awake()
         {
@@ -85,7 +95,8 @@ namespace CalHacks
             checkpoints = FindObjectsByType<Checkpoint>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             hints = FindObjectsByType<HintZone>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (player == null) player = FindFirstObjectByType<PlayerController>();
-            if (cameraFollow == null) cameraFollow = FindFirstObjectByType<IsoCameraFollow>();
+            if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
+            inventionRoot = new GameObject("Inventions").transform;
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
@@ -162,13 +173,8 @@ namespace CalHacks
                     return;
             }
 
+            // An unsolved socket in range gets the drawing (that's how the gap snaps it across itself); otherwise it's a free build.
             var socket = NearestInRange();
-            if (socket == null)
-            {
-                Subtitles.ShowNow("Walk to an obstacle.");
-                return;
-            }
-
             var runId = State.RunId;
             boundSocket = socket;
             State.BeginRequest();
@@ -176,11 +182,11 @@ namespace CalHacks
             var ct = requestCts.Token;
             var request = new CaptureRequest
             {
-                socket_id = socket.SocketId,
+                socket_id = socket != null ? socket.SocketId : FreeBuildId,
                 run_id = runId,
-                accepted_labels = socket.AcceptedLabels ?? Array.Empty<string>(),
+                accepted_labels = socket != null && socket.AcceptedLabels != null ? socket.AcceptedLabels : Array.Empty<string>(),
             };
-            Debug.Log($"[Run] CAST run_id={runId} socket={socket.SocketId}");
+            Debug.Log($"[Run] CAST run_id={runId} socket={request.socket_id}");
 
             try
             {
@@ -207,6 +213,14 @@ namespace CalHacks
                 if (paper == null)
                 {
                     FailRequest("could not decode png_base64");
+                    return;
+                }
+
+                if (socket == null)
+                {
+                    // Free build. Labels are ignored for now: every invention is a Support.
+                    State.EndRequest();
+                    if (PlaceInvention(paper)) State.StartCooldown(config.buildCooldown);
                     return;
                 }
 
@@ -241,6 +255,33 @@ namespace CalHacks
                 Debug.LogException(e);
                 if (State.IsCurrent(runId)) FailRequest(e.Message);
             }
+        }
+
+        /// <summary>Stands the drawing just in front of the explorer, on the side they face. False if nothing was built.</summary>
+        bool PlaceInvention(Texture2D paper)
+        {
+            if (player == null || inventionMaterial == null)
+            {
+                if (inventionMaterial == null) Debug.LogError("[Run] RunManager has no Invention Material; run Game/Build Assets.");
+                Destroy(paper);
+                return false;
+            }
+            var size = InventionPlacement.FitInside(paper.width, paper.height, config.inventionSize);
+            var bottom = InventionPlacement.BottomCentre(player.transform.position, player.FacingSign, player.Radius, size.x);
+            var invention = Invention.Create(paper, config.inventionSize, bottom, config.inventionDepth, inventionMaterial,
+                inventionRoot, config.inventionCell);
+            inventions.Add(invention);
+            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}");
+            return true;
+        }
+
+        void ClearInventions()
+        {
+            foreach (var invention in inventions)
+            {
+                if (invention != null) Destroy(invention.gameObject);
+            }
+            inventions.Clear();
         }
 
         void ApplyLabel(PuzzleSocket socket, string label)
@@ -373,7 +414,7 @@ namespace CalHacks
 
         // ---- Run flow -----------------------------------------------------------------------------------
 
-        /// <summary>F5: new run_id, cancel pending waits, restore every socket and the explorer.</summary>
+        /// <summary>F5: new run_id, cancel pending waits, restore every socket, remove free builds, reset the explorer and the camera.</summary>
         public void ResetRun()
         {
             runCts.Cancel();
@@ -386,6 +427,7 @@ namespace CalHacks
             FinalTime = 0f;
 
             foreach (var socket in sockets) socket.ResetSocket();
+            ClearInventions();
             foreach (var checkpoint in checkpoints) checkpoint.SetReached(false);
             foreach (var hint in hints) hint.ResetHint();
             if (player != null)
@@ -393,7 +435,11 @@ namespace CalHacks
                 player.InputLocked = false;
                 player.Teleport(startPosition, startRotation);
             }
-            if (cameraFollow != null) cameraFollow.Snap();
+            if (cameraFollow != null)
+            {
+                cameraFollow.SetFraming(CameraFraming.Tight, true);
+                cameraFollow.Snap();
+            }
             Subtitles.Clear();
             Debug.Log($"[Run] Reset. run_id={runId}");
         }

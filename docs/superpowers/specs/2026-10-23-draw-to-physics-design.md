@@ -73,10 +73,13 @@ The request/response contract is in `docs/interpret-contract.md`: `POST /interpr
 
 ## Build order
 Prove each step end to end before widening it.
-1. **Camera → cutout** *(current step)*: webcam preview (P), Enter → frame → cutout, cooldown replaces NEW BOARD.
+1. **Camera → cutout** *(done)*: webcam preview (P), Enter → frame → cutout, cooldown replaces NEW BOARD.
    - Done when five different black-marker drawings become recognisable, correctly oriented cutouts in the **standalone build**, and repeated Enter presses and F5 don't break it. Every label is still `unknown`.
-2. **One drawing → one ability → one obstacle:** `HttpInterpreter` plus a fake backend; a `support` component (a collider in the drawn shape) solves the gap.
-3. Approve screen with ghost placement; Ink bar and pickups.
-4. `bounce`, then `thrust` (with `contact` / `button` activation).
-5. Paper Mario camera and plane lock; B's jump and E.
-6. The rideable controller (mount, E to fire, A/D steer midair, Space to dismount).
+2. **Side-view world + drawings you can stand on** *(current step)*: the Paper Mario camera (tight opening on the gap, wide after the first build), paper B with Space jump, and the demo level greybox (start ledge, gap, hub, high ledge, floating island).
+   BUILD at the gap still snaps across it. Anywhere else it's a free build: a Support at a fixed size (3 × 2.5 m box, aspect kept), its silhouette extruded 2 m deep, standing just in front of B. No labels needed.
+   - Done when a free build is standable at several depths, the high ledge is reachable with one invention plus a jump, the island is reachable by stacking and the flag wins, and F5 resets inventions, camera and gap.
+3. **One drawing → one ability → one obstacle:** `HttpInterpreter` plus a fake backend; the interpreted `support` component drives the invention.
+4. Approve screen with ghost placement; Ink bar and pickups.
+5. `bounce`, then `thrust` (with `contact` / `button` activation).
+6. Plane lock while riding; B's E.
+7. The rideable controller (mount, E to fire, A/D steer midair, Space to dismount).

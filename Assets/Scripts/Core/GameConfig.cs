@@ -56,6 +56,17 @@ namespace CalHacks
         public float castRange = 5f;
         [Tooltip("Falling below this height respawns the explorer at the last checkpoint.")]
         public float killY = -5f;
+        [Tooltip("Metres the explorer rises on Space.")]
+        public float jumpHeight = 1.2f;
+
+        [Header("Inventions")]
+        [Tooltip("Box (width, height in metres) every drawing is fitted into, keeping its aspect. " +
+                 "How big it was drawn on the board doesn't matter.")]
+        public Vector2 inventionSize = new Vector2(3f, 2.5f);
+        [Tooltip("How far an invention's collider reaches along the view (Z), centred on the drawing.")]
+        public float inventionDepth = 2f;
+        [Tooltip("Size in metres of the cells an invention's silhouette is rebuilt from as box colliders.")]
+        public float inventionCell = 0.15f;
 
         [Header("Mock vision")]
         public float mockCaptureDelay = 0.1f;

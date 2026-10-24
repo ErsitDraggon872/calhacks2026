@@ -14,6 +14,7 @@ namespace CalHacks.EditorTools
     {
         public const string PrefabDir = "Assets/Prefabs";
         public const string MaterialDir = "Assets/Prefabs/Materials";
+        public const string TextureDir = "Assets/Prefabs/Textures";
         public const string ConfigPath = "Assets/Resources/GameConfig.asset";
 
         public static readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
@@ -22,6 +23,7 @@ namespace CalHacks.EditorTools
         public static void BuildAll()
         {
             Directory.CreateDirectory(MaterialDir);
+            Directory.CreateDirectory(TextureDir);
             MockDrawingGenerator.GenerateIfMissing();
             BuildMaterials();
             var config = BuildConfig();
@@ -43,15 +45,17 @@ namespace CalHacks.EditorTools
             Lit("Exit", new Color(1f, 0.8f, 0.2f));
             Lit("Paper", new Color(0.98f, 0.96f, 0.93f));
 
-            var cutout = Load("Cutout", "Universal Render Pipeline/Unlit");
-            cutout.SetColor("_BaseColor", Color.white);
-            cutout.SetFloat("_AlphaClip", 1f);
-            cutout.SetFloat("_Cutoff", 0.5f);
-            cutout.SetFloat("_Cull", (float)CullMode.Off);
-            cutout.EnableKeyword("_ALPHATEST_ON");
-            cutout.SetOverrideTag("RenderType", "TransparentCutout");
-            cutout.renderQueue = (int)RenderQueue.AlphaTest;
-            EditorUtility.SetDirty(cutout);
+            AlphaClip("Cutout", null, Color.white);
+
+            // Player B is a paper cutout like the drawings: a character drawn in code, run through MakePaper.
+            var ink = MockDrawingGenerator.Character();
+            var paper = PaperTexture.MakePaper(ink);
+            Object.DestroyImmediate(ink);
+            AlphaClip("PlayerPaper", SaveTexture(paper, "PlayerPaper"), Color.white);
+
+            // Dashed "draw here" outline at the gap, sized like GapSocket's DrawHere quad (4.6 x 2.2 m).
+            AlphaClip("DrawHere", SaveTexture(MockDrawingGenerator.DrawHereOutline(1046, 500), "DrawHere"),
+                new Color(1f, 0.62f, 0.15f));
 
             var dark = Load("Darkness", "Universal Render Pipeline/Unlit");
             dark.SetColor("_BaseColor", new Color(0.02f, 0.02f, 0.05f, 0.94f));
@@ -67,6 +71,44 @@ namespace CalHacks.EditorTools
             dark.SetOverrideTag("RenderType", "Transparent");
             dark.renderQueue = (int)RenderQueue.Transparent;
             EditorUtility.SetDirty(dark);
+        }
+
+        /// <summary>Unlit, double-sided, alpha-clipped: how every paper cutout is drawn.</summary>
+        static Material AlphaClip(string name, Texture2D texture, Color color)
+        {
+            var m = Load(name, "Universal Render Pipeline/Unlit");
+            m.SetColor("_BaseColor", color);
+            if (texture != null)
+            {
+                m.SetTexture("_BaseMap", texture);
+                m.SetTexture("_MainTex", texture);
+            }
+            m.SetFloat("_AlphaClip", 1f);
+            m.SetFloat("_Cutoff", 0.5f);
+            m.SetFloat("_Cull", (float)CullMode.Off);
+            m.EnableKeyword("_ALPHATEST_ON");
+            m.SetOverrideTag("RenderType", "TransparentCutout");
+            m.renderQueue = (int)RenderQueue.AlphaTest;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Writes <paramref name="texture"/> as a PNG under <see cref="TextureDir"/> (GUID kept on re-runs), destroys it and returns the imported asset.</summary>
+        static Texture2D SaveTexture(Texture2D texture, string name)
+        {
+            var path = $"{TextureDir}/{name}.png";
+            File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = true;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
         static void Lit(string name, Color color)
@@ -121,7 +163,7 @@ namespace CalHacks.EditorTools
 
         static void BuildPrefabs(GameConfig config)
         {
-            Save(BuildPlayer(), "Player");
+            Save(BuildPlayer(config), "Player");
             Save(BuildCameraRig(), "CameraRig");
             Save(BuildGame(config), "Game");
             Save(BuildGapSocket(), "GapSocket");
@@ -143,18 +185,30 @@ namespace CalHacks.EditorTools
 
         public static GameObject LoadPrefab(string name) => AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/{name}.prefab");
 
-        static GameObject BuildPlayer()
+        static GameObject BuildPlayer(GameConfig config)
         {
             var root = new GameObject("Player") { tag = "Player" };
             var cc = root.AddComponent<CharacterController>();
             cc.center = new Vector3(0f, 1f, 0f);
             cc.height = 2f;
             cc.radius = 0.4f;
-            cc.stepOffset = 0.3f;
+            cc.stepOffset = 0.3f; // climbs the 0.15 m stair-steps of a drawn silhouette
             cc.skinWidth = 0.05f;
-            root.AddComponent<PlayerController>();
-            Visual(PrimitiveType.Capsule, "Body", root.transform, new Vector3(0f, 1f, 0f), new Vector3(0.8f, 1f, 0.8f), "Player");
-            Visual(PrimitiveType.Cube, "Nose", root.transform, new Vector3(0f, 1.4f, 0.4f), new Vector3(0.25f, 0.2f, 0.25f), "Flag");
+            var controller = root.AddComponent<PlayerController>();
+
+            // Flat, camera-facing paper (the side camera's yaw is 0, so an unrotated quad faces it). "Visual" is what
+            // PlayerController flips to face left or right; the quad sits 5 cm toward the camera so B draws over an
+            // invention standing at the same depth.
+            var visual = Empty("Visual", root.transform, Vector3.zero);
+            var material = Mat("PlayerPaper");
+            var texture = material != null ? material.GetTexture("_BaseMap") : null;
+            const float height = 1.9f;
+            var width = texture != null && texture.height > 0 ? height * texture.width / texture.height : 0.9f;
+            var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f, -0.05f),
+                new Vector3(width, height, 1f), "PlayerPaper");
+            quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
+
+            Fields(controller, ("config", config), ("visual", visual.transform));
             return root;
         }
 
@@ -162,12 +216,14 @@ namespace CalHacks.EditorTools
         {
             var root = new GameObject("Main Camera") { tag = "MainCamera" };
             var cam = root.AddComponent<Camera>();
-            cam.orthographic = true;
-            cam.orthographicSize = 7f;
+            cam.orthographic = false;
+            cam.fieldOfView = 35f;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 200f;
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = new Color(0.80f, 0.86f, 0.90f);
             root.AddComponent<AudioListener>();
-            root.AddComponent<IsoCameraFollow>();
+            root.AddComponent<CameraFollow>();
             return root;
         }
 
@@ -180,7 +236,7 @@ namespace CalHacks.EditorTools
             root.AddComponent<DebugOverlay>();
             Fields(root.AddComponent<BoardCamera>(), ("config", config));
             Fields(root.AddComponent<CameraPreview>(), ("config", config));
-            Fields(run, ("config", config));
+            Fields(run, ("config", config), ("inventionMaterial", Mat("Cutout")));
             return root;
         }
 
@@ -188,8 +244,8 @@ namespace CalHacks.EditorTools
         {
             var root = new GameObject("GapSocket");
             var socket = root.AddComponent<GapSocket>();
-            // Far face of the bridge, at deck level; the near face mirrors it 3.2 m towards the camera.
-            var anchor = Empty("Anchor", root.transform, new Vector3(0f, 0f, 1.6f));
+            // One face, in the middle of the deck's depth (like a free-built invention), its top edge at deck level.
+            var anchor = Empty("Anchor", root.transform, Vector3.zero);
             var deck = Empty("Deck", root.transform, Vector3.zero);
             var walkway = Visual(PrimitiveType.Cube, "Walkway", root.transform, new Vector3(0f, -0.05f, 0f), new Vector3(4.7f, 0.1f, 3.2f), "Paper");
             var box = deck.AddComponent<BoxCollider>();
@@ -203,7 +259,11 @@ namespace CalHacks.EditorTools
                 rail.center = new Vector3(0f, 0.6f, z);
                 rail.size = new Vector3(5.2f, 1.2f, 0.3f);
             }
-            Hint(root.transform, new Vector3(-3.6f, 1f, 0f), new Vector3(2f, 2f, 3.2f), "The gap is too wide to cross.", socket);
+            // Where the drawing will appear: 4.6 m wide (the gap), top 0.4 m above the deck (GapSocket.railHeight).
+            var drawHint = Visual(PrimitiveType.Quad, "DrawHere", root.transform, new Vector3(0f, 0.4f - 1.1f, 0f),
+                new Vector3(4.6f, 2.2f, 1f), "DrawHere");
+            drawHint.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            Hint(root.transform, new Vector3(-3.6f, 1f, 0f), new Vector3(2f, 2f, 3.2f), "Too far to jump!", socket);
             Fields(socket,
                 ("socketId", "gap"),
                 ("acceptedLabels", new string[0]),
@@ -212,6 +272,7 @@ namespace CalHacks.EditorTools
                 ("faceCamera", false),
                 ("rails", rails),
                 ("deckVisual", walkway),
+                ("drawHint", drawHint),
                 ("solutionCollider", box),
                 ("fallbackDrawing", Drawing("bridge")),
                 ("cutoutMaterial", Mat("Cutout")));

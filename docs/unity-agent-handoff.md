@@ -67,7 +67,7 @@ Errors: not calibrated, empty board, camera error → show a subtitle and stay u
 
 **Hard rules:**
 
-1. **Bind each capture to its socket.** At CAST, pick the nearest socket within range of the explorer. That `socket_id` goes in the request, and the label applies only to that socket, even if the explorer walks away. If no socket is in range: no capture, and the subtitle says "Walk to an obstacle."
+1. **Bind each capture to its socket.** At CAST, pick the nearest socket within range of the explorer. That `socket_id` goes in the request, and the label applies only to that socket, even if the explorer walks away. If no socket is in range, the capture is a free build (`socket_id` `"free"`): the drawing becomes a standable invention just in front of the explorer (see `docs/unity-implementation-notes.md`).
 2. **Discard stale responses.** Every reset increments `run_id`. Drop any reply whose `run_id` isn't current, and cancel pending waits.
 3. **CAST is ignored** while a request is in flight, or until NEW BOARD is pressed after the previous cast.
 

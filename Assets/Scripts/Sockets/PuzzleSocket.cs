@@ -141,7 +141,7 @@ namespace CalHacks
         {
             var a = anchor != null ? anchor : transform;
             Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.8f);
-            Gizmos.matrix = Matrix4x4.TRS(a.position + Vector3.up * span.y * 0.5f, Quaternion.Euler(0f, faceCamera ? 45f : a.eulerAngles.y, 0f), Vector3.one);
+            Gizmos.matrix = Matrix4x4.TRS(a.position + Vector3.up * span.y * 0.5f, Quaternion.Euler(0f, faceCamera ? 0f : a.eulerAngles.y, 0f), Vector3.one);
             Gizmos.DrawWireCube(Vector3.zero, new Vector3(span.x, span.y, 0.05f));
             Gizmos.matrix = Matrix4x4.identity;
             Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.25f);
