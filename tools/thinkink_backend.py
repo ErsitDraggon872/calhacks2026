@@ -40,7 +40,8 @@ _CACHE_LOCK = threading.Lock()
 _CACHE_CAPACITY = 48
 
 FIELDS = ['type','activation','anchor_x','anchor_y','launch_speed','angle_deg','acceleration','duration_s']
-ABILITIES = ('bounce', 'thrust', 'lift', 'glide', 'roll', 'attach', 'tether', 'hinge', 'push_pull')
+# No tether: the grappling rope is cut, and a drawn rope is just a solid shape.
+ABILITIES = ('bounce', 'thrust', 'lift', 'glide', 'roll', 'attach', 'hinge', 'push_pull')
 # Identity (docs/interpret-contract.md): what the drawing IS. Puzzles check these traits, never the name,
 # so a gatekeeper takes an apple and a banana alike because both are edible. Unity adds material-implied traits.
 MATERIALS = ('wood','stone','metal','rubber','cloth','paper','glass','ice','jelly','plant','flesh','cloud')
@@ -151,7 +152,7 @@ def validate(raw):
         elif kind=='glide':
             # launch_speed is a terminal descent speed for GLIDE (m/s).
             a.update(launch_speed=clamp(part.get('launch_speed'),1,6,2.5))
-        elif kind in ('attach','tether','hinge'):
+        elif kind in ('attach','hinge'):
             a['duration_s']=0
         result.append(a)
     if status == 'rejected': result = [support()]
@@ -187,7 +188,7 @@ def ink_cost(output):
         if c['type'] == 'bounce': cost += c['launch_speed']*1.2
         if c['type'] == 'thrust': cost += c['acceleration']*c['duration_s']/3
         if c['type'] in ('lift','roll','push_pull'): cost += c['acceleration'] * .7
-        if c['type'] in ('glide','attach','tether','hinge'): cost += 8
+        if c['type'] in ('glide','attach','hinge'): cost += 8
     traits = output.get('attributes') or {}
     cost += traits.get('force',.5)*5 + traits.get('carry_capacity_kg',0)*.3
     return int(clamp(round(cost),5,100,5))
@@ -243,12 +244,6 @@ def fake_demo(goal):
         spec={'status':'ok','name':'spring pad','message':'Land on the spring to bounce.',
               'width_m':1.5,'components':[support(),
                 {'type':'bounce','activation':'contact','launch_speed':11,'angle_deg':25}]}
-    elif 'rope' in goal or 'swing' in goal:
-        spec={'status':'ok','name':'rope swing','message':'Press E to grab the swing.',
-              'width_m':2,'components':[support(),
-                {'type':'tether','activation':'button'},
-                {'type':'attach','activation':'button'}],
-              'attributes':{'range_m':4}}
     elif 'skateboard' in goal or 'car' in goal:
         spec={'status':'ok','name':'roller cart','message':'Press E to ride the wheels.',
               'width_m':2.5,'components':[support(),
@@ -313,7 +308,7 @@ def prepare_vision_image(raw_png):
 
 
 # Explicitly chosen Creator actions are more reliable than asking vision to guess
-# whether a rough squiggle means a rope, a trampoline, or something else.
+# whether a rough squiggle means a spring, a wing, or something else.
 INTENT_DEFAULTS = {
     'bounce': {'type':'bounce', 'activation':'contact', 'launch_speed':10, 'angle_deg':0},
     'thrust': {'type':'thrust', 'activation':'button', 'acceleration':12,'duration_s':1.5},
@@ -321,7 +316,6 @@ INTENT_DEFAULTS = {
     'glide': {'type':'glide','activation':'always','launch_speed':2.5},
     'roll': {'type':'roll','activation':'button','acceleration':8,'duration_s':5},
     'attach': {'type':'attach','activation':'button'},
-    'tether': {'type':'tether','activation':'button','anchor_x':0.5,'anchor_y':0.85},
     'hinge': {'type':'hinge','activation':'always'},
     'push_pull': {'type':'push_pull','activation':'button','acceleration':12,'duration_s':2}
 }
@@ -335,7 +329,6 @@ def infer_action_from_text(intent):
     if re.search(r"\b(?:don't|do not|not)\s+(?:want\s+to\s+)?(?:bounce|swing|fly|roll|glide)\b", t):
         return 'auto'
     patterns = (
-        ('tether', r'\b(?:swing|rope|tether|grappl\w*|hang from)\b'),
         ('bounce', r'\b(?:bounce|trampoline|springboard|launch pad|spring pad)\b'),
         ('thrust', r'\b(?:rocket|boost|propel|thruster)\b'),
         ('lift', r'\b(?:lift|carry me|fly me|flap|balloon|helicopter)\b'),
@@ -365,8 +358,6 @@ def apply_explicit_intent(spec, intent_mode):
     if len(new_parts) >= 4:
         new_parts.pop()  # Preserve the creator-selected action within the 3-special limit.
     new_parts.append(INTENT_DEFAULTS[intent_mode].copy())
-    if intent_mode == 'tether' and len(new_parts) < 4 and not any(p['type']=='attach' for p in new_parts):
-        new_parts.append(INTENT_DEFAULTS['attach'].copy())
     spec = validate({**spec,'components':new_parts})
     if spec['name'] == 'mystery shape':
         spec['name'] = intent_mode.replace('_',' ') + ' invention'

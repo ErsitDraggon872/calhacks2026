@@ -34,7 +34,7 @@ class BackendTests(unittest.TestCase):
         with self.assertRaises(ValueError):b.interpret({'board_png_base64':'X','run_id':3,'capture_id':'c'})
 
     def test_eight_core_abilities_and_stretch(self):
-        for kind in ('lift','glide','roll','attach','tether','hinge','push_pull'):
+        for kind in ('lift','glide','roll','attach','hinge','push_pull'):
             result=b.validate({'status':'ok','name':'weird thing','width_m':2,
                                'components':[b.support(),{'type':kind}]})
             self.assertEqual(result['components'][1]['type'],kind)
@@ -43,7 +43,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(len(b.ATTR_BOUNDS),15)
     def test_max_three_special_abilities(self):
         out=b.validate({'status':'ok','components':[b.support(),
-            *({'type':k} for k in ('lift','attach','glide','roll','tether'))]})
+            *({'type':k} for k in ('lift','attach','glide','roll','hinge'))]})
         self.assertEqual(len(out['components']),4)
     def test_character_capacity_tiny_vs_giant_bird(self):
         small=b.fake_demo('tiny bird')
@@ -67,16 +67,23 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(out['components'][1]['duration_s'],1.5)
         self.assertEqual(out['attributes']['mass_kg'],3)
 
-    def test_explicit_tether_corrects_mystery(self):
+    def test_explicit_bounce_corrects_mystery(self):
         specimen = b.validate({'name':'mystery shape','status':'ok','components':[b.support()]})
-        fixed = b.apply_explicit_intent(specimen,'tether')
-        self.assertEqual([c['type'] for c in fixed['components']], ['support','tether','attach'])
-        self.assertGreater(fixed['components'][1]['anchor_y'],0.5)
+        fixed = b.apply_explicit_intent(specimen,'bounce')
+        self.assertEqual([c['type'] for c in fixed['components']], ['support','bounce'])
+        self.assertEqual(fixed['name'],'bounce invention')
+
+    def test_grappling_rope_is_cut(self):
+        out=b.validate({'status':'ok','name':'rope','components':[b.support(),{'type':'tether'}]})
+        self.assertEqual([c['type'] for c in out['components']],['support'])
+        self.assertNotIn('tether',b.INTENT_DEFAULTS)
+        self.assertEqual(b.infer_action_from_text('I want to swing across the gap'),'auto')
+        self.assertEqual(b.apply_explicit_intent(b.validate({'status':'ok','components':[b.support()]}),'tether')['components'],[b.support()])
 
     def test_auto_does_not_invent(self):
         specimen = b.validate({'name':'mystery shape','status':'ok','components':[b.support()]})
         self.assertEqual(len(b.apply_explicit_intent(specimen,'auto')['components']),1)
-        self.assertEqual(b.infer_action_from_text('I want to swing across the gap'),'tether')
+        self.assertEqual(b.infer_action_from_text('I want to bounce over the gap'),'bounce')
         self.assertEqual(b.infer_action_from_text("I don't want to bounce"),'auto')
 
     def test_cropped_image_preserves_diagonal_arrow(self):
