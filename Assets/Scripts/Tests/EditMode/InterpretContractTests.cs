@@ -47,6 +47,10 @@ namespace CalHacks.Tests
             Assert.IsTrue(InventionPhysics.IsVehicleName("rocket car"));
             Assert.IsTrue(InventionPhysics.IsVehicleName("go-kart"));
             Assert.IsTrue(InventionPhysics.IsVehicleName("skateboard"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("cart"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("taxi"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("racecar"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("trolley"));
             Assert.IsFalse(InventionPhysics.IsVehicleName("cartoon bird"));
             Assert.IsFalse(InventionPhysics.IsVehicleName("flying carpet"));
         }

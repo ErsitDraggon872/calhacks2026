@@ -314,7 +314,8 @@ namespace CalHacks
                     LastInventionMessage = spec.message;
                     LastLabel = spec.name;
                     Debug.Log($"[DeerAI] {JsonUtility.ToJson(spec, true)}");
-                    if (PlaceInvention(paper, spec))
+                    if (PlaceInvention(paper, spec,
+                        isDigital ? digitalCanvas.IntentText : string.Empty))
                     {
                         State.StartCooldown(config.buildCooldown);
                         Subtitles.ShowNow("Invention ready! Explorer, it is your turn.", 2f);
@@ -382,7 +383,7 @@ namespace CalHacks
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
         /// front of them on the side they face, moved out of the level's geometry. False if nothing was built.
         /// </summary>
-        bool PlaceInvention(Texture2D paper, InterpretResponse spec = null)
+        bool PlaceInvention(Texture2D paper, InterpretResponse spec = null, string creatorIntent = "")
         {
             if (player == null || inventionMaterial == null)
             {
@@ -407,14 +408,30 @@ namespace CalHacks
             else
             {
                 bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
-                var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
+                if (IsGroundVehicle(spec) || InventionMotion.IsGroundCreature(spec, creatorIntent))
                 {
-                    Destroy(paper);
-                    Subtitles.ShowNow("No room to build here!");
-                    return false;
+                    // A car shouldn't spawn over empty air merely because B is
+                    // facing the cliff. Find nearby floor (front, then behind B)
+                    // and NEVER shift the vehicle along Z off the playable lane.
+                    if (TryGroundedVehicleSpot(feet, size, depth, player.FacingSign, out var safeBottom))
+                        bottom = safeBottom;
+                    else
+                    {
+                        bottom.z = feet.z;
+                        Subtitles.ShowNow("No solid ground for wheels here. Move back from the edge.", 3.5f);
+                    }
                 }
-                bottom += shift;
+                else
+                {
+                    var build = InventionPlacement.BuildBounds(bottom, size, depth);
+                    if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
+                    {
+                        Destroy(paper);
+                        Subtitles.ShowNow("No room to build here!");
+                        return false;
+                    }
+                    bottom += shift;
+                }
             }
 
             // A finer box grid follows the cutout edge more closely. These are all
@@ -425,12 +442,105 @@ namespace CalHacks
             if (spec != null)
             {
                 var physics = invention.gameObject.AddComponent<InventionPhysics>();
-                physics.Configure(invention, spec);
+                physics.Configure(invention, spec, creatorIntent);
+                // Motion is independent of abilities: a SUPPORT-only cat can wander.
+                // Its behavior is also reflected in the invention reveal card.
+                var kind = InventionMotion.Choose(spec.name, spec.message,
+                    creatorIntent, spec.motion_behavior);
+                spec.motion_behavior = InventionMotion.ToWire(kind);
+                if (kind != InventionMotion.Kind.Static)
+                {
+                    var life = invention.gameObject.AddComponent<InventionMotion>();
+                    life.Configure(invention, physics, spec, creatorIntent, kind);
+                }
             }
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
             Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
             return true;
+        }
+
+
+        // The same ground-vehicle test used by the physics component, before it is
+        // attached to the new GameObject.  A rocket-powered car still has wheels;
+        // a balloon or winged invention is not forced onto the ground.
+        static bool IsGroundVehicle(InterpretResponse spec)
+        {
+            if (spec == null) return false;
+            bool wheels = InventionPhysics.IsVehicleName(spec.name);
+            bool flight = false;
+            if (spec.components != null)
+                foreach (var part in spec.components)
+                {
+                    if (part == null) continue;
+                    if (part.type == "roll") wheels = true;
+                    if (part.type == "lift" || part.type == "glide" || part.type == "tether" || part.type == "hinge")
+                        flight = true;
+                }
+            return wheels && !flight;
+        }
+
+        // Probe the center and two wheel areas. All three must be above stable
+        // floor at a consistent height; otherwise the invention would immediately
+        // fall or tip as soon as E releases its Rigidbody.
+        bool TryGroundHeight(Vector3 feet, float centerX, float width, out float floorY)
+        {
+            floorY = 0f;
+            float firstY = 0f;
+            for (var i = -1; i <= 1; i++)
+            {
+                float x = centerX + i * width * 0.36f;
+                var from = new Vector3(x, feet.y + 1.25f, feet.z);
+                var hits = Physics.RaycastAll(from, Vector3.down, 3f, Physics.AllLayers,
+                    QueryTriggerInteraction.Ignore);
+                bool found = false;
+                float bestY = float.NegativeInfinity;
+                foreach (var hit in hits)
+                {
+                    if (hit.collider.GetComponentInParent<PlayerController>() != null ||
+                        hit.collider.GetComponentInParent<Invention>() != null ||
+                        hit.normal.y < 0.65f) continue;
+                    var y = hit.point.y;
+                    if (y > feet.y + 0.4f || y < feet.y - 1.1f) continue;
+                    bestY = Mathf.Max(bestY, y);
+                    found = true;
+                }
+                if (!found) return false;
+                if (i == -1) firstY = bestY;
+                else if (Mathf.Abs(firstY - bestY) > 0.18f) return false;
+                floorY += bestY / 3f;
+            }
+            return true;
+        }
+
+        bool TryGroundedVehicleSpot(Vector3 feet, Vector2 size, float depth, float facing, out Vector3 spot)
+        {
+            spot = Vector3.zero;
+            float direction = facing < 0f ? -1f : 1f;
+            float minimumOffset = player.Radius + InventionPlacement.Gap + size.x * 0.5f;
+            // Prefer ahead, then behind the character. Never teleport beyond a gap.
+            for (var side = 0; side < 2; side++)
+            {
+                float sign = side == 0 ? direction : -direction;
+                for (var step = 0; step <= 6; step++)
+                {
+                    float x = feet.x + sign * (minimumOffset + step * 0.25f);
+                    if (!TryGroundHeight(feet, x, size.x, out var floorY)) continue;
+                    var candidate = new Vector3(x, floorY + 0.025f, feet.z);
+                    var bounds = InventionPlacement.BuildBounds(candidate, size, depth);
+                    bool blocked = false;
+                    foreach (var obstacle in ObstaclesAround(bounds))
+                        if (InventionPlacement.Overlaps(bounds, obstacle))
+                        {
+                            blocked = true;
+                            break;
+                        }
+                    if (blocked) continue;
+                    spot = candidate;
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
@@ -680,8 +790,11 @@ namespace CalHacks
 
         /// <summary>F5: new run_id, cancel pending waits, restore every socket, remove free builds, reset the explorer and the camera.</summary>
         /// <summary>Keep B still while Player A is drawing; avoid unlocking after winning.</summary>
+        public bool IsDigitalDrawingOpen { get; private set; }
+
         public void SetDigitalDrawingOpen(bool open)
         {
+            IsDigitalDrawingOpen = open;
             if (player != null) player.InputLocked = open || State.Finished;
         }
 

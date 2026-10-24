@@ -179,6 +179,15 @@ namespace CalHacks
 
         void OnControllerColliderHit(ControllerColliderHit hit)
         {
+            // A genuine downward landing squashes small living cutouts into a
+            // harmless paper-confetti poof. Merely stepping onto a newly
+            // created drawing does not squash it.
+            var motion = hit.collider.GetComponentInParent<InventionMotion>();
+            if (motion != null && motion.TrySquash(verticalVelocity, hit))
+            {
+                Launch(new Vector3(0f, 2.5f, 0f)); // Little arcade stomp bounce.
+                return;
+            }
             var behavior = hit.collider.GetComponentInParent<InventionPhysics>();
             if (behavior == null) return;
             behavior.PlayerContact(this, hit);

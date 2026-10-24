@@ -28,9 +28,17 @@ namespace CalHacks
                     bounce |= part.type == "bounce";
                     lift |= part.type == "lift";
                 }
+            var motion = (spec.motion_behavior ?? "static").Trim().ToUpperInvariant();
+            if (motion != "" && motion != "STATIC" && motion != "ROLL_MOVE")
+                tags.Add("LIVING: " + motion.Replace('_', ' '));
             instance.abilities = tags.Count > 0 ? string.Join("  +  ",tags) : "SOLID SHAPE";
             instance.action = powered ? "EXPLORER  ·  GET CLOSE + PRESS E  /  SPACE TO JUMP OFF" :
-                bounce ? "EXPLORER  ·  LAND ON IT TO BOUNCE" : "EXPLORER  ·  WALK ON OR JUMP ON IT";
+                bounce ? "EXPLORER  ·  LAND ON IT TO BOUNCE" :
+                motion == "FOLLOW" ? "EXPLORER  ·  YOUR COMPANION FOLLOWS YOU" :
+                motion == "HOP" ? "EXPLORER  ·  WATCH IT HOP AROUND" :
+                motion == "FLY" ? "EXPLORER  ·  WATCH IT FLY" :
+                motion == "WANDER" ? "EXPLORER  ·  WATCH IT WANDER" :
+                "EXPLORER  ·  WALK ON OR JUMP ON IT";
             if (lift && spec.attributes != null &&
                 spec.attributes.carry_capacity_kg < InventionPhysics.DemoPlayerMassKg)
                 instance.action="EXPLORER  ·  SMALL WINGS MAY NOT CARRY YOUR WEIGHT";

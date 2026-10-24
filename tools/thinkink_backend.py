@@ -21,7 +21,10 @@ import time
 import subprocess
 import tempfile
 
-PROMPT = Path(__file__).with_name('thinkink_system_prompt.txt').read_text()
+DEMO_MODE = os.getenv('THINKINK_DEMO', '1') == '1'
+PROMPT = Path(__file__).with_name(
+    'thinkink_demo_prompt.txt' if DEMO_MODE else 'thinkink_system_prompt.txt'
+).read_text()
 MODEL = os.getenv('BITDEER_MODEL', 'Qwen/Qwen3.8-27B')
 ENDPOINT = os.getenv('BITDEER_ENDPOINT', 'https://api-inference.bitdeer.ai/v1/chat/completions')
 FAKE = os.getenv('THINKINK_FAKE', '0') == '1'
@@ -41,6 +44,7 @@ _CACHE_CAPACITY = 48
 
 FIELDS = ['type','activation','anchor_x','anchor_y','launch_speed','angle_deg','acceleration','duration_s']
 ABILITIES = ('bounce', 'thrust', 'lift', 'glide', 'roll', 'attach', 'tether', 'hinge', 'push_pull')
+# The broad mechanics remain supported in the code for non-demo mode.
 # width_m is the sixteenth universal attribute and remains at top level for compatibility.
 ATTR_BOUNDS = {
     'mass_kg': (0.5,20,3), 'load_capacity_kg': (0,20,8),
@@ -146,6 +150,48 @@ def validate(raw):
     return {'status':status,'name':name,'message':message,'width_m':width,
             'components':result,'attributes':attributes(raw.get('attributes'),width)}
 
+
+
+def demo_normalize(spec):
+    """Small, dependable showcase: only SUPPORT / BOUNCE / THRUST / LIFT.
+
+    Keep the original shape and inferred direction. Quantize power into
+    tested tiers; never add an ability purely to make the puzzle solvable.
+    ATTACH is internal to the Unity riding logic and need not be inferred.
+    """
+    if spec['status'] != 'ok':
+        return spec
+    supported = [c for c in spec['components'] if c['type'] in ('bounce','thrust','lift')]
+    # Two optional mechanics are enough for bird+rocket hybrids.
+    result = [support()]
+    for original in supported[:2]:
+        c = copy.deepcopy(original)
+        if c['type'] == 'bounce':
+            c['launch_speed'] = min((6, 10, 13), key=lambda v: abs(v-c['launch_speed']))
+            c['activation'] = 'contact' if c['activation'] == 'always' else c['activation']
+        elif c['type'] == 'thrust':
+            c['acceleration'] = min((8, 14, 20),key=lambda v:abs(v-c['acceleration']))
+            c['duration_s'] = min((0.9,1.6,2.3),key=lambda v:abs(v-c['duration_s']))
+        elif c['type'] == 'lift':
+            c['activation'] = 'button'
+            c['angle_deg'] = 90
+            c['duration_s'] = 6.0
+            c['acceleration'] = 12.0
+        result.append(c)
+    traits = spec['attributes']
+    if any(c['type']=='lift' for c in result):
+        # Dimension-derived *gameplay* carrying tiers, not a claim of real bird physics.
+        # A small flyer cannot carry the 6kg demo player; a very broad one can.
+        w=spec['width_m']
+        traits['carry_capacity_kg'] = 1.0 if w < 1.8 else (3.5 if w < 3.5 else 9.0)
+        traits['force'] = 0.8
+        traits['speed'] = 0.7
+        traits['energy_capacity'] = 1.0
+        traits['mass_kg'] = max(2.0, min(5.0, w))
+    if len(result)==1 and len(spec['components'])>1:
+        spec['message'] = 'A solid cutout for now. Try a spring, rocket or flying creature.'
+    spec['components']=result
+    return spec
 
 def ink_cost(output):
     # PROVISIONAL MVP formula. The design contract specifies 5..100 but no precise formula.
@@ -337,7 +383,7 @@ def model_call(image_b64, goal, timeout, intent="", intent_mode="auto", mime="im
                 {'type':'image_url','image_url':{'url':f'data:{mime};base64,{image_b64}'}}
             ]}
         ],
-        'max_tokens':max(650,min(2200,int(os.getenv('BITDEER_MAX_TOKENS','1100')))),
+        'max_tokens':max(650,min(2200,int(os.getenv('BITDEER_MAX_TOKENS','850')))),
         'temperature':0.1, 'stream':False
     }
     if USE_SCHEMA:
@@ -464,6 +510,8 @@ def interpret(req):
             except Exception as err:
                 error = str(err)
                 print(f'[Bitdeer] attempt {attempt+1} failed: {error}',flush=True)
+    if spec is not None and DEMO_MODE:
+        spec = demo_normalize(spec)
     if spec is not None and not FAKE and cached is None:
         with _CACHE_LOCK:
             _CACHE[fingerprint] = copy.deepcopy(spec)
@@ -515,7 +563,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print(f'ThinkInk backend listening on http://127.0.0.1:8000, model={MODEL}, fake={FAKE}',flush=True)
+    print(f'ThinkInk backend listening on http://127.0.0.1:8000, model={MODEL}, fake={FAKE}, demo={DEMO_MODE}',flush=True)
     ThreadingHTTPServer(('127.0.0.1',8000),Handler).serve_forever()
 
 if __name__=='__main__': main()

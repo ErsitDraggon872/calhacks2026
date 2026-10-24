@@ -22,8 +22,11 @@ namespace CalHacks
         float poweredUntil, nextUseAt, nextBounceAt, overloadSince = -1f;
         bool active, everActivated, held, warnedWeakLift;
         float poweredStartedAt;
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
 
-        public bool MovingPlatform => body != null;
+        public bool MovingPlatform => body != null ||
+            (GetComponent<InventionMotion>()?.CarriesPlayer ?? false);
         public bool HasButton => thrust != null || lift != null || glide != null || roll != null ||
                                  attach != null || tether != null || pushPull != null ||
                                  (bounce != null && bounce.activation != "contact") || hinge != null;
@@ -39,7 +42,8 @@ namespace CalHacks
                 switch (word)
                 {
                     case "car": case "cart": case "truck": case "bus": case "taxi":
-                    case "van": case "jeep": case "buggy": case "vehicle": case "sedan":
+                    case "racecar": case "suv": case "trolley": case "tractor": case "wheelbarrow":
+                    case "van": case "minivan": case "jeep": case "buggy": case "vehicle": case "sedan":
                     case "skateboard": case "scooter": case "bike": case "bicycle":
                     case "motorcycle": case "kart": case "train": case "wagon":
                         return true;
@@ -54,9 +58,11 @@ namespace CalHacks
             return new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
         }
 
-        public void Configure(Invention created, InterpretResponse response)
+        public void Configure(Invention created, InterpretResponse response, string creatorIntent = "")
         {
             invention = created;
+            spawnPosition = transform.position;
+            spawnRotation = transform.rotation;
             traits = response.attributes ?? new InventionAttributes();
             traits.Normalize();
             foreach (var part in response.components)
@@ -75,20 +81,25 @@ namespace CalHacks
                 }
             }
 
-            // Avoid turning an ordinary car into an inert block when the vision
-            // model identifies it correctly but forgets the optional ROLL ability.
-            if (roll == null && thrust == null && lift == null && response.components.Length == 1 &&
-                IsVehicleName(response.name))
+            // A recognizable car/cart must DRIVE, even when vision returns a generic
+            // support or an engine-only interpretation. ROLL is its ground motor;
+            // THRUST is reserved for visibly separate rockets/boosters.
+            if (roll == null && lift == null && glide == null && tether == null &&
+                hinge == null && response.components.Length < 4 &&
+                (IsVehicleName(response.name) || IsVehicleName(creatorIntent)))
             {
                 roll = new PhysicsPart
                 {
                     type = "roll", activation = "button", angle_deg = 0,
-                    acceleration = 12f, duration_s = 8f, anchor_x = .5f, anchor_y = .1f
+                    acceleration = 12f, duration_s = 10f, anchor_x = .5f, anchor_y = .1f
                 };
-                response.components = new[] { response.components[0], roll };
-                Debug.Log("[ThinkInk AI] " + response.name + ": support, roll (vehicle fallback)");
+                var extended = new PhysicsPart[response.components.Length + 1];
+                Array.Copy(response.components, extended, response.components.Length);
+                extended[extended.Length - 1] = roll;
+                response.components = extended;
+                Debug.Log("[ThinkInk Vehicle] Added ROLL to recognized ground vehicle: " + response.name);
             }
-            else Debug.Log("[ThinkInk AI] " + response.name + ": " +
+            Debug.Log("[ThinkInk AI] " + response.name + ": " +
                 string.Join(", ", Array.ConvertAll(response.components, p => p.type)));
 
             // Surface friction/restitution are attributes rather than separate components.
@@ -104,19 +115,34 @@ namespace CalHacks
                                 tether != null || hinge != null;
             if (!dynamicShape) return;
             body = gameObject.AddComponent<Rigidbody>();
-            body.mass = traits.mass_kg;
-            body.linearDamping = traits.drag * 2f;
+            // A car is a real weighted Rigidbody, NOT a floating kinematic preview.
+            // Mass changes how forces affect it; gravity (not mass) determines fall rate.
+            bool groundVehicle = roll != null && lift == null && glide == null;
+            body.mass = groundVehicle ? Mathf.Max(8f, traits.mass_kg) : traits.mass_kg;
+            body.linearDamping = groundVehicle ? Mathf.Min(0.12f, traits.drag * 0.3f) : traits.drag * 2f;
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             body.constraints = RigidbodyConstraints.FreezePositionZ |
                 RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY;
-            if (hinge == null && traits.stability > .45f)
+            if (groundVehicle || (hinge == null && traits.stability > .45f))
                 body.constraints |= RigidbodyConstraints.FreezeRotationZ;
-
-            // Inventions are parked until E/contact. Otherwise a tiny bird or rocket
-            // would fall into the gap before Player B can board it.
-            body.isKinematic = true;
-            body.useGravity = false;
+            if (groundVehicle)
+            {
+                // Cars need weight while DRIVING, not while their freshly spawned
+                // sketch waits for Player B.  Otherwise a car spawned next to the
+                // cliff can disappear before the player reaches it.  BeginMotion()
+                // releases the Rigidbody with gravity enabled on the first E.
+                body.centerOfMass = new Vector3(0f, Mathf.Max(0.06f, created.Size.y * .22f), 0f);
+                body.isKinematic = true;
+                body.useGravity = false;
+                Debug.Log("[ThinkInk Vehicle] Parked on spawn; E starts weighted driving, gravity ON after launch.");
+            }
+            else
+            {
+                // Flying inventions are parked until activated so players can board.
+                body.isKinematic = true;
+                body.useGravity = false;
+            }
             if (tether != null) SetupRope();
             if (hinge != null) SetupHinge();
         }
@@ -181,6 +207,18 @@ namespace CalHacks
         }
 
         public void SetHeld(bool isHeld) { held = isHeld; }
+
+        /// <summary>
+        /// Explicitly requested self-driving vehicles use the same ROLL motor as E.
+        /// Ordinary cars still wait for E, preserving player control.
+        /// </summary>
+        public bool StartAutonomousDrive()
+        {
+            if (roll == null || body == null || !body.isKinematic) return false;
+            BeginMotion();
+            Debug.Log("[ThinkInk Life] Self-driving ROLL activated.");
+            return true;
+        }
 
         bool ToggleMode => (thrust != null && thrust.activation == "toggle") ||
                            (lift != null && lift.activation == "toggle") ||
@@ -291,12 +329,40 @@ namespace CalHacks
                 Mathf.Lerp(.4f, 1f, traits.energy_capacity);
             poweredUntil = Time.time + duration * energyFactor;
             // Keep existing rocket feel: boosted rocket temporarily overcomes gravity.
-            if (thrust != null && lift == null) body.useGravity = false;
+            if (thrust != null && lift == null && roll == null) body.useGravity = false;
+            // Cars keep gravity even with a rocket attached, so they can drive off edges.
+            if (roll != null && lift == null) body.useGravity = true;
+        }
+
+        // Falling off a cliff is still possible.  But the invention isn't lost:
+        // restore its original spot so the creator can retry without another AI call.
+        void ResetAfterFall()
+        {
+            if (rider != null && rider.IsRiding(this)) rider.Disembark(this);
+            rider = null;
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.isKinematic = true;
+            body.useGravity = false;
+            transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+            Physics.SyncTransforms();
+            active = false;
+            held = false;
+            everActivated = false;
+            nextUseAt = Time.time + 0.4f;
+            Debug.Log("[ThinkInk] Invention fell off the level; restored for another try.");
+            Subtitles.ShowNow("Your invention fell! Try driving it differently or redraw it.", 3f);
         }
 
         void FixedUpdate()
         {
             if (body == null || body.isKinematic) return;
+            // Don't delete moving inventions when they fall under the map.
+            if (transform.position.y < spawnPosition.y - 5f)
+            {
+                ResetAfterFall();
+                return;
+            }
             bool powered = active && Time.time < poweredUntil && (!HoldMode || held);
             if (active && !powered)
             {

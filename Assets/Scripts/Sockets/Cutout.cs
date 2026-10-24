@@ -32,6 +32,28 @@ namespace CalHacks
         bool ownsTexture;
         Material material;
         Vector3 fullScale;
+        float facingSign = 1f;
+
+        /// <summary>
+        /// Mirror the PAPER ART only. Colliders and the root do not rotate, so the
+        /// creature still walks normally on the ground when it turns around.
+        /// Remember facing while the pop-in animation is changing the scale.
+        /// </summary>
+        public void FaceHorizontal(float horizontal)
+        {
+            if (Mathf.Abs(horizontal) < 0.01f) return;
+            float next = horizontal < 0f ? -1f : 1f;
+            if (Mathf.Approximately(next, facingSign)) return;
+            facingSign = next;
+            var scale = transform.localScale;
+            transform.localScale = new Vector3(Mathf.Abs(scale.x) * facingSign, scale.y, scale.z);
+        }
+
+        public float FacingSign => facingSign;
+
+        Vector3 FacingScale(float multiplier = 1f) =>
+            new Vector3(fullScale.x * facingSign * multiplier,
+                fullScale.y * multiplier, fullScale.z * multiplier);
 
         public Vector2 Size { get; private set; }
 
@@ -82,10 +104,10 @@ namespace CalHacks
                 var k = t / duration;
                 // Ease-out-back for a little paper "pop".
                 var s = 1f + 2.2f * Mathf.Pow(k - 1f, 3f) + 1.2f * Mathf.Pow(k - 1f, 2f);
-                transform.localScale = fullScale * s;
+                transform.localScale = FacingScale(s);
                 yield return null;
             }
-            transform.localScale = fullScale;
+            transform.localScale = FacingScale();
         }
 
         public void PlayCatReaction() => StartCoroutine(Hop());
@@ -109,7 +131,7 @@ namespace CalHacks
         public void HandTo(Vector3 target, float duration = 0.6f)
         {
             StopAllCoroutines();
-            transform.localScale = fullScale;
+            transform.localScale = FacingScale();
             StartCoroutine(Hand(target, duration));
         }
 

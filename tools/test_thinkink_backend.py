@@ -109,6 +109,35 @@ class BackendTests(unittest.TestCase):
         self.assertEqual((a['capture_id'],c['capture_id']),('1','2'))
         self.assertEqual(a['components'][1]['type'],'bounce')
 
+    def test_demo_filters_extra_abilities(self):
+        spec=b.validate({'status':'ok','name':'rocket umbrella','width_m':3,
+            'components':[b.support(),{'type':'glide'}, {'type':'thrust','acceleration':15,'duration_s':1.7}, {'type':'roll'}]})
+        demo=b.demo_normalize(spec)
+        self.assertEqual([p['type'] for p in demo['components']], ['support','thrust'])
+        self.assertEqual(demo['components'][1]['acceleration'],14)
+        self.assertEqual(demo['components'][1]['duration_s'],1.6)
+
+    def test_demo_tiny_bird_fails_giant_bird_lifts(self):
+        def bird(w):
+            return b.demo_normalize(b.validate({'status':'ok','name':'bird','width_m':w,
+                'components':[b.support(), {'type':'lift','activation':'button','acceleration':23},
+                              {'type':'attach'}, {'type':'glide'}]}))
+        small=bird(1.1); big=bird(4.3)
+        self.assertEqual(len(small['components']),2)
+        self.assertEqual(len(big['components']),2)
+        self.assertLess(small['attributes']['carry_capacity_kg'],6)
+        self.assertGreater(big['attributes']['carry_capacity_kg'],6)
+
+    def test_demo_support_only_does_not_invent_powers(self):
+        spec=b.demo_normalize(b.validate({'status':'ok','name':'odd doodle','width_m':2,
+                                          'components':[b.support()]}))
+        self.assertEqual([p['type'] for p in spec['components']],['support'])
+
+    def test_demo_keeps_two_special_abilities(self):
+        spec=b.demo_normalize(b.validate({'status':'ok','name':'rocket bird','width_m':4,
+                                          'components':[b.support(),{'type':'lift'}, {'type':'thrust'}, {'type':'attach'}]}))
+        self.assertEqual([p['type'] for p in spec['components']],['support','lift','thrust'])
+
     def test_vendor_flag_falls_back_on_bad_request(self):
         import tempfile, re
         from types import SimpleNamespace

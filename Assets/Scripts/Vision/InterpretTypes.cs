@@ -88,6 +88,10 @@ namespace CalHacks
         public float width_m;
         public PhysicsPart[] components;
         public InventionAttributes attributes;
+        // Optional hints. Older Bitdeer responses without these fields remain valid.
+        public string motion_behavior;
+        public float motion_speed;
+        public float motion_range;
         public string capture_id;
         public int run_id;
         public int ink_cost;

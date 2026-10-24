@@ -17,7 +17,7 @@ namespace CalHacks
         void OnGUI()
         {
             var run = RunManager.Instance;
-            if (run == null) return;
+            if (run == null || run.IsDigitalDrawingOpen) return;
             EnsureStyles();
             GUI.depth = -40;
             float sw = Screen.width, sh = Screen.height;
