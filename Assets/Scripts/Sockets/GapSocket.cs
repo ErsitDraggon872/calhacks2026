@@ -45,7 +45,7 @@ namespace CalHacks
         {
             ShowSolved(true);
             var follow = FindFirstObjectByType<CameraFollow>();
-            if (follow != null) follow.SetFraming(CameraFraming.Wide);
+            if (follow != null) follow.Reveal();
         }
 
         protected override void OnReset() => ShowSolved(false);

@@ -33,6 +33,8 @@ namespace CalHacks
         [SerializeField] Vector3 wideOffset = new Vector3(4f, 2f, 0f);
         [Tooltip("Seconds to blend from one framing to the other.")]
         [SerializeField] float blendTime = 1f;
+        [Tooltip("Seconds a Reveal holds the Wide shot before blending back to Tight.")]
+        [SerializeField] float revealHold = 2.5f;
 
         [Header("Follow")]
         [Tooltip("Seconds to catch up with the target on X.")]
@@ -48,6 +50,7 @@ namespace CalHacks
         Vector3 focusVelocity;
         float blend;
         float blendGoal;
+        float revertAt = -1f; // Time.time at which a Reveal blends back to Tight; < 0 when none is pending
 
         public Transform Target
         {
@@ -70,7 +73,8 @@ namespace CalHacks
         void LateUpdate()
         {
             if (target == null) return;
-            blend = Mathf.MoveTowards(blend, blendGoal, blendTime > 0f ? Time.deltaTime / blendTime : 1f);
+            if (revertAt >= 0f && Time.time >= revertAt) SetFraming(CameraFraming.Tight);
+            blend =Mathf.MoveTowards(blend, blendGoal, blendTime > 0f ? Time.deltaTime / blendTime : 1f);
             var desired = DesiredFocus;
             focus.x = Mathf.SmoothDamp(focus.x, desired.x, ref focusVelocity.x, smoothTime);
             focus.y = Mathf.SmoothDamp(focus.y, desired.y, ref focusVelocity.y, verticalSmoothTime);
@@ -84,6 +88,14 @@ namespace CalHacks
             Framing = framing;
             blendGoal = framing == CameraFraming.Wide ? 1f : 0f;
             if (instant) blend = blendGoal;
+            revertAt = -1f;
+        }
+
+        /// <summary>Blends out to the Wide shot, holds it for the reveal hold, then blends back to Tight.</summary>
+        public void Reveal()
+        {
+            SetFraming(CameraFraming.Wide);
+            revertAt = Time.time + blendTime + revealHold;
         }
 
         /// <summary>Jumps to the target with no smoothing (after a teleport or reset).</summary>
