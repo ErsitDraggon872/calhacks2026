@@ -27,6 +27,31 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void EnclosedAreasBecomePaper()
+        {
+            // A 1 px ring of ink, radius 30: its inside is far wider than the border, but a cutout has no holes.
+            const int size = 80;
+            var src = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            src.SetPixels32(new Color32[size * size]);
+            for (var k = 0; k < 720; k++)
+            {
+                var angle = k * Mathf.PI / 360f;
+                src.SetPixel(40 + Mathf.RoundToInt(30f * Mathf.Cos(angle)), 40 + Mathf.RoundToInt(30f * Mathf.Sin(angle)), Color.black);
+            }
+            src.Apply();
+
+            var paper = PaperTexture.MakePaper(src);
+            var border = (paper.width - src.width) / 2;
+            var centre = paper.GetPixel(40 + border, 40 + border);
+            Assert.AreEqual(1f, centre.a, 0.01f, "inside of the ring is paper");
+            Assert.Greater(centre.r, 0.9f, "and it's white, not ink");
+            Assert.AreEqual(0f, paper.GetPixel(0, 0).a, 0.01f, "outside stays clear");
+
+            Object.DestroyImmediate(src);
+            Object.DestroyImmediate(paper);
+        }
+
+        [Test]
         public void BadBase64ReturnsNull()
         {
             Assert.IsNull(PaperTexture.FromBase64("not base64!!"));

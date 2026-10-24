@@ -36,14 +36,23 @@ namespace CalHacks.EditorTools
 
         static void BuildMaterials()
         {
-            Lit("Ground", new Color(0.93f, 0.89f, 0.80f));
-            Lit("Wall", new Color(0.62f, 0.57f, 0.52f));
-            Lit("Rock", new Color(0.33f, 0.31f, 0.33f));
+            // World palette: saturated mid-tones, so black ink on white paper (the drawings, B) is the only near-black
+            // and near-white on screen. Orange (DrawHere) and gold (Exit) are kept for things you interact with.
+            Lit("Ground", new Color(0.60f, 0.40f, 0.26f));    // earth: sides of walkable blocks
+            Lit("Grass", new Color(0.42f, 0.70f, 0.31f));     // walkable tops
+            Lit("Wall", new Color(0.36f, 0.55f, 0.58f));      // dusty teal backdrop and end walls: the orange outline pops on it
+            Lit("Rock", new Color(0.60f, 0.46f, 0.66f));      // plum: the high ledge
+            Lit("Sandstone", new Color(0.85f, 0.62f, 0.36f)); // the floating island
+            Lit("Wood", new Color(0.47f, 0.31f, 0.20f));      // poles
             Lit("Player", new Color(0.25f, 0.5f, 0.92f));
             Lit("Villager", new Color(0.92f, 0.55f, 0.25f));
-            Lit("Flag", new Color(0.85f, 0.85f, 0.85f));
+            Lit("Flag", new Color(0.85f, 0.30f, 0.27f));      // checkpoint flag; Checkpoint turns it green when reached
             Lit("Exit", new Color(1f, 0.8f, 0.2f));
             Lit("Paper", new Color(0.98f, 0.96f, 0.93f));
+
+            // Flat, unshaded cardboard hills behind the level; the far row is paler and bluer (aerial perspective).
+            Flat("HillNear", new Color(0.45f, 0.66f, 0.45f));
+            Flat("HillFar", new Color(0.60f, 0.75f, 0.74f));
 
             AlphaClip("Cutout", null, Color.white);
 
@@ -116,6 +125,14 @@ namespace CalHacks.EditorTools
             var m = Load(name, "Universal Render Pipeline/Lit");
             m.SetColor("_BaseColor", color);
             m.SetFloat("_Smoothness", 0.1f);
+            EditorUtility.SetDirty(m);
+        }
+
+        /// <summary>Unlit and opaque: a flat colour with no shading, for backdrop scenery.</summary>
+        static void Flat(string name, Color color)
+        {
+            var m = Load(name, "Universal Render Pipeline/Unlit");
+            m.SetColor("_BaseColor", color);
             EditorUtility.SetDirty(m);
         }
 
@@ -221,7 +238,7 @@ namespace CalHacks.EditorTools
             cam.nearClipPlane = 0.3f;
             cam.farClipPlane = 200f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.80f, 0.86f, 0.90f);
+            cam.backgroundColor = new Color(0.56f, 0.79f, 0.95f); // sky
             root.AddComponent<AudioListener>();
             root.AddComponent<CameraFollow>();
             return root;
@@ -337,7 +354,7 @@ namespace CalHacks.EditorTools
             box.center = new Vector3(0f, 1f, 0f);
             box.size = new Vector3(1f, 2f, 3.2f);
             var cp = root.AddComponent<Checkpoint>();
-            Visual(PrimitiveType.Cylinder, "Pole", root.transform, new Vector3(0f, 1f, 1.8f), new Vector3(0.1f, 1f, 0.1f), "Wall");
+            Visual(PrimitiveType.Cylinder, "Pole", root.transform, new Vector3(0f, 1f, 1.8f), new Vector3(0.1f, 1f, 0.1f), "Wood");
             var flag = Visual(PrimitiveType.Cube, "Flag", root.transform, new Vector3(0.35f, 1.7f, 1.8f), new Vector3(0.6f, 0.4f, 0.05f), "Flag");
             Fields(cp, ("flag", flag.GetComponent<MeshRenderer>()));
             return root;

@@ -57,23 +57,30 @@ namespace CalHacks.EditorTools
             var geo = new GameObject("Geometry").transform;
 
             // Start ledge, x -6..10: front path (z -1..1) and a raised back terrace (z 1..3, 0.8 m: jump up to it).
-            Box("Block", geo, new Vector3(-6f, -1f, -1f), new Vector3(10f, 0f, 1f)).name = "Start Path";
-            Box("Block", geo, new Vector3(-6f, -1f, 1f), new Vector3(10f, 0.8f, 3f)).name = "Start Terrace";
+            Walkable("Block", geo, "Start Path", new Vector3(-6f, -1f, -1f), new Vector3(10f, 0f, 1f));
+            Walkable("Block", geo, "Start Terrace", new Vector3(-6f, -1f, 1f), new Vector3(10f, 0.8f, 3f));
 
             // The gap is x 10..14.6 (GapSocket's deck). Hub floor, x 14.6..40, z -2..3.
-            Box("Block", geo, new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f)).name = "Hub Floor";
+            Walkable("Block", geo, "Hub Floor", new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f));
 
             // High ledge on the back layer, 2.3 m: out of jump reach (1.2 m), one invention plus a jump gets up.
-            Box("Rock", geo, new Vector3(24f, 0f, 0.5f), new Vector3(30f, 2.3f, 3f)).name = "High Ledge";
+            Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(30f, 2.3f, 3f));
 
             // Floating island, top at 4 m, with the exit and the goal flag. Reached by stacking inventions
             // (or by building off the high ledge).
-            Box("Rock", geo, new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 2.5f)).name = "Floating Island";
+            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 2.5f))
+                .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
 
-            // Backdrop wall behind everything and low end walls. Nothing in front, so the side camera sees in.
-            Box("Wall", geo, new Vector3(-7f, -6f, 3f), new Vector3(41f, 6f, 3.6f)).name = "Back Wall";
+            // Low backdrop wall behind everything, so the sky and hills show above it, and end walls. Nothing in
+            // front, so the side camera sees in.
+            // It runs well past both ends so the Wide framing never sees round it.
+            Box("Wall", geo, new Vector3(-30f, -16f, 3f), new Vector3(70f, 1.6f, 3.6f)).name = "Back Wall";
             Box("Wall", geo, new Vector3(-7f, -1f, -2f), new Vector3(-6f, 2f, 3f)).name = "Left End";
             Box("Wall", geo, new Vector3(40f, -1f, -2f), new Vector3(41f, 6f, 3f)).name = "Right End";
+
+            // Invisible back edge above the low wall: B can't step off the back of the high ledge or the island.
+            Invisible("Back Edge", geo, new Vector3(-7f, 1.6f, 3f), new Vector3(41f, 10f, 3.6f));
+            Hills();
 
             // Invisible front edges: B can't walk off toward the camera. The gap's own rails cover the bridge.
             Invisible("Front Edge Start", geo, new Vector3(-6f, 0f, -1.4f), new Vector3(10f, 4f, -1f));
@@ -155,12 +162,51 @@ namespace CalHacks.EditorTools
             var flag = new GameObject("Goal Flag").transform;
             flag.SetParent(parent, false);
             flag.position = foot;
-            Prop(PrimitiveType.Cylinder, "Pole", flag, new Vector3(0f, 1.5f, 0f), new Vector3(0.12f, 1.5f, 0.12f), "Wall");
+            Prop(PrimitiveType.Cylinder, "Pole", flag, new Vector3(0f, 1.5f, 0f), new Vector3(0.12f, 1.5f, 0.12f), "Wood");
             Prop(PrimitiveType.Cube, "Cloth", flag, new Vector3(0.6f, 2.6f, 0f), new Vector3(1.1f, 0.7f, 0.05f), "Exit");
             Prop(PrimitiveType.Sphere, "Knob", flag, new Vector3(0f, 3.05f, 0f), new Vector3(0.25f, 0.25f, 0.25f), "Exit");
         }
 
-        static void Prop(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 scale, string material)
+        /// <summary>
+        /// Two rows of flat, unshaded hills far behind the back wall (looks only), wide enough to fill the Wide framing
+        /// anywhere along the level. Each hill is a squashed sphere sunk well below the floor, so only its cap shows.
+        /// </summary>
+        static void Hills()
+        {
+            var backdrop = new GameObject("Backdrop").transform;
+            float[] farTops = { 5.5f, 4.2f, 6.2f, 4.8f, 5.8f, 4.5f, 6f };
+            for (var i = 0; i < farTops.Length; i++)
+                Hill(backdrop, "HillFar", new Vector3(-45f + i * 22f, 0f, 48f), 34f, farTops[i]);
+            float[] nearTops = { 2f, 3.2f, 1.2f, 3.6f, 2.4f, 1.8f, 3f, 2.2f };
+            for (var i = 0; i < nearTops.Length; i++)
+                Hill(backdrop, "HillNear", new Vector3(-30f + i * 16f, 0f, 26f), 22f + (i % 3) * 3f, nearTops[i]);
+        }
+
+        static void Hill(Transform parent, string material, Vector3 foot, float width, float top)
+        {
+            const float sunk = 8f; // the sphere's centre sits this far below y 0
+            var hill = Prop(PrimitiveType.Sphere, "Hill", parent, new Vector3(foot.x, -sunk, foot.z),
+                new Vector3(width, 2f * (top + sunk), 4f), material);
+            var renderer = hill.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
+        /// <summary>A block you can walk on, with a grass top. Returns the block.</summary>
+        static GameObject Walkable(string prefab, Transform parent, string name, Vector3 min, Vector3 max)
+        {
+            var block = Box(prefab, parent, min, max);
+            block.name = name;
+            // Slightly oversized, look-only slab, so its lip shows on the front face and the block's top never z-fights.
+            const float lip = 0.18f, overhang = 0.03f;
+            var lo = new Vector3(min.x - overhang, max.y - lip, min.z - overhang);
+            var hi = new Vector3(max.x + overhang, max.y + 0.01f, max.z + overhang);
+            var grass = Prop(PrimitiveType.Cube, name + " Grass", parent, (lo + hi) * 0.5f, hi - lo, "Grass");
+            grass.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return block;
+        }
+
+        static GameObject Prop(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 scale, string material)
         {
             var go = GameObject.CreatePrimitive(type);
             go.name = name;
@@ -169,6 +215,7 @@ namespace CalHacks.EditorTools
             go.transform.localPosition = localPosition;
             go.transform.localScale = scale;
             go.GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat(material);
+            return go;
         }
 
         static GameObject Box(string prefab, Transform parent, Vector3 min, Vector3 max)

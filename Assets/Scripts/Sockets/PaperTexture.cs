@@ -54,6 +54,7 @@ namespace CalHacks
             // Paper shape: ink alpha dilated by `border` pixels (separable box dilation).
             var horiz = Dilate(ink, outW, outH, border, true);
             var shape = Dilate(horiz, outW, outH, border, false);
+            FillHoles(shape, outW, outH);
 
             var pixels = new Color32[outW * outH];
             for (var y = 0; y < outH; y++)
@@ -82,6 +83,36 @@ namespace CalHacks
             result.SetPixels32(pixels);
             result.Apply(true, false);
             return result;
+        }
+
+        /// <summary>
+        /// A cutout has no holes: clear pixels the image edge can't reach (the inside of a drawn circle, B's face)
+        /// become paper. Flood-fills the clear area from the edges, 4-connected.
+        /// </summary>
+        static void FillHoles(byte[] shape, int w, int h)
+        {
+            var outside = new bool[shape.Length];
+            var stack = new System.Collections.Generic.Stack<int>();
+            void Push(int x, int y)
+            {
+                var i = y * w + x;
+                if (outside[i] || shape[i] != 0) return;
+                outside[i] = true;
+                stack.Push(i);
+            }
+            for (var x = 0; x < w; x++) { Push(x, 0); Push(x, h - 1); }
+            for (var y = 0; y < h; y++) { Push(0, y); Push(w - 1, y); }
+            while (stack.Count > 0)
+            {
+                var i = stack.Pop();
+                int x = i % w, y = i / w;
+                if (x > 0) Push(x - 1, y);
+                if (x < w - 1) Push(x + 1, y);
+                if (y > 0) Push(x, y - 1);
+                if (y < h - 1) Push(x, y + 1);
+            }
+            for (var i = 0; i < shape.Length; i++)
+                if (!outside[i]) shape[i] = 255;
         }
 
         static byte[] Dilate(byte[] input, int w, int h, int radius, bool horizontal)
