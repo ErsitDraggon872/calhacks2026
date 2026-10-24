@@ -22,6 +22,8 @@ import subprocess
 import tempfile
 
 PROMPT = Path(__file__).with_name('thinkink_system_prompt.txt').read_text()
+# Demo mode trims answers to support/bounce/thrust/lift at tested strengths; THINKINK_DEMO=0 keeps every ability.
+DEMO_MODE = os.getenv('THINKINK_DEMO', '1') == '1'
 MODEL = os.getenv('BITDEER_MODEL', 'Qwen/Qwen3.8-27B')
 ENDPOINT = os.getenv('BITDEER_ENDPOINT', 'https://api-inference.bitdeer.ai/v1/chat/completions')
 FAKE = os.getenv('THINKINK_FAKE', '0') == '1'
@@ -177,6 +179,38 @@ def identity(raw):
     adjectives = [a.replace('_',' ')[:24] for a in words(raw.get('adjectives'))][:4]
     return {'adjectives':adjectives,'material':material if material in MATERIALS else 'wood',
             'traits':traits[:MAX_TRAITS]}
+
+
+def demo_normalize(spec):
+    """Andy's demo scope: only SUPPORT / BOUNCE / THRUST / LIFT, power snapped to tested tiers.
+
+    Identity (name, material, traits) passes through untouched so food still feeds the gatekeeper.
+    Never adds an ability just to make the puzzle solvable. Riding needs no ATTACH: any moving body carries the player.
+    """
+    if spec['status'] != 'ok':
+        return spec
+    result = [support()]
+    # Two optional mechanics are enough for bird+rocket hybrids.
+    for original in [c for c in spec['components'] if c['type'] in ('bounce','thrust','lift')][:2]:
+        c = copy.deepcopy(original)
+        if c['type'] == 'bounce':
+            c['launch_speed'] = min((6, 10, 13), key=lambda v: abs(v-c['launch_speed']))
+            c['activation'] = 'contact' if c['activation'] == 'always' else c['activation']
+        elif c['type'] == 'thrust':
+            c['acceleration'] = min((8, 14, 20), key=lambda v: abs(v-c['acceleration']))
+            c['duration_s'] = min((0.9, 1.6, 2.3), key=lambda v: abs(v-c['duration_s']))
+        elif c['type'] == 'lift':
+            c.update(activation='button', angle_deg=90, duration_s=6.0, acceleration=12.0)
+        result.append(c)
+    if any(c['type'] == 'lift' for c in result):
+        # Gameplay carrying tiers from drawn width, not real aerodynamics: a small flyer can't carry the 6 kg player.
+        w = spec['width_m']
+        spec['attributes'].update(carry_capacity_kg=1.0 if w < 1.8 else (3.5 if w < 3.5 else 9.0),
+                                  force=0.8, speed=0.7, energy_capacity=1.0, mass_kg=max(2.0, min(5.0, w)))
+    if len(result) == 1 and len(spec['components']) > 1:
+        spec['message'] = 'A solid cutout for now. Try a spring, rocket or flying creature.'
+    spec['components'] = result
+    return spec
 
 
 def ink_cost(output):
@@ -513,6 +547,8 @@ def interpret(req):
             except Exception as err:
                 error = str(err)
                 print(f'[Bitdeer] attempt {attempt+1} failed: {error}',flush=True)
+    if spec is not None and DEMO_MODE and cached is None:
+        spec = demo_normalize(spec)
     if spec is not None and not FAKE and cached is None:
         with _CACHE_LOCK:
             _CACHE[fingerprint] = copy.deepcopy(spec)
@@ -565,7 +601,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     port = int(os.getenv('THINKINK_PORT', '8000'))
-    print(f'ThinkInk backend listening on http://127.0.0.1:{port}, model={MODEL}, fake={FAKE}',flush=True)
+    print(f'ThinkInk backend listening on http://127.0.0.1:{port}, model={MODEL}, fake={FAKE}, demo={DEMO_MODE}',flush=True)
     ThreadingHTTPServer(('127.0.0.1',port),Handler).serve_forever()
 
 if __name__=='__main__': main()

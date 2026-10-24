@@ -21,11 +21,11 @@ The high-ledge build slot is still in the level, but it's off the rehearsed rout
 | `/interpret` → name + traits (`edible`, `glows`, `hostile`) | Ink economy and pickups |
 | Gatekeeper decides on `edible` | Burning, extinguishing, floating, cutting, conductivity |
 | "Apple → food → lets you through" card | Approve screen with ghost placement |
-| Bounce, thrust, lift, glide, roll, attach and surface traits | `emit` (non-light) and `explode` components |
+| Bounce, thrust and lift at tested strengths, plus surface traits | Glide, roll, attach (backend demo mode drops them); `emit` (non-light) and `explode` |
 | | Grappling rope (`tether`): cut |
 | Browser whiteboard + main free-invention physics | Andy's in-Unity drawing pad; Henry's SpacetimeDB browser whiteboard supplies drawing input |
 
-Free inventions support bounce, thrust, lift, glide, roll and attach (E activates/rides, Space jumps off). Unity still parses other deferred parts. Anything it cannot run yet keeps the drawn solid shape without the unsupported power. Recognized support-only vehicles gain a basic drive ability; puzzle solutions still depend on traits.
+The backend runs in demo mode by default: every answer is cut to support plus at most two of bounce, thrust and lift, with power snapped to three tested strengths, and a flyer's carrying power comes from its drawn width (a tiny bird can't lift the player; a giant one can). `THINKINK_DEMO=0` restores the full set: Unity's free inventions also run glide, roll and attach (E activates/rides, Space jumps off). A ride that falls off the level returns to where it was built. Unity still parses other deferred parts. Anything it cannot run yet keeps the drawn solid shape without the unsupported power. Recognized support-only vehicles gain a basic drive ability; puzzle solutions still depend on traits.
 
 ## Running it
 - **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.

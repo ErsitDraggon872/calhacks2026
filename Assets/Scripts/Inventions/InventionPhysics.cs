@@ -15,6 +15,8 @@ namespace CalHacks
         float poweredUntil, nextUseAt, nextBounceAt;
         float poweredStartedAt;
         bool active, held, warnedWeakLift;
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
 
         // Andy's vehicle fallback uses whole words, so "carpet" and "cartoon" remain ordinary shapes.
         public static bool IsVehicleName(string name)
@@ -37,6 +39,8 @@ namespace CalHacks
         {
             invention = created;
             attributes = spec.Attributes;
+            spawnPosition = transform.position;
+            spawnRotation = transform.rotation;
             bounce = spec.Parts.FirstOrDefault(p => p.Type == PartType.Bounce);
             thrust = spec.Parts.FirstOrDefault(p => p.Type == PartType.Thrust);
             lift = spec.Parts.FirstOrDefault(p => p.Type == PartType.Lift);
@@ -118,9 +122,32 @@ namespace CalHacks
             poweredUntil = Time.time + duration * energyFactor;
         }
 
+        // Andy's recovery: a ride that falls off the level parks back where it was built, so the
+        // Explorer can retry without another drawing or AI call.
+        void ResetAfterFall()
+        {
+            if (rider != null && rider.IsRiding(this)) rider.Disembark(this);
+            rider = null;
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.isKinematic = true;
+            body.useGravity = false;
+            transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+            Physics.SyncTransforms();
+            active = false;
+            held = false;
+            nextUseAt = Time.time + .4f;
+            Subtitles.ShowNow("Your invention fell! It's back where you built it. Try again or redraw it.", 3f);
+        }
+
         void FixedUpdate()
         {
             if (body == null || body.isKinematic) return;
+            if (transform.position.y < spawnPosition.y - 5f)
+            {
+                ResetAfterFall();
+                return;
+            }
             var powered = active && Time.time < poweredUntil && (!HoldMode || held);
             if (active && !powered)
             {
