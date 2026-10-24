@@ -8,6 +8,8 @@ namespace CalHacks
     /// Paper explorer (Player B) for the side view. WASD moves relative to the camera's yaw (with the side camera:
     /// A/D along X, W/S in depth), Space jumps. Grounded by a 3D downward raycast. The body never rotates: the
     /// <see cref="visual"/> child's X scale flips to face left or right. The transform's pivot is at the feet.
+    /// An invention is a flat drawing with a deep collider, so while B stands on one the visual slides to the drawing's
+    /// depth: seen from the pitched camera, B then stands on the drawn edge wherever B is in the collider's depth.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
@@ -25,11 +27,16 @@ namespace CalHacks
         [SerializeField] Transform cameraTransform;
         [Tooltip("Child holding the paper sprite. Its X scale is flipped to face left or right.")]
         [SerializeField] Transform visual;
+        [Tooltip("How fast (m/s) the visual slides to an invention's drawing plane and back.")]
+        [SerializeField] float planeSnapSpeed = 8f;
 
         CharacterController controller;
         float verticalVelocity;
         float jumpPressedAt = float.NegativeInfinity;
         Vector3 visualScale = Vector3.one;
+        Vector3 visualPosition;
+        float planeOffset;
+        Invention standingOn;
         Action<InputAction.CallbackContext> onJump;
 
         public bool IsGrounded { get; private set; }
@@ -46,7 +53,11 @@ namespace CalHacks
         {
             controller = GetComponent<CharacterController>();
             if (config == null) config = Resources.Load<GameConfig>("GameConfig");
-            if (visual != null) visualScale = visual.localScale;
+            if (visual != null)
+            {
+                visualScale = visual.localScale;
+                visualPosition = visual.localPosition;
+            }
             ApplyFacing();
         }
 
@@ -88,12 +99,38 @@ namespace CalHacks
             }
 
             var velocity = move * moveSpeed + Vector3.up * verticalVelocity;
+            standingOn = null;
             var flags = controller.Move(velocity * Time.deltaTime);
             // Bumped a ceiling: start falling instead of sticking to it.
             if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
+            FollowDrawingPlane((flags & CollisionFlags.Below) != 0);
 
             if (move.x > 0.1f) SetFacing(1f);
             else if (move.x < -0.1f) SetFacing(-1f);
+        }
+
+        // Called during controller.Move for everything B touches. Anything below B counts, edges included (a box edge
+        // under the capsule gives a tilted normal); walls don't.
+        void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            if (hit.normal.y < 0.1f) return;
+            var invention = hit.collider.GetComponentInParent<Invention>();
+            if (invention != null) standingOn = invention;
+        }
+
+        /// <summary>
+        /// On an invention, slides the visual to its drawing's depth; on anything else, back to B's own. In the air it
+        /// keeps the last plane, so jumping off a build doesn't make B bob.
+        /// </summary>
+        void FollowDrawingPlane(bool grounded)
+        {
+            if (visual == null) return;
+            if (grounded)
+            {
+                var target = standingOn != null ? standingOn.transform.position.z - transform.position.z : 0f;
+                planeOffset = Mathf.MoveTowards(planeOffset, target, planeSnapSpeed * Time.deltaTime);
+            }
+            visual.localPosition = visualPosition + Vector3.forward * planeOffset;
         }
 
         Vector3 CameraRelative(Vector2 input)
@@ -128,6 +165,8 @@ namespace CalHacks
             jumpPressedAt = float.NegativeInfinity;
             FacingSign = (rotation * Vector3.forward).x < -0.01f ? -1f : 1f;
             ApplyFacing();
+            planeOffset = 0f;
+            if (visual != null) visual.localPosition = visualPosition;
         }
     }
 }

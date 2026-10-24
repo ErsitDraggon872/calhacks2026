@@ -60,22 +60,62 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void FlatTopIsPixelExactNotRoundedUpToACell()
+        {
+            // 100 x 100 px drawn 3 x 3 m, solid up to row 37: the top is at 1.11 m, not the next cell edge (1.2 m).
+            var alpha = Alpha(100, 100, (x, y) => y < 37);
+            var boxes = SilhouetteBoxes.Build(alpha, 100, 100, new Vector2(3f, 3f), Cell);
+            Assert.AreEqual(1, boxes.Count);
+            Assert.AreEqual(1.11f, boxes[0].yMax, 1e-4f);
+        }
+
+        [Test]
         public void DiagonalLineGivesStairSteps()
         {
-            // A thick diagonal from bottom-left to top-right, 200 px across 3 x 3 m.
+            // A thick diagonal from bottom-left to top-right, 200 px across 3 x 3 m (0.015 m a pixel).
             var alpha = Alpha(200, 200, (x, y) => Mathf.Abs(x - y) < 6);
             var boxes = SilhouetteBoxes.Build(alpha, 200, 200, new Vector2(3f, 3f), Cell);
             Assert.Greater(boxes.Count, 10);
-            // Every box is short (one or two cells tall), and the higher a box is, the further right.
+            // No step stands above the line at its right edge (the line's top is 5 px above y = x), and the higher a
+            // box is, the further right.
             boxes.Sort((a, b) => a.yMin.CompareTo(b.yMin));
             for (var i = 0; i < boxes.Count; i++)
             {
-                Assert.LessOrEqual(boxes[i].height, 2f * Cell + 1e-4f);
+                Assert.LessOrEqual(boxes[i].yMax, boxes[i].xMax + 1.5f + 5f * 0.015f + 1e-4f);
                 if (i > 0) Assert.GreaterOrEqual(boxes[i].center.x, boxes[i - 1].center.x - 1e-4f);
             }
             Assert.Less(boxes[0].center.x, 0f);
             Assert.Greater(boxes[boxes.Count - 1].center.x, 0f);
             Assert.IsFalse(Covers(boxes, new Vector2(1.2f, 0.3f)), "below the diagonal is open");
+        }
+
+        // The gap stretches every drawing to its 4.9 m span (GapSocket), whatever its aspect.
+        static readonly Vector2 GapBridge = new Vector2(4.9f, 1f);
+
+        [Test]
+        public void StretchedBridgeWithABreakHasNoBoxOverTheMiddle()
+        {
+            // 200 x 100 px drawn 4.9 x 1 m: a blob at each end (0.49 m each) and nothing between them.
+            var alpha = Alpha(200, 100, (x, y) => x < 20 || x >= 180);
+            var boxes = SilhouetteBoxes.Build(alpha, 200, 100, GapBridge, Cell);
+            Assert.IsTrue(Covers(boxes, new Vector2(-2.3f, 0.5f)), "near end is solid");
+            Assert.IsTrue(Covers(boxes, new Vector2(2.3f, 0.5f)), "far end is solid");
+            foreach (var b in boxes)
+            {
+                Assert.IsTrue(b.xMax < -1.5f || b.xMin > 1.5f, $"box {b} reaches over the middle");
+            }
+        }
+
+        [Test]
+        public void StretchedFullBarCoversTheWholeSpan()
+        {
+            var alpha = Alpha(200, 100, (x, y) => true);
+            var boxes = SilhouetteBoxes.Build(alpha, 200, 100, GapBridge, Cell);
+            for (var x = -2.4f; x <= 2.4f; x += 0.1f)
+            {
+                Assert.IsTrue(Covers(boxes, new Vector2(x, 0.95f)), $"top is open at x {x:0.0}");
+            }
+            Assert.AreEqual(GapBridge.x * GapBridge.y, Area(boxes), 1e-3f);
         }
 
         [Test]

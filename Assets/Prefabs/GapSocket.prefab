@@ -31,7 +31,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 717076909042796853}
-  - {fileID: 2958350516568092715}
   - {fileID: 261922979480465726}
   - {fileID: 9107335786564441881}
   - {fileID: 1247501435329968273}
@@ -54,7 +53,7 @@ MonoBehaviour:
   anchor: {fileID: 717076909042796853}
   span: {x: 4.9, y: 2.2}
   faceCamera: 0
-  solutionCollider: {fileID: 1419913550954402933}
+  solutionCollider: {fileID: 0}
   fallbackDrawing: {fileID: 2800000, guid: a02a8556c83eeaa42bbb8e3a4d4e78b7, type: 3}
   cutoutMaterial: {fileID: 2100000, guid: f88dd37e155ed4d47ae5693e7dfd3845, type: 2}
   catLine: Meow! The cat curls up and watches you.
@@ -62,59 +61,7 @@ MonoBehaviour:
   drawHint: {fileID: 3488362353943323421}
   railHeight: 0.4
   minHeight: 1
---- !u!1 &2907872198912238741
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2958350516568092715}
-  - component: {fileID: 1419913550954402933}
-  m_Layer: 0
-  m_Name: Deck
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2958350516568092715
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2907872198912238741}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 3441183644815434017}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &1419913550954402933
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2907872198912238741}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 0
-  serializedVersion: 3
-  m_Size: {x: 5.2, y: 0.5, z: 3.2}
-  m_Center: {x: 0, y: -0.25, z: 0}
+  depth: 3.2
 --- !u!1 &3488362353943323421
 GameObject:
   m_ObjectHideFlags: 0

@@ -70,6 +70,7 @@ Unity clamps to the same limits again, defensively.
 | `thrust` | Limited propulsion | `button` or `contact` | `acceleration` 2–25 m/s²; `duration_s` 0.5–3 (fuel); `angle_deg` is the push direction relative to the object (0 = toward the object's +x) |
 
 - Every object has at least one component. If nothing is recognised, return a single `support`: the drawn shape is still solid.
+- Components never change the collider's shape: Unity always builds it from the cutout's silhouette, and components only add behaviour.
 - At most one `thrust` and one `bounce` per object.
 - `width_m` is 0.5–6; `ink_cost` is 5–100.
 
