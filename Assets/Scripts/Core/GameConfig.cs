@@ -70,7 +70,8 @@ namespace CalHacks
         public Vector2 inventionSize = new Vector2(3f, 2.5f);
         [Tooltip("How far an invention's collider reaches along the view (Z), centred on the drawing.")]
         public float inventionDepth = 2f;
-        [Tooltip("Size in metres of the cells an invention's silhouette is rebuilt from as box colliders.")]
+        [Tooltip("Width in metres of the columns an invention's silhouette is rebuilt from as box colliders. " +
+                 "Their tops and bottoms are exact to the pixel.")]
         public float inventionCell = 0.15f;
 
         [Header("Mock vision")]

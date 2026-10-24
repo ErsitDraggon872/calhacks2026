@@ -60,17 +60,28 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void FlatTopIsPixelExactNotRoundedUpToACell()
+        {
+            // 100 x 100 px drawn 3 x 3 m, solid up to row 37: the top is at 1.11 m, not the next cell edge (1.2 m).
+            var alpha = Alpha(100, 100, (x, y) => y < 37);
+            var boxes = SilhouetteBoxes.Build(alpha, 100, 100, new Vector2(3f, 3f), Cell);
+            Assert.AreEqual(1, boxes.Count);
+            Assert.AreEqual(1.11f, boxes[0].yMax, 1e-4f);
+        }
+
+        [Test]
         public void DiagonalLineGivesStairSteps()
         {
-            // A thick diagonal from bottom-left to top-right, 200 px across 3 x 3 m.
+            // A thick diagonal from bottom-left to top-right, 200 px across 3 x 3 m (0.015 m a pixel).
             var alpha = Alpha(200, 200, (x, y) => Mathf.Abs(x - y) < 6);
             var boxes = SilhouetteBoxes.Build(alpha, 200, 200, new Vector2(3f, 3f), Cell);
             Assert.Greater(boxes.Count, 10);
-            // Every box is short (one or two cells tall), and the higher a box is, the further right.
+            // No step stands above the line at its right edge (the line's top is 5 px above y = x), and the higher a
+            // box is, the further right.
             boxes.Sort((a, b) => a.yMin.CompareTo(b.yMin));
             for (var i = 0; i < boxes.Count; i++)
             {
-                Assert.LessOrEqual(boxes[i].height, 2f * Cell + 1e-4f);
+                Assert.LessOrEqual(boxes[i].yMax, boxes[i].xMax + 1.5f + 5f * 0.015f + 1e-4f);
                 if (i > 0) Assert.GreaterOrEqual(boxes[i].center.x, boxes[i - 1].center.x - 1e-4f);
             }
             Assert.Less(boxes[0].center.x, 0f);

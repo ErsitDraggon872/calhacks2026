@@ -227,7 +227,10 @@ namespace CalHacks.EditorTools
             var texture = material != null ? material.GetTexture("_BaseMap") : null;
             const float height = 1.9f;
             var width = texture != null && texture.height > 0 ? height * texture.width / texture.height : 0.9f;
-            var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f, -0.05f),
+            // The CharacterController rests skinWidth above the ground, and the paper has a margin under the drawn feet:
+            // drop the quad by both so the feet touch the surface (the paper under them dips into it).
+            var drop = cc.skinWidth + PlayerFeetMargin() * height;
+            var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f - drop, -0.05f),
                 new Vector3(width, height, 1f), "PlayerPaper");
             quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
 
@@ -239,6 +242,18 @@ namespace CalHacks.EditorTools
             Fields(controller, ("config", config), ("visual", visual.transform));
             Fields(ghost, ("outline", outline.transform));
             return root;
+        }
+
+        /// <summary>Fraction of B's paper texture (the PlayerPaper drawing, rebuilt) below the drawn feet.</summary>
+        static float PlayerFeetMargin()
+        {
+            var ink = MockDrawingGenerator.Character();
+            var paper = PaperTexture.MakePaper(ink);
+            var row = PaperTexture.LowestInkRow(paper.GetPixels32(), paper.width, paper.height);
+            var margin = row > 0 ? (float)row / paper.height : 0f;
+            Object.DestroyImmediate(ink);
+            Object.DestroyImmediate(paper);
+            return margin;
         }
 
         static GameObject BuildCameraRig()
