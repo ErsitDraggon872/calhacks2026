@@ -8,6 +8,9 @@
   SpacetimeDB in small batches (add_stroke) and appear live in the Explorer's preview. BUILD sends the drawing like
   CreatorBuild does: publish_invention as "pending", then "ready" with a support-only physics JSON.
   Opened by the Unity co-op panel ("Test: open a whiteboard tab") with ?invite=..., so Unity joins this room by itself.
+  ?mode=board (the digital board, CaptureSource.DigitalBoard): this page is only the game's whiteboard. BUILD publishes
+  the drawing as "pending" and Unity reads the strokes, asks /interpret what they are, and builds it. Unity's F5
+  (reset_level) clears this canvas too.
   Talks to SpacetimeDB over its HTTP API only, so it's one file with no build step.
 -->
 <style>
@@ -32,7 +35,7 @@
   <div>Room <span id="code">····</span></div>
   <div><span id="linkDot" class="dot"></span><span id="link">connecting…</span></div>
   <div><span id="explorerDot" class="dot"></span>Explorer: <span id="explorer">not here</span></div>
-  <div>Ink: <b id="ink">–</b></div>
+  <div class="coop-only">Ink: <b id="ink">–</b></div>
   <div>BUILD: <span id="buildStatus">draw, then BUILD</span></div>
 </header>
 <main>
@@ -40,9 +43,9 @@
   <div class="bar">
     <button id="build">BUILD</button>
     <button id="clear">CLEAR</button>
-    <label>Name <input id="name" value="drawing"></label>
-    <label>Ink cost <input id="cost" type="number" min="5" max="100" value="10" style="width:70px"></label>
-    <span class="muted">Click and drag to draw. Strokes appear in the Unity panel as you draw.</span>
+    <label class="coop-only">Name <input id="name" value="drawing"></label>
+    <label class="coop-only">Ink cost <input id="cost" type="number" min="5" max="100" value="10" style="width:70px"></label>
+    <span class="muted" id="hint">Click and drag to draw. Strokes appear in the Unity panel as you draw.</span>
   </div>
   <div id="error"></div>
 </main>
@@ -51,6 +54,12 @@ const params = new URLSearchParams(location.search);
 const SERVER = (params.get('server') || 'https://maincloud.spacetimedb.com').replace(/\/$/, '');
 const DB = params.get('db') || 'thinkink';
 const INVITE = params.get('invite') || Math.random().toString(16).slice(2, 14);
+// The digital board: BUILD hands the drawing to the game, which interprets and builds it itself.
+const BOARD_MODE = params.get('mode') === 'board';
+if (BOARD_MODE) {
+  for (const el of document.querySelectorAll('.coop-only')) el.style.display = 'none';
+  document.getElementById('hint').textContent = 'Draw, then BUILD: the game reads the drawing and builds it.';
+}
 // Per tab (sessionStorage), so every tab is its own device with its own identity and room.
 const TOKEN_KEY = 'thinkink.whiteboard.token.' + DB;
 // The shared sync key: from the #fragment Unity adds (never sent to any server), else asked for once per tab.
@@ -77,7 +86,7 @@ for (const c of [ctx, inkCtx]) { c.lineCap = c.lineJoin = 'round'; c.lineWidth =
 
 let token = sessionStorage.getItem(TOKEN_KEY);
 let roomId = null;
-let drawingNumber = 1, sequence = 0, builtCapture = null, building = false;
+let drawingNumber = 1, sequence = 0, builtCapture = null, building = false, resetCount = null;
 const sessionTag = Math.random().toString(16).slice(2, 8);
 const captureId = () => `web-${sessionTag}-${drawingNumber}`;
 
@@ -204,9 +213,16 @@ $('build').onclick = async () => {
   const name = $('name').value.trim() || 'drawing';
   const cost = Math.round(Number($('cost').value) || 10);
   building = true; builtCapture = capture;
-  $('build').disabled = true; $('buildStatus').textContent = 'interpreting…';
+  $('build').disabled = true; $('buildStatus').textContent = BOARD_MODE ? 'sending…' : 'interpreting…';
   try {
     await enqueue('publish_invention', [roomId, capture, image, '', 0, 0]);
+    if (BOARD_MODE) {
+      // The pending row is the game's cue: it builds from the strokes it already has.
+      clearLocal();
+      await enqueue('clear_drawing', [roomId]);
+      $('buildStatus').textContent = 'sent to the game';
+      return;
+    }
     // Stand-in for /interpret: a support (solid platform), like SupportOnlyInterpreter in Unity.
     await new Promise(r => setTimeout(r, 600));
     const physics = JSON.stringify({
@@ -241,7 +257,16 @@ async function refresh() {
     const here = !!explorer && (explorer.online || Date.now() * 1000 - micros(explorer.last_seen) < 10e6);
     $('explorerDot').classList.toggle('on', here);
     $('explorer').textContent = here ? 'online' : 'not here';
-    if (builtCapture && !building) {
+    // The game's F5 (reset_level) emptied the room's drawing: empty this canvas too.
+    const [gs] = await sql(`SELECT reset_count FROM game_state WHERE room_id = ${roomId}`);
+    if (gs) {
+      if (resetCount != null && gs.reset_count !== resetCount && !building) {
+        clearLocal();
+        $('buildStatus').textContent = 'draw, then BUILD';
+      }
+      resetCount = gs.reset_count;
+    }
+    if (builtCapture && !building && !BOARD_MODE) {
       const [inv] = await sql(`SELECT status, name, message FROM invention WHERE room_id = ${roomId} AND capture_id = '${builtCapture}'`);
       $('buildStatus').textContent = !inv ? 'sent' : inv.status === 'failed' ? `failed: ${inv.message}` : `${inv.status} (${inv.name})`;
     }

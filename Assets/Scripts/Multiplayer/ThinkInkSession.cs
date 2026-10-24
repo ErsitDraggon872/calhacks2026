@@ -321,6 +321,8 @@ namespace CalHacks
             pendingInvite = Guid.NewGuid().ToString("N").Substring(0, 12);
             var url = new Uri(page).AbsoluteUri + $"?invite={pendingInvite}&db={Uri.EscapeDataString(databaseName)}" +
                       $"&server={Uri.EscapeDataString(serverUri)}";
+            // The digital board: the page's BUILD only hands the drawing to this game, which reads and builds it.
+            if (RunManager.Instance != null && RunManager.Instance.UsesDigitalBoard) url += "&mode=board";
             // The key rides in the #fragment, which browsers never send to a server; the log line below omits it.
             var withKey = string.IsNullOrEmpty(syncKey) ? url : url + "#key=" + Uri.EscapeDataString(syncKey);
             // Opening a file:// URL drops its ?query on macOS, so open a one-line launcher that redirects with it.

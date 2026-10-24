@@ -20,13 +20,14 @@ namespace CalHacks
         Service, // HttpVisionClient: the Python service owns the camera, crops and labels.
         Webcam,  // WebcamVisionClient: Unity reads the webcam itself (BoardCamera) and cuts the ink out locally.
         Replay,  // WebcamVisionClient on saved board photos (ReplayFrameSource): live pipeline, no camera rig.
+        DigitalBoard, // WebcamVisionClient on the SpacetimeDB browser whiteboard's strokes (DigitalBoardFrameSource).
     }
 
     [CreateAssetMenu(menuName = "Game/Game Config", fileName = "GameConfig")]
     public class GameConfig : ScriptableObject
     {
         [Header("Vision")]
-        [Tooltip("Where board images come from. A build can override this with -capture=mock|service|webcam|replay.")]
+        [Tooltip("Where board images come from. A build can override this with -capture=mock|service|webcam|replay|digital.")]
         [FormerlySerializedAs("visionMode")]
         public CaptureSource captureSource = CaptureSource.Mock;
         public string serviceUrl = "http://localhost:8000";
@@ -108,6 +109,7 @@ namespace CalHacks
                 if (a == "-capture=service" || a == "-vision=http") return CaptureSource.Service;
                 if (a == "-capture=webcam") return CaptureSource.Webcam;
                 if (a == "-capture=replay") return CaptureSource.Replay;
+                if (a == "-capture=digital") return CaptureSource.DigitalBoard;
             }
             return captureSource;
         }

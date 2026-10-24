@@ -26,7 +26,36 @@ Two clients on one machine need different identities: start the second with `-th
 `-thinkink-server=<url>` and `-thinkink-db=<name>`. Without a slot flag, each client keeps its identity (and so its
 room and role) across restarts.
 
-## The drawing can come from either input
+## The digital board (one game machine)
+
+This is the mode for the demo route. The browser whiteboard stands in for the physical whiteboard and the game runs
+the same BUILD it runs on the webcam, so the gap, the gatekeeper and free builds all work, with real `/interpret`
+readings. Only one machine runs Unity.
+
+- **Turn it on:** `GameConfig.captureSource = DigitalBoard`, or `-capture=digital` on a build.
+- **Who draws:** the judge, in `tools/whiteboard/index.html?mode=board`. The page is the room's Creator, and the game
+  joins as the Explorer. Testing on one machine: the co-op panel's **Test: open a whiteboard tab** opens the page in
+  board mode and joins by itself. From a tablet: serve the page over the LAN (`python -m http.server 8080` in
+  `tools/whiteboard`), open `http://<laptop-ip>:8080/index.html?mode=board`, paste the key once, then type the
+  page's room code into the co-op panel and click **Join**.
+- **BUILD:** the page's BUILD publishes the drawing as a `pending` invention and nothing else. The game sees that row
+  and runs `RunManager.Cast()`: `DigitalBoardFrameSource` draws that capture's strokes onto a white 992×572 board
+  (the page's 960×540 canvas inside a 16 px border, so a drawing that runs to the page's edge isn't taken for the
+  board's frame), then `WebcamVisionClient` cuts the ink out with the whole frame as the crop, `/interpret` says
+  what it is, and the socket in range (or a free build) gets it. If BUILD is cooling down or a reading is in
+  flight, the page's BUILD waits up to 5 s. Unity's own BUILD key also works, on the latest strokes.
+- **Clearing:** the page clears itself right after its BUILD (the game keeps its own copy of that capture's strokes
+  until it has grabbed them). CLEAR clears both. The game's F5 resets the room (`reset_level`) and the page notices
+  `game_state.reset_count` change and empties its canvas.
+- **Not used in this mode:** `ExplorerInventions` ignores the room's inventions (the `pending` rows only trigger
+  BUILD and stay `pending` until a reset), and Ink isn't spent.
+- **Status:** the debug overlay's vision line names the room (`digital board ABCD`), and a BUILD that can't get a
+  board fails with why: the SpacetimeDB link, the sync key, or no room yet.
+- **If the network is down:** switch back to `-capture=webcam`. Or run SpacetimeDB on the laptop (`spacetime start`,
+  `spacetime publish thinkink --server local`, then `set_sync_key`) and point both sides at it:
+  `-thinkink-server=http://<laptop-ip>:3000` and `?server=http://<laptop-ip>:3000`.
+
+## Two machines: the drawing can come from either input
 
 The flow is the same for both inputs. Only the Creator's capture differs:
 

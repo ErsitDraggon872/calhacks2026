@@ -15,14 +15,18 @@ namespace CalHacks
         readonly GameConfig config;
         readonly IBoardFrameSource camera;
         readonly IInterpreter interpreter;
+        readonly Rect crop;
         readonly Dictionary<string, BoardCapture> pending = new Dictionary<string, BoardCapture>();
         int nextId;
 
-        public WebcamVisionClient(GameConfig config, IBoardFrameSource camera, IInterpreter interpreter)
+        /// <param name="crop">The board inside each frame (normalized, origin bottom-left): GameConfig.boardCrop for a
+        /// camera, the whole frame for a source that already is the board.</param>
+        public WebcamVisionClient(GameConfig config, IBoardFrameSource camera, IInterpreter interpreter, Rect crop)
         {
             this.config = config;
             this.camera = camera;
             this.interpreter = interpreter;
+            this.crop = crop;
         }
 
         public string Name => $"Webcam {(camera != null ? camera.DeviceName ?? "-" : "(missing)")} + interpreter {interpreter.Name}";
@@ -34,7 +38,7 @@ namespace CalHacks
             var frame = camera.Grab(out var w, out var h);
             if (frame == null) return Fail("camera: " + camera.Status);
 
-            var ink = InkExtractor.Extract(frame, w, h, config.boardCrop, config.inkThreshold, config.minInkPx);
+            var ink = InkExtractor.Extract(frame, w, h, crop, config.inkThreshold, config.minInkPx);
             var response = new CaptureResponse
             {
                 id = "cam-" + ++nextId,
@@ -52,9 +56,9 @@ namespace CalHacks
                 response.png_base64 = Convert.ToBase64String(texture.EncodeToPNG());
                 response.width = ink.Width;
                 response.height = ink.Height;
-                UnityEngine.Object.Destroy(texture);
+                PaperTexture.DestroySafe(texture);
 
-                var board = InkExtractor.BoardRect(w, h, config.boardCrop);
+                var board = InkExtractor.BoardRect(w, h, crop);
                 pending[response.id] = new BoardCapture
                 {
                     Request = request,

@@ -81,6 +81,8 @@ namespace CalHacks
         void OnInvention(InventionRow row)
         {
             if (session.Role != CoopRole.Explorer) return;
+            // With the digital board, the page's BUILD is a CAST trigger here (DigitalBoardFrameSource), not an invention.
+            if (RunManager.Instance != null && RunManager.Instance.UsesDigitalBoard) return;
             switch (row.Status)
             {
                 case "pending":

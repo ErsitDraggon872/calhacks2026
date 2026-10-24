@@ -70,6 +70,8 @@ namespace CalHacks
             : string.Join(", ", sockets.Select(s => $"{s.SocketId} {(s.Solved ? "✓" : "·")}"));
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
         public int InventionCount => inventions.Count;
+        /// <summary>Drawings come from the SpacetimeDB browser whiteboard (CaptureSource.DigitalBoard).</summary>
+        public bool UsesDigitalBoard { get; private set; }
 
         /// <summary>After every reset (F5, start, or a co-op partner's reset).</summary>
         public static event Action RunReset;
@@ -90,10 +92,16 @@ namespace CalHacks
                 case CaptureSource.Webcam:
                     var boardCamera = GetComponent<BoardCamera>();
                     if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
-                    vision = new WebcamVisionClient(config, boardCamera, CreateInterpreter());
+                    vision = new WebcamVisionClient(config, boardCamera, CreateInterpreter(), config.boardCrop);
                     break;
                 case CaptureSource.Replay:
-                    vision = new WebcamVisionClient(config, new ReplayFrameSource(config.ResolveReplayFolder()), CreateInterpreter());
+                    vision = new WebcamVisionClient(config, new ReplayFrameSource(config.ResolveReplayFolder()), CreateInterpreter(), config.boardCrop);
+                    break;
+                case CaptureSource.DigitalBoard:
+                    // The browser whiteboard's strokes, drawn onto a clean board: the frame is the whole board.
+                    UsesDigitalBoard = true;
+                    var digitalBoard = gameObject.AddComponent<DigitalBoardFrameSource>();
+                    vision = new WebcamVisionClient(config, digitalBoard, CreateInterpreter(), new Rect(0f, 0f, 1f, 1f));
                     break;
                 default:
                     mock = new MockVisionClient(config);
@@ -184,8 +192,9 @@ namespace CalHacks
 
         public async void Cast()
         {
-            // In a co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
-            if (ThinkInkSession.InRoom) return;
+            // In a two-machine co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
+            // With the digital board, the room is where this machine's drawings come from, so CAST runs as usual.
+            if (ThinkInkSession.InRoom && !UsesDigitalBoard) return;
             switch (State.CanCast())
             {
                 case CastBlock.InFlight:

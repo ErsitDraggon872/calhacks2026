@@ -33,7 +33,7 @@ namespace CalHacks
             width = Mathf.Max(8, width);
             height = Mathf.Max(8, height);
             if (Texture != null && width == Width && height == Height) return;
-            if (Texture != null) UnityEngine.Object.Destroy(Texture);
+            if (Texture != null) PaperTexture.DestroySafe(Texture);
             Width = width;
             Height = height;
             pixels = new Color32[width * height];
@@ -70,6 +70,9 @@ namespace CalHacks
                 pixels[y * Width + x] = src[(y * image.height / Height) * image.width + x * image.width / Width];
             dirty = true;
         }
+
+        /// <summary>A copy of the canvas pixels, bottom row first (Texture2D order).</summary>
+        public Color32[] CopyPixels() => (Color32[])pixels.Clone();
 
         /// <summary>Uploads pending changes and returns the texture.</summary>
         public Texture2D Apply()
@@ -140,7 +143,7 @@ namespace CalHacks
 
         public void Dispose()
         {
-            if (Texture != null) UnityEngine.Object.Destroy(Texture);
+            if (Texture != null) PaperTexture.DestroySafe(Texture);
             Texture = null;
         }
     }
