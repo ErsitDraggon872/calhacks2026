@@ -19,15 +19,30 @@ namespace CalHacks.Tests
         }
 
         [Test]
-        public void CastLockedUntilNewBoard()
+        public void CastBlockedUntilCooldownEnds()
         {
             var s = new RunState();
             s.BeginRequest();
-            s.LockBoard();
+            s.StartCooldown(3f);
             s.EndRequest();
-            Assert.AreEqual(CastBlock.BoardLocked, s.CanCast());
-            s.NewBoard();
+            Assert.AreEqual(CastBlock.Cooldown, s.CanCast());
+            Assert.AreEqual(0f, s.CooldownFraction, 1e-4f);
+            s.Tick(1.5f);
+            Assert.AreEqual(CastBlock.Cooldown, s.CanCast());
+            Assert.AreEqual(0.5f, s.CooldownFraction, 1e-4f);
+            s.Tick(1.6f);
             Assert.AreEqual(CastBlock.None, s.CanCast());
+            Assert.AreEqual(1f, s.CooldownFraction, 1e-4f);
+        }
+
+        [Test]
+        public void CooldownRunsAfterFinish()
+        {
+            var s = new RunState();
+            s.StartCooldown(1f);
+            s.Finish();
+            s.Tick(2f);
+            Assert.AreEqual(0f, s.CooldownRemaining);
         }
 
         [Test]
@@ -45,13 +60,14 @@ namespace CalHacks.Tests
             var s = new RunState();
             var before = s.RunId;
             s.BeginRequest();
-            s.LockBoard();
+            s.StartCooldown(10f);
             s.Tick(5f);
             s.Finish();
             var after = s.Reset();
             Assert.AreEqual(before + 1, after);
             Assert.AreEqual(CastBlock.None, s.CanCast());
             Assert.AreEqual(0f, s.Elapsed);
+            Assert.AreEqual(0f, s.CooldownRemaining);
             Assert.IsFalse(s.Finished);
         }
 

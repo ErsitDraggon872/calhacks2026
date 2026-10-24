@@ -19,11 +19,14 @@ namespace CalHacks.EditorTools
             var asset = InputActionAsset.FromJson(File.ReadAllText(AssetPath));
             var map = asset.FindActionMap("Player", throwIfNotFound: true);
 
-            // No jumping in this game, and Space belongs to CAST.
-            if (map.FindAction("Jump") != null) asset.RemoveAction("Player/Jump");
+            // Player A builds with Enter; Space stays Player B's jump. NEW BOARD is gone (Backspace is reserved for reject).
+            if (map.FindAction("NewBoard") != null) asset.RemoveAction("Player/NewBoard");
+            var cast = map.FindAction("Cast");
+            if (cast != null && cast.bindings.Count > 0 && cast.bindings[0].path != "<Keyboard>/enter") asset.RemoveAction("Player/Cast");
 
-            Add(map, "Cast", "<Keyboard>/space");
-            Add(map, "NewBoard", "<Keyboard>/backspace");
+            Add(map, "Cast", "<Keyboard>/enter", "<Keyboard>/numpadEnter");
+            Add(map, "CameraPreview", "<Keyboard>/p");
+            Add(map, "Jump", "<Keyboard>/space");
             Add(map, "ResetLevel", "<Keyboard>/f5");
             Add(map, "ManualAccept", "<Keyboard>/f1");
             Add(map, "ManualReject", "<Keyboard>/f2");

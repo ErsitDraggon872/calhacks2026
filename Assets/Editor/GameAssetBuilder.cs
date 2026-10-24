@@ -178,6 +178,8 @@ namespace CalHacks.EditorTools
             root.AddComponent<Subtitles>();
             root.AddComponent<Hud>();
             root.AddComponent<DebugOverlay>();
+            Fields(root.AddComponent<BoardCamera>(), ("config", config));
+            Fields(root.AddComponent<CameraPreview>(), ("config", config));
             Fields(run, ("config", config));
             return root;
         }

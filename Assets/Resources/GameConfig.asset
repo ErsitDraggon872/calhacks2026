@@ -12,11 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ffd89053002d5f4a8e43004cb8d49e3, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: Game::CalHacks.GameConfig
-  useMockVision: 1
+  captureSource: 2
   serviceUrl: http://localhost:8000
   captureTimeout: 10
   labelTimeout: 20
   healthPollInterval: 3
+  cameraDevice: 
+  cameraWidth: 1280
+  cameraHeight: 720
+  boardCrop:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 1
+    height: 1
+  inkThreshold: 0.6
+  minInkPx: 400
+  buildCooldown: 3
   castRange: 5
   killY: -5
   mockCaptureDelay: 0.1

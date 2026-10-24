@@ -45,16 +45,17 @@ namespace CalHacks
             if (solutionCollider != null) solutionCollider.enabled = false;
         }
 
-        /// <summary>A capture arrived for this socket: show the drawing now, before the label.</summary>
-        public void ApplyCapture(CaptureResponse capture, Texture2D paper)
+        /// <summary>A capture arrived for this socket: show the drawing now, before the label. False if no cutout was made.</summary>
+        public bool ApplyCapture(CaptureResponse capture, Texture2D paper)
         {
             if (Solved)
             {
                 Destroy(paper);
-                return;
+                return false;
             }
             ShowCutout(paper, true);
             OnCaptured(capture);
+            return true;
         }
 
         public void ApplyLabel(string label)

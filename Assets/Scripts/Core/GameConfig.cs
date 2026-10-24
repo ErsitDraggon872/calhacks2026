@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace CalHacks
 {
@@ -12,13 +13,21 @@ namespace CalHacks
         public string label;
     }
 
+    /// <summary>Where board images come from. Interpreting them is a separate, replaceable step (IInterpreter).</summary>
+    public enum CaptureSource
+    {
+        Mock,    // MockVisionClient: PNGs from Resources/MockDrawings, no hardware or service.
+        Service, // HttpVisionClient: the Python service owns the camera, crops and labels.
+        Webcam,  // WebcamVisionClient: Unity reads the webcam itself (BoardCamera) and cuts the ink out locally.
+    }
+
     [CreateAssetMenu(menuName = "Game/Game Config", fileName = "GameConfig")]
     public class GameConfig : ScriptableObject
     {
         [Header("Vision")]
-        [Tooltip("On: MockVisionClient (no Python service needed). Off: HttpVisionClient against serviceUrl.\n" +
-                 "A build can override this with -vision=mock or -vision=http on the command line.")]
-        public bool useMockVision = true;
+        [Tooltip("Where board images come from. A build can override this with -capture=mock, -capture=service or -capture=webcam.")]
+        [FormerlySerializedAs("visionMode")]
+        public CaptureSource captureSource = CaptureSource.Mock;
         public string serviceUrl = "http://localhost:8000";
         [Tooltip("Seconds before POST /capture gives up.")]
         public int captureTimeout = 10;
@@ -27,7 +36,22 @@ namespace CalHacks
         [Tooltip("Seconds between GET /health polls while the debug overlay is open.")]
         public float healthPollInterval = 3f;
 
+        [Header("Webcam")]
+        [Tooltip("WebCamTexture device name. Empty: the first USB webcam (never the integrated or a virtual camera). " +
+                 "A build can override with -camera=<name>.")]
+        public string cameraDevice = "";
+        public int cameraWidth = 1280;
+        public int cameraHeight = 720;
+        [Tooltip("Part of the frame that is the whiteboard, normalized (0-1, origin bottom-left).")]
+        public Rect boardCrop = new Rect(0f, 0f, 1f, 1f);
+        [Tooltip("A pixel is ink when its brightness is below the local board brightness times this.")]
+        [Range(0.1f, 0.95f)] public float inkThreshold = 0.6f;
+        [Tooltip("Fewer ink pixels than this counts as an empty board.")]
+        public int minInkPx = 400;
+
         [Header("Gameplay")]
+        [Tooltip("Seconds after a build before BUILD is ready again.")]
+        public float buildCooldown = 3f;
         [Tooltip("CAST binds to the nearest unsolved socket within this horizontal distance of the explorer.")]
         public float castRange = 5f;
         [Tooltip("Falling below this height respawns the explorer at the last checkpoint.")]
@@ -46,14 +70,27 @@ namespace CalHacks
             new MockDrawing { resourceName = "scribble", label = "unknown" },
         };
 
-        public bool ResolveUseMock()
+        /// <summary>The capture source, honouring -capture=... (and the older -vision=mock|http).</summary>
+        public CaptureSource ResolveCaptureSource()
         {
             foreach (var arg in Environment.GetCommandLineArgs())
             {
-                if (arg.Equals("-vision=mock", StringComparison.OrdinalIgnoreCase)) return true;
-                if (arg.Equals("-vision=http", StringComparison.OrdinalIgnoreCase)) return false;
+                var a = arg.ToLowerInvariant();
+                if (a == "-capture=mock" || a == "-vision=mock") return CaptureSource.Mock;
+                if (a == "-capture=service" || a == "-vision=http") return CaptureSource.Service;
+                if (a == "-capture=webcam") return CaptureSource.Webcam;
             }
-            return useMockVision;
+            return captureSource;
+        }
+
+        public string ResolveCameraDevice()
+        {
+            const string prefix = "-camera=";
+            foreach (var arg in Environment.GetCommandLineArgs())
+            {
+                if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return arg.Substring(prefix.Length);
+            }
+            return cameraDevice;
         }
     }
 }

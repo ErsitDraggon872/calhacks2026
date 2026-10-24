@@ -79,24 +79,6 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Cast",
-                    "type": "Button",
-                    "id": "133fd7ca-4b00-4b55-97c2-28e8f36738f5",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
-                    "name": "NewBoard",
-                    "type": "Button",
-                    "id": "15484928-4fd7-4347-8941-028c639c2c37",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
                     "name": "ResetLevel",
                     "type": "Button",
                     "id": "d9c26ce6-f307-4869-bfc7-65494e7b4ef7",
@@ -145,6 +127,33 @@
                     "name": "MockPick",
                     "type": "Button",
                     "id": "ccdcece2-e3fd-40f3-8905-d95961764e65",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Cast",
+                    "type": "Button",
+                    "id": "44584232-553e-44b9-a5aa-3336c8bf4603",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "CameraPreview",
+                    "type": "Button",
+                    "id": "c1b57fd3-f878-43e7-a9d9-cd8ef68cb50e",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Jump",
+                    "type": "Button",
+                    "id": "248acb94-f79f-45f8-8077-04e00dfc376f",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -506,28 +515,6 @@
                 },
                 {
                     "name": "",
-                    "id": "69b4a859-e96e-4c6f-a447-f408092636ff",
-                    "path": "<Keyboard>/space",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard&Mouse",
-                    "action": "Cast",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "72f3802b-c5d7-4571-84bc-15cdcba6bbb4",
-                    "path": "<Keyboard>/backspace",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard&Mouse",
-                    "action": "NewBoard",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "29ca4935-a2c6-47ce-991a-25c2f9dd8725",
                     "path": "<Keyboard>/f5",
                     "interactions": "",
@@ -644,6 +631,50 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "MockPick",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "87b35cf9-ff8b-42ec-9935-af01d74632db",
+                    "path": "<Keyboard>/enter",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Cast",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "58e3ca5d-8285-4b9e-9c31-4ab67d915247",
+                    "path": "<Keyboard>/numpadEnter",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Cast",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "7f7bd38c-eb07-4867-a16b-69a3f9c16349",
+                    "path": "<Keyboard>/p",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "CameraPreview",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "004c740b-1fe8-4cf7-bfc6-a245c1a78f2e",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Jump",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

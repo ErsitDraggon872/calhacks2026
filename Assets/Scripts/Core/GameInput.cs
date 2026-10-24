@@ -5,15 +5,15 @@ namespace CalHacks
     /// <summary>
     /// Actions from the project-wide Input Actions asset (Assets/InputSystem_Actions.inputactions, map "Player").
     /// The button station is a USB keyboard, so these keys are the station's contract:
-    /// Space CAST, Backspace NEW BOARD, F5 reset, F1 accept, F2 reject, F3 overlay, F9 recalibrate.
+    /// Enter BUILD (Cast), P camera preview, F5 reset, F1 accept, F2 reject, F3 overlay, F9 recalibrate.
     /// </summary>
     public static class GameInput
     {
-        static InputAction move, cast, newBoard, resetLevel, manualAccept, manualReject, debugOverlay, recalibrate, mockPick;
+        static InputAction move, cast, cameraPreview, resetLevel, manualAccept, manualReject, debugOverlay, recalibrate, mockPick;
 
         public static InputAction Move => move ??= Find("Move");
         public static InputAction Cast => cast ??= Find("Cast");
-        public static InputAction NewBoard => newBoard ??= Find("NewBoard");
+        public static InputAction CameraPreview => cameraPreview ??= Find("CameraPreview");
         public static InputAction ResetLevel => resetLevel ??= Find("ResetLevel");
         public static InputAction ManualAccept => manualAccept ??= Find("ManualAccept");
         public static InputAction ManualReject => manualReject ??= Find("ManualReject");

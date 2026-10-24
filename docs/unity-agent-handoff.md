@@ -78,12 +78,13 @@ Put all of these in the Input Actions asset. The button station is a USB keyboar
 | Action | Key | Notes |
 |---|---|---|
 | Move | WASD | Camera-relative, isometric |
-| CAST | Space | Station button |
-| NEW BOARD | Backspace | Station button; unlocks CAST after a wipe |
+| BUILD (`Cast`) | Enter / numpad Enter | Player A's station button; 3 s cooldown afterwards (bottom-right bar). NEW BOARD and the board lock are gone. |
+| Camera preview | P | Live webcam feed with the board crop outlined |
+| Jump | Space | Reserved for Player B |
 | Reset level | F5 | Under 5 s; increments run_id |
 | Manual accept | F1 | Forces the bound/nearest socket's solution |
 | Manual reject | F2 | Forces `unknown` |
-| Debug overlay | F3 | provider, latency, run_id, lock state, health |
+| Debug overlay | F3 | provider, latency, run_id, cooldown, camera, health |
 | Recalibrate | F9 | POST `/calibrate` |
 
 ## Game design you're implementing

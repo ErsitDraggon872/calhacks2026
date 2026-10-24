@@ -9,7 +9,7 @@ using UnityEngine.InputSystem.Controls;
 namespace CalHacks
 {
     /// <summary>
-    /// Owns the run: run_id, timer, CAST/NEW BOARD lock, socket binding, vision requests, checkpoints, reset and win.
+    /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, checkpoints, reset and win.
     /// </summary>
     public class RunManager : MonoBehaviour
     {
@@ -40,6 +40,7 @@ namespace CalHacks
         public RunState State { get; } = new RunState();
         public float FinalTime { get; private set; }
         public bool OverlayVisible { get; private set; }
+        public bool PreviewVisible { get; private set; }
         public string VisionName => vision?.Name ?? "-";
         public string LastProvider { get; private set; }
         public float LastLatencyMs { get; private set; } = -1f;
@@ -62,14 +63,21 @@ namespace CalHacks
             if (config == null) config = Resources.Load<GameConfig>("GameConfig");
             if (config == null) config = ScriptableObject.CreateInstance<GameConfig>();
 
-            if (config.ResolveUseMock())
+            switch (config.ResolveCaptureSource())
             {
-                mock = new MockVisionClient(config);
-                vision = mock;
-            }
-            else
-            {
-                vision = new HttpVisionClient(config);
+                case CaptureSource.Service:
+                    vision = new HttpVisionClient(config);
+                    break;
+                case CaptureSource.Webcam:
+                    var boardCamera = GetComponent<BoardCamera>();
+                    if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
+                    // No interpreter backend yet (POST /interpret, docs/interpret-contract.md): every drawing is "unknown".
+                    vision = new WebcamVisionClient(config, boardCamera, new NoInterpreter());
+                    break;
+                default:
+                    mock = new MockVisionClient(config);
+                    vision = mock;
+                    break;
             }
 
             sockets = FindObjectsByType<PuzzleSocket>(FindObjectsInactive.Include, FindObjectsSortMode.None)
@@ -90,11 +98,11 @@ namespace CalHacks
         void OnEnable()
         {
             Bind(GameInput.Cast, _ => Cast());
-            Bind(GameInput.NewBoard, _ => NewBoard());
             Bind(GameInput.ResetLevel, _ => ResetRun());
             Bind(GameInput.ManualAccept, _ => ManualAccept());
             Bind(GameInput.ManualReject, _ => ManualReject());
             Bind(GameInput.DebugOverlay, _ => OverlayVisible = !OverlayVisible);
+            Bind(GameInput.CameraPreview, _ => PreviewVisible = !PreviewVisible);
             Bind(GameInput.Recalibrate, _ => Recalibrate());
             Bind(GameInput.MockPick, control => PickMockDrawing(control as KeyControl));
         }
@@ -150,9 +158,7 @@ namespace CalHacks
             {
                 case CastBlock.InFlight:
                 case CastBlock.Finished:
-                    return;
-                case CastBlock.BoardLocked:
-                    Subtitles.Show("Wipe the board, then press NEW BOARD.");
+                case CastBlock.Cooldown:
                     return;
             }
 
@@ -204,8 +210,7 @@ namespace CalHacks
                     return;
                 }
 
-                State.LockBoard();
-                socket.ApplyCapture(capture.Data, paper);
+                if (socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
 
                 var label = await vision.GetLabelAsync(capture.Data.id, ct);
                 if (!State.IsCurrent(runId) || ct.IsCancellationRequested) return;
@@ -275,13 +280,6 @@ namespace CalHacks
         }
 
         // ---- Station buttons and operator keys ----------------------------------------------------------
-
-        public void NewBoard()
-        {
-            if (!State.BoardLocked) return;
-            State.NewBoard();
-            Subtitles.ShowNow("Board ready. Draw something!", 2f);
-        }
 
         public void ManualAccept()
         {

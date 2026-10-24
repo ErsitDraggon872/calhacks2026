@@ -2,14 +2,14 @@ using UnityEngine;
 
 namespace CalHacks
 {
-    /// <summary>Run timer, station instructions, board-lock hint and the win banner.</summary>
+    /// <summary>Run timer, station instructions, BUILD cooldown bar and the win banner.</summary>
     public class Hud : MonoBehaviour
     {
         const float ReferenceHeight = 1080f;
-        const string StationSign = "1. Draw  ·  2. Press CAST  ·  3. Wipe  ·  4. Press NEW BOARD";
+        const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
 
         GUIStyle small, big, sign;
-        Texture2D panel;
+        Texture2D panel, barBack, barFill, barReady;
 
         public static string FormatTime(float seconds)
         {
@@ -33,9 +33,10 @@ namespace CalHacks
             var state = run.State;
             var status = state.Finished ? StationSign
                 : state.InFlight ? "Looking at the board..."
-                : state.BoardLocked ? "Wipe the board, then press NEW BOARD"
                 : StationSign;
             GUI.Label(signRect, status, sign);
+
+            DrawBuildBar(state, width);
 
             if (state.Finished)
             {
@@ -47,20 +48,47 @@ namespace CalHacks
             GUI.matrix = Matrix4x4.identity;
         }
 
+        void DrawBuildBar(RunState state, float width)
+        {
+            var rect = new Rect(width - 420f, ReferenceHeight - 100f, 390f, 70f);
+            GUI.DrawTexture(rect, panel);
+            var bar = new Rect(rect.x + 15f, rect.y + 44f, rect.width - 30f, 14f);
+            GUI.DrawTexture(bar, barBack);
+            var ready = state.CooldownRemaining <= 0f && !state.InFlight;
+            var fill = state.InFlight ? 0f : state.CooldownFraction;
+            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * fill, bar.height), ready ? barReady : barFill);
+            var text = state.InFlight ? "Looking at the board..."
+                : ready ? "BUILD READY"
+                : $"Recharging {state.CooldownRemaining:0.0}s";
+            GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 40f), text, sign);
+        }
+
+        static Texture2D Solid(Color color)
+        {
+            var texture = new Texture2D(1, 1);
+            texture.SetPixel(0, 0, color);
+            texture.Apply();
+            return texture;
+        }
+
         void EnsureStyles()
         {
             if (small != null) return;
             small = new GUIStyle(GUI.skin.label) { fontSize = 40, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
             sign = new GUIStyle(GUI.skin.label) { fontSize = 30, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
             big = new GUIStyle(GUI.skin.label) { fontSize = 64, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-            panel = new Texture2D(1, 1);
-            panel.SetPixel(0, 0, new Color(0.1f, 0.08f, 0.06f, 0.65f));
-            panel.Apply();
+            panel = Solid(new Color(0.1f, 0.08f, 0.06f, 0.65f));
+            barBack = Solid(new Color(1f, 1f, 1f, 0.15f));
+            barFill = Solid(new Color(1f, 0.6f, 0.1f, 0.9f));
+            barReady = Solid(new Color(0.3f, 0.85f, 0.4f, 0.95f));
         }
 
         void OnDestroy()
         {
-            if (panel != null) Destroy(panel);
+            foreach (var texture in new[] { panel, barBack, barFill, barReady })
+            {
+                if (texture != null) Destroy(texture);
+            }
         }
     }
 }
