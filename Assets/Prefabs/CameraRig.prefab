@@ -113,6 +113,7 @@ MonoBehaviour:
   wideDistance: 24
   wideOffset: {x: 4, y: 2, z: 0}
   blendTime: 1
+  revealHold: 2.5
   smoothTime: 0.2
   verticalSmoothTime: 0.45
   depthFollow: 0.3

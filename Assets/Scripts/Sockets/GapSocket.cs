@@ -11,8 +11,6 @@ namespace CalHacks
     {
         [Tooltip("Invisible side rails enabled with the deck so the explorer can't walk off the bridge's edges.")]
         [SerializeField] GameObject rails;
-        [Tooltip("Paper walkway shown with the deck.")]
-        [SerializeField] GameObject deckVisual;
         [Tooltip("Dashed \"draw here\" outline shown until the gap is solved.")]
         [SerializeField] GameObject drawHint;
         [Tooltip("How far the top of the drawing sits above the deck, so drawn railings stick up.")]
@@ -53,7 +51,6 @@ namespace CalHacks
         void ShowSolved(bool solved)
         {
             if (rails != null) rails.SetActive(solved);
-            if (deckVisual != null) deckVisual.SetActive(solved);
             if (drawHint != null) drawHint.SetActive(!solved);
         }
     }

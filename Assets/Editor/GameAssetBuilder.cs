@@ -264,7 +264,6 @@ namespace CalHacks.EditorTools
             // One face, in the middle of the deck's depth (like a free-built invention), its top edge at deck level.
             var anchor = Empty("Anchor", root.transform, Vector3.zero);
             var deck = Empty("Deck", root.transform, Vector3.zero);
-            var walkway = Visual(PrimitiveType.Cube, "Walkway", root.transform, new Vector3(0f, -0.05f, 0f), new Vector3(4.7f, 0.1f, 3.2f), "Paper");
             var box = deck.AddComponent<BoxCollider>();
             box.center = new Vector3(0f, -0.25f, 0f);
             box.size = new Vector3(5.2f, 0.5f, 3.2f);
@@ -288,7 +287,6 @@ namespace CalHacks.EditorTools
                 ("span", new Vector2(4.9f, 2.2f)),
                 ("faceCamera", false),
                 ("rails", rails),
-                ("deckVisual", walkway),
                 ("drawHint", drawHint),
                 ("solutionCollider", box),
                 ("fallbackDrawing", Drawing("bridge")),
