@@ -31,7 +31,8 @@ namespace CalHacks
             return paper;
         }
 
-        static void DestroySafe(UnityEngine.Object obj)
+        /// <summary>Destroy in Play mode, DestroyImmediate in edit mode (tests).</summary>
+        public static void DestroySafe(UnityEngine.Object obj)
         {
             if (Application.isPlaying) UnityEngine.Object.Destroy(obj);
             else UnityEngine.Object.DestroyImmediate(obj);

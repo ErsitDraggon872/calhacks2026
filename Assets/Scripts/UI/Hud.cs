@@ -34,7 +34,9 @@ namespace CalHacks
             var state = run.State;
             // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
             var banner = run.NearestSocket?.Banner;
-            var status = state.Finished ? StationSign
+            var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer && !run.UsesDigitalBoard;
+            var status = explorer ? "Your partner draws  ·  you bring it to life"
+                : state.Finished ? StationSign
                 : state.InFlight ? Reading
                 : !string.IsNullOrEmpty(banner) ? banner
                 : StationSign;

@@ -30,6 +30,7 @@ Unity still parses the deferred parts. Anything it can't run yet is built as a p
 ## Running it
 - **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.
 - **Unity:** the Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
+- **Digital board instead of the whiteboard:** `-capture=digital` (`CaptureSource.DigitalBoard`). The judge draws in Henry's browser whiteboard (`tools/whiteboard/index.html`) and taps BUILD there; Unity joins its SpacetimeDB room and runs the same BUILD on the drawing. It needs `thinkink.key` and internet. See [`coop-spacetimedb.md`](coop-spacetimedb.md#the-digital-board-one-game-machine).
 - **Checking the backend:** `python tools/interpret_check.py --dir <photos>` checks a running backend against the demo expectations.
 
 ## Current docs
@@ -38,6 +39,7 @@ Unity still parses the deferred parts. Anything it can't run yet is built as a p
 | [`superpowers/specs/2026-10-23-draw-to-physics-design.md`](superpowers/specs/2026-10-23-draw-to-physics-design.md) | Full design: attributes, shape rules, world and camera, build order. Read it next to this page's in/out table: some of its later steps are deferred |
 | [`interpret-contract.md`](interpret-contract.md) | The `POST /interpret` request and response between Unity and the backend |
 | [`interpret-prompt.md`](interpret-prompt.md) | The system prompt the backend sends to the model, and why models over-answer "bridge" |
+| [`coop-spacetimedb.md`](coop-spacetimedb.md) | Henry's SpacetimeDB co-op: the browser whiteboard as the digital board, the two-machine Creator/Explorer mode, the sync key and the server |
 | [`handoff-interpret-backend.md`](handoff-interpret-backend.md) | **Andy:** what to build for `/interpret`, in priority order, with acceptance tests |
 | [`DEERAI-SETUP.md`](DEERAI-SETUP.md) | Running the `/interpret` backend (`tools/thinkink_backend.py`): key, fake mode, health check. Its "apply patch" step and DRAW mode come from Andy's branch and don't apply on `main` |
 | [`unity-implementation-notes.md`](unity-implementation-notes.md) | How the Unity half is put together: station keys, free builds, the demo level |

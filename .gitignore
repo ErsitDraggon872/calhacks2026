@@ -111,3 +111,6 @@ InitTestScene*.unity*
 # Unity crash-recovery scenes
 /[Aa]ssets/_Recovery/
 /[Aa]ssets/_Recovery.meta
+
+# ThinkInk SpacetimeDB sync key (docs/coop-spacetimedb.md)
+thinkink.key
