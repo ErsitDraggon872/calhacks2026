@@ -38,6 +38,8 @@ namespace CalHacks
         public float confidence;
         public string provider;
         public float latency_ms;
+        /// <summary>The drawing's attributes from POST /interpret. Empty (no <c>status</c>) from label-only services.</summary>
+        public InterpretResponse interpretation;
     }
 
     [Serializable]

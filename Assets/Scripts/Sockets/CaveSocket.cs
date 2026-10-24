@@ -1,12 +1,15 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CalHacks
 {
-    /// <summary>Dark cave: a "light" drawing becomes a light source, lifts the darkness and opens the entrance.</summary>
+    /// <summary>Dark cave: anything that glows (a lamp, a torch, a firefly) becomes a light source, lifts the darkness
+    /// and opens the entrance.</summary>
     public class CaveSocket : PuzzleSocket
     {
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+        static readonly Trait[] Lights = { Trait.Glows };
 
         [SerializeField] Renderer darkness;
         [Tooltip("Solid collider at the entrance that stops the explorer until the cave is lit.")]
@@ -21,6 +24,7 @@ namespace CalHacks
         Light spawnedLight;
 
         public override SocketType Type => SocketType.Light;
+        public override IReadOnlyList<Trait> SolvingTraits => Lights;
 
         protected override void Awake()
         {

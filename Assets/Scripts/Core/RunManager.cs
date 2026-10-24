@@ -11,7 +11,7 @@ namespace CalHacks
     /// <summary>
     /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, free builds, checkpoints, reset and win.
     /// BUILD next to an unsolved socket hands the drawing to that socket; anywhere else it becomes a free-standing
-    /// <see cref="Invention"/> just in front of the explorer.
+    /// <see cref="Invention"/> just in front of the explorer, once its attributes (<see cref="InventionSpec"/>) are back.
     /// </summary>
     public class RunManager : MonoBehaviour
     {
@@ -56,6 +56,8 @@ namespace CalHacks
         public string LastProvider { get; private set; }
         public float LastLatencyMs { get; private set; } = -1f;
         public string LastLabel { get; private set; }
+        /// <summary>The last drawing's attributes, as <see cref="InventionSpec.Describe"/> prints them.</summary>
+        public string LastAttributes { get; private set; }
         public float LastConfidence { get; private set; } = -1f;
         public HealthResponse LastHealth { get; private set; }
         public string LastHealthError { get; private set; }
@@ -226,35 +228,31 @@ namespace CalHacks
                     return;
                 }
 
-                if (socket == null)
-                {
-                    // Free build. Labels are ignored for now: every invention is a Support.
-                    State.EndRequest();
-                    if (PlaceInvention(paper) != null) State.StartCooldown(config.buildCooldown);
-                    return;
-                }
-
-                if (socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
+                // A socket shows the drawing right away (the gap never waits); a free build waits for what it is, so
+                // it can be checked before it's placed.
+                if (socket != null && socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
+                if (socket == null) Subtitles.ShowNow("Hmm, what is it...", 3f);
 
                 var label = await vision.GetLabelAsync(capture.Data.id, ct);
-                if (!State.IsCurrent(runId) || ct.IsCancellationRequested) return;
+                if (!State.IsCurrent(runId) || ct.IsCancellationRequested)
+                {
+                    if (socket == null) Destroy(paper);
+                    return;
+                }
                 State.EndRequest();
-                if (!label.Ok)
+                var spec = SpecFor(label, runId, out var stale);
+                if (stale)
                 {
-                    LastError = label.Error;
-                    Debug.LogWarning("[Run] Label failed: " + label.Error);
-                    ApplyLabel(socket, SocketLogic.Unknown);
+                    if (socket == null) Destroy(paper);
                     return;
                 }
-                if (!State.ShouldApply(runId, label.Data.run_id))
+
+                if (socket == null)
                 {
-                    Debug.LogWarning($"[Run] Dropped stale label (run_id {label.Data.run_id}, current {State.RunId}).");
+                    if (PlaceInvention(paper, spec) != null) State.StartCooldown(config.buildCooldown);
                     return;
                 }
-                LastProvider = label.Data.provider;
-                LastLatencyMs = label.Data.latency_ms;
-                LastConfidence = label.Data.confidence;
-                ApplyLabel(socket, label.Data.status == "done" ? label.Data.label : SocketLogic.Unknown);
+                ApplySpec(socket, spec);
             }
             catch (OperationCanceledException)
             {
@@ -268,10 +266,43 @@ namespace CalHacks
         }
 
         /// <summary>
-        /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
-        /// front of them on the side they face, moved out of the level's geometry. Null if nothing was built.
+        /// The drawing's attributes from a label reply: the backend's interpretation when there is one, else the label
+        /// mapped through <see cref="InventionSpec.FromLabel"/>. A failed reply is a plain Support. Sets
+        /// <paramref name="stale"/> for a reply from an older run, which must be dropped.
         /// </summary>
-        Invention PlaceInvention(Texture2D paper)
+        InventionSpec SpecFor(VisionResult<LabelResponse> label, int runId, out bool stale)
+        {
+            stale = false;
+            if (!label.Ok)
+            {
+                LastError = label.Error;
+                Debug.LogWarning("[Run] Label failed: " + label.Error);
+                return InventionSpec.Plain();
+            }
+            if (!State.ShouldApply(runId, label.Data.run_id))
+            {
+                Debug.LogWarning($"[Run] Dropped stale label (run_id {label.Data.run_id}, current {State.RunId}).");
+                stale = true;
+                return null;
+            }
+            LastProvider = label.Data.provider;
+            LastLatencyMs = label.Data.latency_ms;
+            LastConfidence = label.Data.confidence;
+            var spec = InventionSpec.IsPresent(label.Data.interpretation)
+                ? InventionSpec.Parse(label.Data.interpretation)
+                : InventionSpec.FromLabel(label.Data.status == "done" ? label.Data.label : SocketLogic.Unknown);
+            if (spec.Dropped.Count > 0) Debug.LogWarning("[Run] Ignored unknown attributes: " + string.Join(", ", spec.Dropped));
+            LastLabel = spec.Name;
+            LastAttributes = spec.Describe();
+            return spec;
+        }
+
+        /// <summary>
+        /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
+        /// front of them on the side they face, moved out of the level's geometry, once <see cref="InventionFeasibility"/>
+        /// agrees. Null if nothing was built (nothing is spent then).
+        /// </summary>
+        Invention PlaceInvention(Texture2D paper, InventionSpec spec)
         {
             if (player == null || inventionMaterial == null)
             {
@@ -285,25 +316,32 @@ namespace CalHacks
             var depth = slot != null ? slot.Depth : config.inventionDepth;
             var size = InventionPlacement.FitInside(paper.width, paper.height, box);
             Vector3 bottom;
+            var spotClear = true;
             if (slot != null)
             {
                 bottom = slot.BottomCentreFor(size);
-                RemoveInvention(slot.Occupant);
             }
             else
             {
                 bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
                 var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
-                {
-                    Destroy(paper);
-                    Subtitles.ShowNow("No room to build here!");
-                    return null;
-                }
+                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift);
                 bottom += shift;
             }
 
+            var feasibility = InventionFeasibility.Check(spec, spotClear);
+            Debug.Log($"[Run] Free build '{spec.Name}': {feasibility.Verdict}");
+            if (!feasibility.Builds)
+            {
+                Destroy(paper);
+                Subtitles.ShowNow(feasibility.Message);
+                return null;
+            }
+            if (slot != null) RemoveInvention(slot.Occupant);
+
             var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
+            invention.Apply(spec);
+            Subtitles.Show(feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : Understood(spec));
             inventions.Add(invention);
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
@@ -311,8 +349,11 @@ namespace CalHacks
             return invention;
         }
 
-        /// <summary>A drawing that arrived from elsewhere (the co-op Creator): placed like a free build. Takes ownership of <paramref name="paper"/>.</summary>
-        public Invention SpawnInvention(Texture2D paper) => PlaceInvention(paper);
+        /// <summary>
+        /// A drawing that arrived from elsewhere (the co-op Creator), with its /interpret attributes: placed and checked
+        /// like a free build. Takes ownership of <paramref name="paper"/>. Null if it couldn't be built.
+        /// </summary>
+        public Invention SpawnInvention(Texture2D paper, InventionSpec spec) => PlaceInvention(paper, spec);
 
         /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
         List<Bounds> ObstaclesAround(Bounds build)
@@ -358,13 +399,22 @@ namespace CalHacks
             inventions.Clear();
         }
 
-        void ApplyLabel(PuzzleSocket socket, string label)
+        void ApplySpec(PuzzleSocket socket, InventionSpec spec)
         {
-            var normalized = SocketLogic.Normalize(label);
-            LastLabel = normalized;
-            Debug.Log($"[Run] Label '{normalized}' -> socket {socket.SocketId}");
-            Subtitles.Show($"Looks like: {normalized}.");
-            socket.ApplyLabel(normalized);
+            LastLabel = spec.Name;
+            LastAttributes = spec.Describe();
+            Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
+            Subtitles.Show(Understood(spec));
+            socket.ApplySpec(spec);
+        }
+
+        /// <summary>The "AI understood" line: "Looks like: flaming rubber skateboard (glows, hot)."</summary>
+        static string Understood(InventionSpec spec)
+        {
+            var shown = spec.Traits.Where(t => t == Trait.Glows || t == Trait.Hot || t == Trait.Cold || t == Trait.Edible
+                    || t == Trait.Hostile || t == Trait.Bouncy || t == Trait.Slippery || t == Trait.Sticky)
+                .OrderBy(t => t).Select(t => InventionSpec.Snake(t)).ToArray();
+            return $"Looks like: {spec.Name}{(shown.Length > 0 ? " (" + string.Join(", ", shown) + ")" : "")}.";
         }
 
         void FailRequest(string error)
@@ -411,7 +461,7 @@ namespace CalHacks
             if (socket == null) return;
             if (boundSocket == socket) CancelRequest();
             Debug.Log("[Run] Manual reject -> " + socket.SocketId);
-            ApplyLabel(socket, SocketLogic.Unknown);
+            ApplySpec(socket, InventionSpec.Plain());
         }
 
         /// <summary>The bound socket while unsolved, else the nearest unsolved socket in range, else the nearest unsolved.</summary>
@@ -421,7 +471,17 @@ namespace CalHacks
             return NearestInRange() ?? NearestUnsolved(float.PositiveInfinity);
         }
 
-        PuzzleSocket NearestInRange() => NearestUnsolved(config.castRange);
+        /// <summary>How far above or below a socket B can be and still BUILD for it (B on a ledge over it can't).</summary>
+        const float MaxCastRise = 1.5f;
+
+        /// <summary>The nearest unsolved socket within its own BUILD range (default <see cref="GameConfig.castRange"/>).</summary>
+        PuzzleSocket NearestInRange()
+        {
+            if (player == null || sockets.Length == 0) return null;
+            var index = SocketLogic.FindNearest(sockets.Select(s => s.CastPoint).ToArray(), sockets.Select(s => s.Solved).ToArray(),
+                sockets.Select(s => s.CastRange).ToArray(), player.transform.position, config.castRange, MaxCastRise);
+            return index >= 0 ? sockets[index] : null;
+        }
 
         PuzzleSocket NearestUnsolved(float range)
         {

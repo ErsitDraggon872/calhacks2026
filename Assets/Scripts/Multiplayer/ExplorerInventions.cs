@@ -110,7 +110,7 @@ namespace CalHacks
                 Debug.LogWarning($"[Coop] Can't spawn invention {row.InventionId}: {(run == null ? "no RunManager" : "bad PNG")}");
                 return;
             }
-            var invention = run.SpawnInvention(paper);
+            var invention = run.SpawnInvention(paper, SpecFrom(row.PhysicsJson));
             if (invention == null)
             {
                 session.UpdateInventionState(row.InventionId, "failed");
@@ -130,6 +130,21 @@ namespace CalHacks
             Subtitles.ShowNow($"New invention: {(row.Name != "" ? row.Name : "drawing")}! {row.Message}", 4f);
             Debug.Log($"[Coop] Spawned invention {row.InventionId} '{row.Name}' (capture {row.CaptureId})");
             Spawned?.Invoke(invention, remote);
+        }
+
+        /// <summary>The Creator's /interpret reply as attributes, cleaned and clamped like a local free build's.</summary>
+        static InventionSpec SpecFrom(string physicsJson)
+        {
+            if (string.IsNullOrEmpty(physicsJson)) return InventionSpec.Plain();
+            try
+            {
+                return InventionSpec.Parse(JsonUtility.FromJson<InterpretResponse>(physicsJson));
+            }
+            catch (ArgumentException e)
+            {
+                Debug.LogWarning("[Coop] Unreadable physics JSON, building a plain support: " + e.Message);
+                return InventionSpec.Plain();
+            }
         }
 
         void OnRemoved(InventionRow row)

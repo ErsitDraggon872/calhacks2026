@@ -192,6 +192,7 @@ namespace CalHacks.EditorTools
             Save(BuildGapSocket(), "GapSocket");
             Save(BuildCaveSocket(), "CaveSocket");
             Save(BuildVillagerSocket(), "VillagerSocket");
+            Save(BuildGatekeeperSocket(), "GatekeeperSocket");
             Save(BuildCheckpoint(), "Checkpoint");
             Save(BuildExit(), "Exit");
             Save(BuildHintZone(), "HintZone");
@@ -340,17 +341,24 @@ namespace CalHacks.EditorTools
             return root;
         }
 
-        static GameObject BuildVillagerSocket()
+        /// <summary>A capsule villager with a hat, standing on <paramref name="localPosition"/>.</summary>
+        static GameObject Villager(Transform parent, Vector3 localPosition)
         {
-            var root = new GameObject("VillagerSocket");
-            var socket = root.AddComponent<VillagerSocket>();
-            var villager = Empty("Villager", root.transform, Vector3.zero);
+            var villager = Empty("Villager", parent, localPosition);
             var capsule = villager.AddComponent<CapsuleCollider>();
             capsule.center = new Vector3(0f, 1f, 0f);
             capsule.radius = 0.6f;
             capsule.height = 2f;
             Visual(PrimitiveType.Capsule, "Body", villager.transform, new Vector3(0f, 1f, 0f), new Vector3(1.1f, 1f, 1.1f), "Villager");
             Visual(PrimitiveType.Cylinder, "Hat", villager.transform, new Vector3(0f, 2.1f, 0f), new Vector3(1.3f, 0.08f, 1.3f), "Wall");
+            return villager;
+        }
+
+        static GameObject BuildVillagerSocket()
+        {
+            var root = new GameObject("VillagerSocket");
+            var socket = root.AddComponent<VillagerSocket>();
+            var villager = Villager(root.transform, Vector3.zero);
             var aside = Empty("StepAside", root.transform, new Vector3(2.2f, 0f, 0.95f));
             var anchor = Empty("Anchor", root.transform, new Vector3(-1.4f, 0.3f, 1.1f));
             Hint(root.transform, new Vector3(-3f, 1f, 0f), new Vector3(2.5f, 2f, 2.4f),
@@ -364,6 +372,43 @@ namespace CalHacks.EditorTools
                 ("cutoutMaterial", Mat("Cutout")),
                 ("villager", villager.transform),
                 ("stepAsidePoint", aside.transform));
+            return root;
+        }
+
+        /// <summary>
+        /// Side-view gatekeeper beside the gate at the foot of the island stairs (SceneBuilder builds the stairs). The gate
+        /// closes the left side of the two lowest steps (2.5 m of depth from the front edge, 3 m high): B's capsule rides
+        /// up edges to about 1.65 m, so the 1.6 m second step is in reach from the floor too; the higher ones aren't. Anything edible feeds them (anything hostile scares them): they step back and the
+        /// gate rises. Their BUILD range is short, so builds near the high ledge aren't taken for food.
+        /// </summary>
+        static GameObject BuildGatekeeperSocket()
+        {
+            var root = new GameObject("GatekeeperSocket");
+            var socket = root.AddComponent<VillagerSocket>();
+            var villager = Villager(root.transform, new Vector3(0f, 0f, 0.2f));
+            var aside = Empty("StepAside", root.transform, new Vector3(-0.8f, 0f, 0.8f));
+            var anchor = Empty("Anchor", root.transform, new Vector3(-1.3f, 0.2f, -0.6f));
+            var gate = Block("Gate", "Wood");
+            gate.transform.SetParent(root.transform, false);
+            gate.transform.localPosition = new Vector3(1.2f, 1.5f, 0.25f);
+            gate.transform.localScale = new Vector3(0.4f, 3f, 2.5f);
+            Hint(root.transform, new Vector3(-2.2f, 1f, 0f), new Vector3(2.4f, 2f, 2.5f),
+                "Gatekeeper: Nobody climbs my stairs! ...Unless they bring me a snack.", socket);
+            Fields(socket,
+                ("socketId", "gatekeeper"),
+                ("castRange", 2.5f),
+                ("acceptedLabels", new[] { "fish", "food" }),
+                ("anchor", anchor.transform),
+                ("span", new Vector2(1.6f, 1.4f)),
+                ("fallbackDrawing", Drawing("fish")),
+                ("cutoutMaterial", Mat("Cutout")),
+                ("villager", villager.transform),
+                ("stepAsidePoint", aside.transform),
+                ("gate", gate.transform),
+                ("gateRise", 3.5f),
+                ("acceptLine", "Food! Thanks, friend. Up you go!"),
+                ("scaredLine", "Yikes! Fine, fine, go on up! Just keep that thing away!"),
+                ("rejectLine", "I can't eat that! I'm hungry, not desperate."));
             return root;
         }
 

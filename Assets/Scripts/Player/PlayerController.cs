@@ -10,6 +10,8 @@ namespace CalHacks
     /// <see cref="visual"/> child's X scale flips to face left or right. The transform's pivot is at the feet.
     /// An invention is a flat drawing with a deep collider, so while B stands on one the visual slides to the drawing's
     /// depth: seen from the pitched camera, B then stands on the drawn edge wherever B is in the collider's depth.
+    /// An invention's <see cref="InventionSurface"/> changes how B moves on it: slippery slides, bouncy throws B up,
+    /// sticky slows B down.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
@@ -37,6 +39,9 @@ namespace CalHacks
         Vector3 visualPosition;
         float planeOffset;
         Invention standingOn;
+        // What B last landed on, for its surface; null on level geometry.
+        Invention ground;
+        Vector3 walkVelocity;
         Action<InputAction.CallbackContext> onJump;
 
         public bool IsGrounded { get; private set; }
@@ -83,6 +88,7 @@ namespace CalHacks
             IsGrounded = controller.isGrounded || Physics.Raycast(transform.position + Vector3.up * rayStart, Vector3.down,
                 rayStart + groundProbe, groundMask, QueryTriggerInteraction.Ignore);
 
+            var surface = IsGrounded && ground != null ? ground.Surface : InventionSurface.Normal;
             var wantsJump = !InputLocked && Time.time - jumpPressedAt <= jumpBuffer;
             if (IsGrounded && verticalVelocity <= 0f)
             {
@@ -92,18 +98,27 @@ namespace CalHacks
                     verticalVelocity = Mathf.Sqrt(2f * gravity * JumpHeight);
                     jumpPressedAt = float.NegativeInfinity;
                 }
+                else if (surface.Bounce > 0f)
+                {
+                    verticalVelocity = surface.Bounce;
+                }
             }
             else
             {
                 verticalVelocity -= gravity * Time.deltaTime;
             }
 
-            var velocity = move * moveSpeed + Vector3.up * verticalVelocity;
+            // In the air, and on normal ground, walking speed changes instantly; on a slippery build it slides.
+            var targetWalk = move * moveSpeed * surface.SpeedScale;
+            walkVelocity = IsGrounded ? Vector3.MoveTowards(walkVelocity, targetWalk, surface.Grip * Time.deltaTime) : targetWalk;
+            var velocity = walkVelocity + Vector3.up * verticalVelocity;
             standingOn = null;
             var flags = controller.Move(velocity * Time.deltaTime);
             // Bumped a ceiling: start falling instead of sticking to it.
             if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
-            FollowDrawingPlane((flags & CollisionFlags.Below) != 0);
+            var landed = (flags & CollisionFlags.Below) != 0;
+            if (landed) ground = standingOn;
+            FollowDrawingPlane(landed);
 
             if (move.x > 0.1f) SetFacing(1f);
             else if (move.x < -0.1f) SetFacing(-1f);
@@ -162,6 +177,8 @@ namespace CalHacks
             transform.SetPositionAndRotation(position, Quaternion.identity);
             controller.enabled = true;
             verticalVelocity = 0f;
+            walkVelocity = Vector3.zero;
+            ground = null;
             jumpPressedAt = float.NegativeInfinity;
             FacingSign = (rotation * Vector3.forward).x < -0.01f ? -1f : 1f;
             ApplyFacing();

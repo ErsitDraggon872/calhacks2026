@@ -1,6 +1,6 @@
 # Unity implementation notes
 
-How the Unity half is put together, for Wesley, Henry, Andy and Person 4. The spec is `docs/unity-agent-handoff.md`.
+How the Unity half is put together, for Wesley, Henry, Andy and Person 4. Start at `docs/README.md`; the design is `docs/superpowers/specs/2026-10-23-draw-to-physics-design.md` (`docs/unity-agent-handoff.md` is the superseded isometric spec).
 
 ## Station keys (Person 4: the firmware must send these)
 

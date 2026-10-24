@@ -57,6 +57,12 @@ namespace CalHacks
 
         protected override void OnCaptured(CaptureResponse capture) => Refresh();
 
+        // The bridge stands before its attributes are known; they arrive with the label.
+        protected override void OnSpec(InventionSpec spec)
+        {
+            if (bridge != null) bridge.Apply(spec);
+        }
+
         /// <summary>Manual accept (F1): always rebuilds the bridge from the fallback drawing (a full plank), then solves.</summary>
         public override void ForceSolve()
         {
