@@ -273,13 +273,9 @@ namespace CalHacks.EditorTools
         {
             var root = new GameObject("GapSocket");
             var socket = root.AddComponent<GapSocket>();
-            // One face, in the middle of the deck's depth (like a free-built invention), its top edge at deck level.
+            // The bridge is an invention built from the drawing (no hidden deck): one face at ledge level, in the middle
+            // of its 3.2 m depth, its colliders reaching the rails' inner faces (z -1.6..1.6).
             var anchor = Empty("Anchor", root.transform, Vector3.zero);
-            var deck = Empty("Deck", root.transform, Vector3.zero);
-            var box = deck.AddComponent<BoxCollider>();
-            box.center = new Vector3(0f, -0.25f, 0f);
-            box.size = new Vector3(5.2f, 0.5f, 3.2f);
-            box.enabled = false;
             var rails = Empty("Rails", root.transform, Vector3.zero);
             foreach (var z in new[] { -1.75f, 1.75f })
             {
@@ -287,7 +283,7 @@ namespace CalHacks.EditorTools
                 rail.center = new Vector3(0f, 0.6f, z);
                 rail.size = new Vector3(5.2f, 1.2f, 0.3f);
             }
-            // Where the drawing will appear: 4.6 m wide (the gap), top 0.4 m above the deck (GapSocket.railHeight).
+            // Where the drawing will appear: 4.6 m wide (the gap), top 0.4 m above the ledges (GapSocket.railHeight).
             var drawHint = Visual(PrimitiveType.Quad, "DrawHere", root.transform, new Vector3(0f, 0.4f - 1.1f, 0f),
                 new Vector3(4.6f, 2.2f, 1f), "DrawHere");
             drawHint.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
@@ -300,7 +296,7 @@ namespace CalHacks.EditorTools
                 ("faceCamera", false),
                 ("rails", rails),
                 ("drawHint", drawHint),
-                ("solutionCollider", box),
+                ("depth", 3.2f),
                 ("fallbackDrawing", Drawing("bridge")),
                 ("cutoutMaterial", Mat("Cutout")));
             return root;

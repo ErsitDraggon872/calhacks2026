@@ -51,7 +51,7 @@ BUILD with no unsolved socket within 5 m makes an `Invention` (every one is a Su
 
 Everything runs along +X, with depth toward the back (+Z). Nothing solid stands in front of the paths, and invisible walls stop B walking off the front edge.
 - **Start ledge** x −6..10: front path (z −1..1) and a raised back terrace (z 1..3, 0.8 m: jump onto it). B starts at x 7.5, within CAST range of the gap.
-- **Gap** x 10..14.6 (`GapSocket` at x 12.3). Hint: "Too far to jump!". A dashed "draw here" outline shows where the bridge will go. Any drawing snaps across it, and the hidden deck collider makes the first build always work.
+- **Gap** x 10..14.6 (`GapSocket` at x 12.3). Hint: "Too far to jump!". A dashed "draw here" outline shows where the bridge will go, until one stands. Every drawing becomes the bridge: stretched to 4.9 m (overlapping both ledges), its top 0.4 m above them (`railHeight`), 3.2 m deep, and solid only where it's inked, like a free build (no hidden deck). A drawing with a break drops B; the gap stays unsolved, so the next BUILD in range replaces the bridge. `Rails` stand while a bridge does. The gap is solved once B is past the far ledge (x 14.75), and BUILD stops binding to it. F1 always rebuilds the bridge from the fallback drawing (a full plank) and solves it.
 - **Hub floor** x 14.6..40, z −2..3. Checkpoint at x 17.
 - **High ledge** x 24..30 on the back layer (z 0.5..3), 2.3 m tall. Hint: "Too high to climb!" (x 20..30, whole depth). One invention plus a jump gets up: builds from the floor near it land in its build slot, x 21..24 against its left face.
 - **Floating island** x 34..40, top at 4 m, with the `Exit` and a goal flag. Reach it by stacking inventions, or by building off the high ledge.
@@ -84,7 +84,7 @@ Field names are the contract. Unity parses with `JsonUtility`, so the **types** 
 
 - Drop socket prefabs where the obstacle is. The orange gizmo shows the cutout box and the 5 m CAST range.
 - **Side view**: the camera looks along +Z from the front (−Z). Keep walls and props out of the front, and put obstacles on different depth layers.
-- **Gap**: the `Deck` collider (disabled until solved) must cover the hole, and `Rails` keep the explorer on it. The `DrawHere` quad marks where the drawing lands. Leave the hole in the ground empty; falling below y = -5 respawns at the last checkpoint.
+- **Gap**: there is no deck collider; the bridge is the drawing itself. The socket's `span` width (4.9 m) must overlap both ledges, and its `depth` (3.2 m) must reach the inner faces of the `Rails`, which keep the explorer on it while a bridge stands. The far ledge, where the gap counts as solved, is the anchor's x plus half the span. The `DrawHere` quad marks where the drawing lands. Leave the hole in the ground empty; falling below y = -5 respawns at the last checkpoint.
 - **Cave**: `Darkness` covers the interior and `Blocker` closes the mouth. Scale both to fit the cave.
 - **Villager**: the lane must be narrower than the villager plus the explorer (under 2.4 m), and `StepAside` must be clear of walls.
 - Each socket's `Hint` child states the need. Edit its text, but never give away the answer.

@@ -20,6 +20,15 @@ namespace CalHacks
         /// Takes ownership of <paramref name="paper"/> (a <see cref="PaperTexture.MakePaper"/> result, so it's readable).
         /// </summary>
         public static Invention Create(Texture2D paper, Vector2 size, Vector3 bottomCentre, float depth, Material mat,
+            Transform parent, float cell = 0.15f) =>
+            Create(paper, bottomCentre, InventionPlacement.FitInside(paper.width, paper.height, size), depth, mat, parent, cell);
+
+        /// <summary>
+        /// Builds an invention of exactly <paramref name="size"/> (stretching the drawing if needed) standing on
+        /// <paramref name="bottomCentre"/>, like <see cref="Cutout"/>'s exact-size overload. The colliders follow the
+        /// stretched silhouette, so a gap in the ink stays a gap. Takes ownership of <paramref name="paper"/>.
+        /// </summary>
+        public static Invention Create(Texture2D paper, Vector3 bottomCentre, Vector2 size, float depth, Material mat,
             Transform parent, float cell = 0.15f)
         {
             var go = new GameObject("Invention");
@@ -27,7 +36,7 @@ namespace CalHacks
             go.transform.SetPositionAndRotation(bottomCentre, Quaternion.identity);
 
             var invention = go.AddComponent<Invention>();
-            invention.Size = InventionPlacement.FitInside(paper.width, paper.height, size);
+            invention.Size = size;
             // The paper alpha is what's drawn, so what you see is what you stand on.
             var rects = SilhouetteBoxes.Build(paper.GetPixels32(), paper.width, paper.height, invention.Size, cell);
             invention.Cutout = Cutout.Create(paper, true, mat, bottomCentre, 0f, invention.Size, go.transform);

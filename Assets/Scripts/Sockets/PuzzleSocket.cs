@@ -11,8 +11,10 @@ namespace CalHacks
     }
 
     /// <summary>
-    /// A place in the level where a drawing lands. The drawing is shown as a cutout at <see cref="anchor"/>;
-    /// any physics comes from the hidden, pre-placed <see cref="solutionCollider"/>, never from the drawing.
+    /// A place in the level where a drawing lands, shown as a cutout at <see cref="anchor"/>. A socket decides where the
+    /// drawing goes and what solves it, never the drawing's physics: anything solid in a drawing comes from its silhouette
+    /// (the gap builds an <see cref="Invention"/>, like a free build). The optional <see cref="solutionCollider"/> is
+    /// level geometry switched on by solving, never a stand-in for the drawing.
     /// </summary>
     public abstract class PuzzleSocket : MonoBehaviour
     {
@@ -82,7 +84,7 @@ namespace CalHacks
         }
 
         /// <summary>Manual accept (F1): solve regardless of the label, using the fallback drawing if needed.</summary>
-        public void ForceSolve()
+        public virtual void ForceSolve()
         {
             if (Solved) return;
             if (CurrentCutout == null && fallbackDrawing != null)
@@ -123,7 +125,7 @@ namespace CalHacks
             return cutout;
         }
 
-        void ShowCutout(Texture2D texture, bool ownsTexture)
+        protected void ShowCutout(Texture2D texture, bool ownsTexture)
         {
             if (CurrentCutout != null) Destroy(CurrentCutout.gameObject);
             CurrentCutout = CreateCutout(texture, ownsTexture);

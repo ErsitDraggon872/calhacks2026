@@ -42,7 +42,8 @@ namespace CalHacks.EditorTools
 
         /// <summary>
         /// Side-view demo level along +X, with depth (Z) toward the back. Start ledge (front path + raised back terrace)
-        /// → the gap (first build always works) → the hub: checkpoint, a high ledge and a floating island with the exit.
+        /// → the gap (every drawing becomes a bridge, solid where it's inked) → the hub: checkpoint, a high ledge and a
+        /// floating island with the exit.
         /// The camera looks along +Z, so nothing solid stands in front (−Z) of the paths; invisible walls stop B
         /// walking off the front edge.
         /// </summary>
@@ -60,7 +61,7 @@ namespace CalHacks.EditorTools
             Walkable("Block", geo, "Start Path", new Vector3(-6f, -1f, -1f), new Vector3(10f, 0f, 1f));
             Walkable("Block", geo, "Start Terrace", new Vector3(-6f, -1f, 1f), new Vector3(10f, 0.8f, 3f));
 
-            // The gap is x 10..14.6 (GapSocket's deck). Hub floor, x 14.6..40, z -2..3.
+            // The gap is x 10..14.6 (GapSocket's 4.9 m bridge overlaps both ledges). Hub floor, x 14.6..40, z -2..3.
             Walkable("Block", geo, "Hub Floor", new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f));
 
             // High ledge on the back layer, 2.3 m: out of jump reach (1.2 m), one invention plus a jump gets up.

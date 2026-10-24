@@ -78,6 +78,35 @@ namespace CalHacks.Tests
             Assert.IsFalse(Covers(boxes, new Vector2(1.2f, 0.3f)), "below the diagonal is open");
         }
 
+        // The gap stretches every drawing to its 4.9 m span (GapSocket), whatever its aspect.
+        static readonly Vector2 GapBridge = new Vector2(4.9f, 1f);
+
+        [Test]
+        public void StretchedBridgeWithABreakHasNoBoxOverTheMiddle()
+        {
+            // 200 x 100 px drawn 4.9 x 1 m: a blob at each end (0.49 m each) and nothing between them.
+            var alpha = Alpha(200, 100, (x, y) => x < 20 || x >= 180);
+            var boxes = SilhouetteBoxes.Build(alpha, 200, 100, GapBridge, Cell);
+            Assert.IsTrue(Covers(boxes, new Vector2(-2.3f, 0.5f)), "near end is solid");
+            Assert.IsTrue(Covers(boxes, new Vector2(2.3f, 0.5f)), "far end is solid");
+            foreach (var b in boxes)
+            {
+                Assert.IsTrue(b.xMax < -1.5f || b.xMin > 1.5f, $"box {b} reaches over the middle");
+            }
+        }
+
+        [Test]
+        public void StretchedFullBarCoversTheWholeSpan()
+        {
+            var alpha = Alpha(200, 100, (x, y) => true);
+            var boxes = SilhouetteBoxes.Build(alpha, 200, 100, GapBridge, Cell);
+            for (var x = -2.4f; x <= 2.4f; x += 0.1f)
+            {
+                Assert.IsTrue(Covers(boxes, new Vector2(x, 0.95f)), $"top is open at x {x:0.0}");
+            }
+            Assert.AreEqual(GapBridge.x * GapBridge.y, Area(boxes), 1e-3f);
+        }
+
         [Test]
         public void EmptyAlphaGivesNoBoxes()
         {
