@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CalHacks
@@ -18,6 +19,7 @@ namespace CalHacks
         public InventionSpec Spec { get; private set; } = InventionSpec.Plain();
         /// <summary>How the invention feels to walk on, read by <see cref="PlayerController"/>.</summary>
         public InventionSurface Surface { get; private set; } = InventionSurface.Normal;
+        public InventionPhysics Abilities { get; private set; }
 
         Light glow;
 
@@ -53,10 +55,18 @@ namespace CalHacks
         }
 
         /// <summary>Gives the invention its attributes: a light if it <see cref="Trait.Glows"/>, and its surface feel.</summary>
-        public void Apply(InventionSpec spec)
+        public void Apply(InventionSpec spec, bool enableAbilities = true)
         {
             Spec = spec ?? InventionSpec.Plain();
             Surface = InventionSurface.For(Spec);
+            // Puzzle sockets (especially the gap) retain anchored, static ink geometry.
+            if (enableAbilities && Abilities == null && Spec.Parts.Any(p =>
+                p.Type == PartType.Bounce || p.Type == PartType.Thrust || p.Type == PartType.Lift ||
+                p.Type == PartType.Glide || p.Type == PartType.Roll || p.Type == PartType.Attach))
+            {
+                Abilities = gameObject.AddComponent<InventionPhysics>();
+                Abilities.Configure(this, Spec);
+            }
             if (Spec.Has(Trait.Glows) && glow == null)
             {
                 var go = new GameObject("Glow");

@@ -397,7 +397,9 @@ namespace CalHacks.EditorTools
             Fields(socket,
                 ("socketId", "gatekeeper"),
                 ("castRange", 2.5f),
-                ("acceptedLabels", new[] { "fish", "food" }),
+                // No names: only what the AI says the drawing is (edible / hostile) opens the gate, so any food works
+                // and a drawing merely called "food" doesn't.
+                ("acceptedLabels", new string[0]),
                 ("anchor", anchor.transform),
                 ("span", new Vector2(1.6f, 1.4f)),
                 ("fallbackDrawing", Drawing("fish")),

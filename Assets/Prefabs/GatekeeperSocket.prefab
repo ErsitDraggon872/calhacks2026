@@ -50,9 +50,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game::CalHacks.VillagerSocket
   socketId: gatekeeper
-  acceptedLabels:
-  - fish
-  - food
+  acceptedLabels: []
   castRange: 2.5
   anchor: {fileID: 4940438050248206489}
   span: {x: 1.6, y: 1.4}

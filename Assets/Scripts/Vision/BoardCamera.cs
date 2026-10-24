@@ -8,7 +8,7 @@ namespace CalHacks
     /// grabs the current frame instantly. Everything downstream (preview, capture, ink cut-out) uses the upright frame
     /// from <see cref="Grab"/>, so the preview always shows exactly the pixels a capture will use.
     /// </summary>
-    public class BoardCamera : MonoBehaviour
+    public class BoardCamera : MonoBehaviour, IBoardFrameSource
     {
         /// <summary>A frame older than this means the camera has stalled.</summary>
         const float FreshFrameSeconds = 1f;

@@ -20,7 +20,7 @@ How the Unity half is put together, for Wesley, Henry, Andy and Person 4. Start 
 
 ## Camera ownership
 
-`GameConfig.captureSource` (or `-capture=mock|service|webcam` on a build) picks where board images come from. Interpreting them is a separate step (`IInterpreter`).
+`GameConfig.captureSource` (or `-capture=mock|service|webcam|replay|digital` on a build) picks where board images come from. **DigitalBoard** draws the SpacetimeDB browser whiteboard's strokes onto a clean board and runs the Webcam pipeline on it (`docs/coop-spacetimedb.md`). Interpreting them is a separate step (`IInterpreter`).
 - **Webcam** (current): Unity opens the webcam itself (`BoardCamera`) and cuts the ink out locally (`InkExtractor`). The interpreter is `NoInterpreter` until `POST /interpret` exists (`docs/interpret-contract.md`), so every label is `unknown`. Use F1 to solve a socket.
   - Keep the frame rate capped (`GameConfig.targetFrameRate`, 60, set in `RunManager.Awake`). Uncapped, a maximized Game view or a fullscreen build pins the machine and the C270 stops delivering frames. While it is stalled, Unity's `WebCamTexture` blocks the main thread for about 0.4 s every second, sometimes for 10–20 s.
   - **Device:** `GameConfig.cameraDevice` or `-camera=<name>`. Empty picks the first USB webcam, and never the integrated or a virtual camera. It keeps checking until one is plugged in, and notices unplugging.

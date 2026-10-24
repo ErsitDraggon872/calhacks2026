@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -64,12 +65,20 @@ namespace CalHacks
         public string LastError { get; private set; }
         public string BoundSocketId => boundSocket != null ? boundSocket.SocketId : null;
         public string NearestSocketId => NearestInRange()?.SocketId;
+        /// <summary>The unsolved socket a BUILD would go to right now, or null for a free build.</summary>
+        public PuzzleSocket NearestSocket => NearestInRange();
         public string MockNext => mock?.DescribeNext();
         public string SolvedSummary => sockets.Length == 0
             ? "-"
             : string.Join(", ", sockets.Select(s => $"{s.SocketId} {(s.Solved ? "✓" : "·")}"));
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
         public int InventionCount => inventions.Count;
+        /// <summary>Drawings come from the SpacetimeDB browser whiteboard (CaptureSource.DigitalBoard).</summary>
+        public bool UsesDigitalBoard { get; private set; }
+
+        /// <summary>After every reset (F5, start, or a co-op partner's reset).</summary>
+        public static event Action RunReset;
+        public static event Action Won;
 
         void Awake()
         {
@@ -86,8 +95,16 @@ namespace CalHacks
                 case CaptureSource.Webcam:
                     var boardCamera = GetComponent<BoardCamera>();
                     if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
-                    // No interpreter backend yet (POST /interpret, docs/interpret-contract.md): every drawing is "unknown".
-                    vision = new WebcamVisionClient(config, boardCamera, new NoInterpreter());
+                    vision = new WebcamVisionClient(config, boardCamera, CreateInterpreter(), config.boardCrop);
+                    break;
+                case CaptureSource.Replay:
+                    vision = new WebcamVisionClient(config, new ReplayFrameSource(config.ResolveReplayFolder()), CreateInterpreter(), config.boardCrop);
+                    break;
+                case CaptureSource.DigitalBoard:
+                    // The browser whiteboard's strokes, drawn onto a clean board: the frame is the whole board.
+                    UsesDigitalBoard = true;
+                    var digitalBoard = gameObject.AddComponent<DigitalBoardFrameSource>();
+                    vision = new WebcamVisionClient(config, digitalBoard, CreateInterpreter(), new Rect(0f, 0f, 1f, 1f));
                     break;
                 default:
                     mock = new MockVisionClient(config);
@@ -102,11 +119,19 @@ namespace CalHacks
             if (player == null) player = FindFirstObjectByType<PlayerController>();
             if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
             inventionRoot = new GameObject("Inventions").transform;
+            if (GetComponent<InventionCard>() == null) gameObject.AddComponent<InventionCard>();
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
             startRotation = start.rotation;
             GameInput.Enable();
+        }
+
+        /// <summary>The /interpret backend when one is configured; otherwise no AI, and every drawing is "unknown".</summary>
+        IInterpreter CreateInterpreter()
+        {
+            var url = config.ResolveInterpretUrl();
+            return string.IsNullOrEmpty(url) ? new NoInterpreter() : new HttpInterpreter(url, config.interpretTimeout);
         }
 
         // Button presses are latched from `performed` callbacks rather than polled with WasPressedThisFrame,
@@ -162,15 +187,47 @@ namespace CalHacks
 
             while (pendingInput.Count > 0) pendingInput.Dequeue()();
 
+            UpdateInventionInput();
+
             if (player != null && player.transform.position.y < config.killY) Respawn();
 
             if (OverlayVisible && Time.unscaledTime >= nextHealthPoll) PollHealth();
         }
 
+        void UpdateInventionInput()
+        {
+            var key = Keyboard.current?.eKey;
+            var held = player != null && !player.InputLocked && key != null && key.isPressed && !State.InFlight;
+            InventionPhysics closest = null;
+            var best = 2.5f * 2.5f;
+            foreach (var invention in inventions)
+            {
+                if (invention == null || invention.Abilities == null) continue;
+                var ability = invention.Abilities;
+                ability.SetHeld(held);
+                if (!ability.HasButton) continue;
+                foreach (var collider in invention.GetComponentsInChildren<BoxCollider>())
+                {
+                    var distance = (collider.ClosestPoint(player != null ? player.transform.position : transform.position) -
+                        (player != null ? player.transform.position : transform.position)).sqrMagnitude;
+                    if (distance >= best) continue;
+                    best = distance;
+                    closest = ability;
+                }
+            }
+            if (held && key.wasPressedThisFrame) closest?.TryInteract(player);
+        }
+
         // ---- CAST ----------------------------------------------------------------------------------------
 
-        public async void Cast()
+        public async void Cast() => await CastAsync();
+
+        /// <summary>Completes when this BUILD settles; board inputs keep their capture pinned until then.</summary>
+        public async Task CastAsync()
         {
+            // In a two-machine co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
+            // With the digital board, the room is where this machine's drawings come from, so CAST runs as usual.
+            if (ThinkInkSession.InRoom && !UsesDigitalBoard) return;
             switch (State.CanCast())
             {
                 case CastBlock.InFlight:
@@ -191,6 +248,7 @@ namespace CalHacks
                 socket_id = socket != null ? socket.SocketId : FreeBuildId,
                 run_id = runId,
                 accepted_labels = socket != null && socket.AcceptedLabels != null ? socket.AcceptedLabels : Array.Empty<string>(),
+                goal = socket != null ? socket.Goal : "",
             };
             Debug.Log($"[Run] CAST run_id={runId} socket={request.socket_id}");
 
@@ -234,6 +292,16 @@ namespace CalHacks
                     return;
                 }
                 State.EndRequest();
+                if (!label.Ok && socket != null && socket.SolvingTraits.Count > 0)
+                {
+                    // Only what the drawing is can solve this socket, so a failed reading mustn't look like a wrong
+                    // answer: keep the drawing, say so, and let BUILD go again straight away.
+                    LastError = label.Error;
+                    Debug.LogWarning("[Run] Interpretation failed: " + label.Error);
+                    State.StartCooldown(0f);
+                    Subtitles.ShowNow("Couldn't read that drawing. Press BUILD to try again.");
+                    return;
+                }
                 var spec = SpecFor(label, runId, out var stale);
                 if (stale)
                 {
@@ -243,7 +311,7 @@ namespace CalHacks
 
                 if (socket == null)
                 {
-                    if (PlaceInvention(paper, spec)) State.StartCooldown(config.buildCooldown);
+                    if (PlaceInvention(paper, spec) != null) State.StartCooldown(config.buildCooldown);
                     return;
                 }
                 ApplySpec(socket, spec);
@@ -294,15 +362,15 @@ namespace CalHacks
         /// <summary>
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
         /// front of them on the side they face, moved out of the level's geometry, once <see cref="InventionFeasibility"/>
-        /// agrees. False if nothing was built (nothing is spent then).
+        /// agrees. Null if nothing was built (nothing is spent then).
         /// </summary>
-        bool PlaceInvention(Texture2D paper, InventionSpec spec)
+        Invention PlaceInvention(Texture2D paper, InventionSpec spec)
         {
             if (player == null || inventionMaterial == null)
             {
                 if (inventionMaterial == null) Debug.LogError("[Run] RunManager has no Invention Material; run Game/Build Assets.");
                 Destroy(paper);
-                return false;
+                return null;
             }
             var feet = player.transform.position;
             var slot = BuildSlot.At(feet);
@@ -329,19 +397,26 @@ namespace CalHacks
             {
                 Destroy(paper);
                 Subtitles.ShowNow(feasibility.Message);
-                return false;
+                return null;
             }
             if (slot != null) RemoveInvention(slot.Occupant);
 
             var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
             invention.Apply(spec);
-            Subtitles.Show(feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : Understood(spec));
+            InventionCard.Show(spec, TraitWords.FreeBuildAction(spec), null,
+                feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : null);
             inventions.Add(invention);
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
             Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
-            return true;
+            return invention;
         }
+
+        /// <summary>
+        /// A drawing that arrived from elsewhere (the co-op Creator), with its /interpret attributes: placed and checked
+        /// like a free build. Takes ownership of <paramref name="paper"/>. Null if it couldn't be built.
+        /// </summary>
+        public Invention SpawnInvention(Texture2D paper, InventionSpec spec) => PlaceInvention(paper, spec);
 
         /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
         List<Bounds> ObstaclesAround(Bounds build)
@@ -371,7 +446,7 @@ namespace CalHacks
                 Quaternion.LookRotation(Vector3.right * player.FacingSign));
         }
 
-        void RemoveInvention(Invention invention)
+        public void RemoveInvention(Invention invention)
         {
             if (invention == null) return;
             inventions.Remove(invention);
@@ -392,17 +467,10 @@ namespace CalHacks
             LastLabel = spec.Name;
             LastAttributes = spec.Describe();
             Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
-            Subtitles.Show(Understood(spec));
-            socket.ApplySpec(spec);
-        }
-
-        /// <summary>The "AI understood" line: "Looks like: flaming rubber skateboard (glows, hot)."</summary>
-        static string Understood(InventionSpec spec)
-        {
-            var shown = spec.Traits.Where(t => t == Trait.Glows || t == Trait.Hot || t == Trait.Cold || t == Trait.Edible
-                    || t == Trait.Hostile || t == Trait.Bouncy || t == Trait.Slippery || t == Trait.Sticky)
-                .OrderBy(t => t).Select(t => InventionSpec.Snake(t)).ToArray();
-            return $"Looks like: {spec.Name}{(shown.Length > 0 ? " (" + string.Join(", ", shown) + ")" : "")}.";
+            var outcome = socket.ApplySpec(spec);
+            // Only a socket that judges meaning gets a green or red verdict; the gap just turns lines into a bridge.
+            var worked = socket.SolvingTraits.Count > 0 ? outcome == LabelOutcome.Solve : (bool?)null;
+            InventionCard.Show(spec, socket.Verdict(spec, outcome), worked);
         }
 
         void FailRequest(string error)
@@ -416,6 +484,7 @@ namespace CalHacks
         static string DescribeError(string error)
         {
             var e = (error ?? string.Empty).ToLowerInvariant();
+            if (e.StartsWith("digital board")) return error + " (F4: drawing pad connection)";
             if (e.Contains("calibrat")) return "The camera isn't calibrated. Press F9 to recalibrate.";
             if (e.Contains("empty")) return "The board looks empty. Draw something first!";
             if (e.Contains("camera")) return "Can't see the board right now (camera error).";
@@ -430,6 +499,12 @@ namespace CalHacks
             requestCts.Cancel();
             requestCts = null;
             State.EndRequest();
+        }
+
+        /// <summary>A room switch must not apply the old room's in-flight interpretation to this game.</summary>
+        public void CancelBoardBuild()
+        {
+            if (UsesDigitalBoard) CancelRequest();
         }
 
         // ---- Station buttons and operator keys ----------------------------------------------------------
@@ -563,7 +638,9 @@ namespace CalHacks
                 cameraFollow.Snap();
             }
             Subtitles.Clear();
+            InventionCard.Hide();
             Debug.Log($"[Run] Reset. run_id={runId}");
+            RunReset?.Invoke();
         }
 
         public void ReachCheckpoint(Checkpoint checkpoint)
@@ -594,6 +671,7 @@ namespace CalHacks
             CancelRequest();
             if (player != null) player.InputLocked = true;
             Debug.Log($"[Run] Win. run_id={State.RunId} time={Hud.FormatTime(FinalTime)}");
+            Won?.Invoke();
         }
     }
 }

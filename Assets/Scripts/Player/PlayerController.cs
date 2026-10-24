@@ -42,6 +42,10 @@ namespace CalHacks
         // What B last landed on, for its surface; null on level geometry.
         Invention ground;
         Vector3 walkVelocity;
+        float horizontalImpulse, forcedAirborneUntil;
+        InventionPhysics riding;
+        Vector3 lastPlatformPosition;
+        float rideContactTime;
         Action<InputAction.CallbackContext> onJump;
 
         public bool IsGrounded { get; private set; }
@@ -81,12 +85,25 @@ namespace CalHacks
 
         void Update()
         {
+            if (riding != null)
+            {
+                var platform = riding;
+                var position = platform.transform.position;
+                controller.Move(position - lastPlatformPosition);
+                // A collision callback can launch/disembark the player during Move.
+                if (riding == platform)
+                {
+                    lastPlatformPosition = position;
+                    if (Time.time - rideContactTime > .15f) riding = null;
+                }
+            }
             var input = InputLocked ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
             var move = CameraRelative(input);
 
             const float rayStart = 0.3f;
-            IsGrounded = controller.isGrounded || Physics.Raycast(transform.position + Vector3.up * rayStart, Vector3.down,
-                rayStart + groundProbe, groundMask, QueryTriggerInteraction.Ignore);
+            IsGrounded = Time.time >= forcedAirborneUntil && (controller.isGrounded || riding != null ||
+                Physics.Raycast(transform.position + Vector3.up * rayStart, Vector3.down,
+                rayStart + groundProbe, groundMask, QueryTriggerInteraction.Ignore));
 
             var surface = IsGrounded && ground != null ? ground.Surface : InventionSurface.Normal;
             var wantsJump = !InputLocked && Time.time - jumpPressedAt <= jumpBuffer;
@@ -95,10 +112,12 @@ namespace CalHacks
                 verticalVelocity = -2f;
                 if (wantsJump)
                 {
+                    riding = null;
+                    forcedAirborneUntil = Time.time + .2f;
                     verticalVelocity = Mathf.Sqrt(2f * gravity * JumpHeight);
                     jumpPressedAt = float.NegativeInfinity;
                 }
-                else if (surface.Bounce > 0f)
+                else if (surface.Bounce > 0f && (ground == null || ground.Abilities == null))
                 {
                     verticalVelocity = surface.Bounce;
                 }
@@ -111,7 +130,8 @@ namespace CalHacks
             // In the air, and on normal ground, walking speed changes instantly; on a slippery build it slides.
             var targetWalk = move * moveSpeed * surface.SpeedScale;
             walkVelocity = IsGrounded ? Vector3.MoveTowards(walkVelocity, targetWalk, surface.Grip * Time.deltaTime) : targetWalk;
-            var velocity = walkVelocity + Vector3.up * verticalVelocity;
+            horizontalImpulse = Mathf.MoveTowards(horizontalImpulse, 0f, 4f * Time.deltaTime);
+            var velocity = walkVelocity + new Vector3(horizontalImpulse, verticalVelocity, 0f);
             standingOn = null;
             var flags = controller.Move(velocity * Time.deltaTime);
             // Bumped a ceiling: start falling instead of sticking to it.
@@ -128,9 +148,53 @@ namespace CalHacks
         // under the capsule gives a tilted normal); walls don't.
         void OnControllerColliderHit(ControllerColliderHit hit)
         {
+            var ability = hit.collider.GetComponentInParent<InventionPhysics>();
+            if (ability != null)
+            {
+                ability.PlayerContact(this, hit);
+                if (ability.MovingPlatform && hit.normal.y > .45f && verticalVelocity <= 0f && Time.time >= forcedAirborneUntil)
+                {
+                    if (riding != ability) lastPlatformPosition = ability.transform.position;
+                    riding = ability;
+                    rideContactTime = Time.time;
+                }
+            }
             if (hit.normal.y < 0.1f) return;
             var invention = hit.collider.GetComponentInParent<Invention>();
             if (invention != null) standingOn = invention;
+        }
+
+        public void Launch(Vector3 velocity)
+        {
+            riding = null;
+            verticalVelocity = Mathf.Max(0f, velocity.y);
+            horizontalImpulse = velocity.x;
+            forcedAirborneUntil = Time.time + .2f;
+        }
+
+        public bool IsRiding(InventionPhysics platform) => riding == platform;
+
+        public void Disembark(InventionPhysics platform)
+        {
+            if (riding != platform) return;
+            riding = null;
+            forcedAirborneUntil = Time.time + .15f;
+            verticalVelocity = -1f;
+        }
+
+        public void BoardInvention(InventionPhysics platform, Invention invention)
+        {
+            var boxes = invention.GetComponentsInChildren<BoxCollider>();
+            if (boxes.Length == 0) return;
+            var bounds = boxes[0].bounds;
+            for (var i = 1; i < boxes.Length; i++) bounds.Encapsulate(boxes[i].bounds);
+            var x = bounds.size.x >= Radius * 2f
+                ? Mathf.Clamp(transform.position.x, bounds.min.x + Radius, bounds.max.x - Radius) : bounds.center.x;
+            Teleport(new Vector3(x, bounds.max.y + .07f, platform.transform.position.z),
+                Quaternion.LookRotation(Vector3.right * FacingSign));
+            riding = platform;
+            lastPlatformPosition = platform.transform.position;
+            rideContactTime = Time.time;
         }
 
         /// <summary>
@@ -178,6 +242,9 @@ namespace CalHacks
             controller.enabled = true;
             verticalVelocity = 0f;
             walkVelocity = Vector3.zero;
+            horizontalImpulse = 0f;
+            forcedAirborneUntil = 0f;
+            riding = null;
             ground = null;
             jumpPressedAt = float.NegativeInfinity;
             FacingSign = (rotation * Vector3.forward).x < -0.01f ? -1f : 1f;

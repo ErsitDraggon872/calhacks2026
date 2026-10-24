@@ -26,6 +26,20 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void TwoDifferentFoodsOpenTheGateANameAloneDoesNot()
+        {
+            var none = new string[0];
+            var apple = InventionSpec.Parse(new InterpretResponse { status = "ok", name = "apple", material = "plant" });
+            var sandwich = InventionSpec.Parse(new InterpretResponse { status = "ok", name = "sandwich", traits = new[] { "edible" } });
+            var bridge = InventionSpec.Parse(new InterpretResponse { status = "ok", name = "rope bridge", material = "wood", traits = new[] { "climbable" } });
+            var namedFood = InventionSpec.Parse(new InterpretResponse { status = "ok", name = "food", material = "stone" });
+            Assert.AreEqual(LabelOutcome.Solve, SocketLogic.Resolve(apple, Gatekeeper, none));
+            Assert.AreEqual(LabelOutcome.Solve, SocketLogic.Resolve(sandwich, Gatekeeper, none));
+            Assert.AreEqual(LabelOutcome.Decor, SocketLogic.Resolve(bridge, Gatekeeper, none));
+            Assert.AreEqual(LabelOutcome.Decor, SocketLogic.Resolve(namedFood, Gatekeeper, none));
+        }
+
+        [Test]
         public void SpecFallsBackToTheLabel()
         {
             Assert.AreEqual(LabelOutcome.Solve, SocketLogic.Resolve(InventionSpec.FromLabel("food"), Cave, new[] { "food" }));

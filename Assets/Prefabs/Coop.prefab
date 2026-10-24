@@ -1,0 +1,140 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6055497788674021995
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5355585342355512267}
+  - component: {fileID: 8713423264334202495}
+  - component: {fileID: 5525451809208413880}
+  - component: {fileID: 3313719182453045748}
+  - component: {fileID: 2151572527391972157}
+  - component: {fileID: 2527813119249324140}
+  - component: {fileID: 6136827645715346513}
+  - component: {fileID: 4142945138666894108}
+  m_Layer: 0
+  m_Name: Coop
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5355585342355512267
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8713423264334202495
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b46b953ad97547aa995d9fc4dddf1cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.ThinkInkSession
+  serverUri: http://127.0.0.1:3000
+  databaseName: thinkink
+  identitySlot: A
+  levelId: level1
+--- !u!114 &5525451809208413880
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef7b9d30740214a5a81c9739922cbed9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.StrokeSync
+  flushInterval: 0.06
+  maxBatchPoints: 48
+  minStep: 0.003
+--- !u!114 &3313719182453045748
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e121caa35d3ac41278b64521cbb6371f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.CreatorBuild
+  config: {fileID: 0}
+  input: 0
+  interpretTimeout: 30
+  clearAfterBuild: 1
+--- !u!114 &2151572527391972157
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd6b9d29503294c55b2d22b3da726f75, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.BoardFrameSync
+  config: {fileID: 0}
+  interval: 0.35
+  previewWidth: 240
+--- !u!114 &2527813119249324140
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26a3b36bb9de94ff0a8287b41f58138a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.ExplorerInventions
+--- !u!114 &6136827645715346513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 869b92a0479324115959d6abcad4341b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.WhiteboardPreview
+  width: 384
+  strokeAspect: 0.5625
+--- !u!114 &4142945138666894108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6055497788674021995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b227d8f252b5546ea8f967c0f2817bc4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game::CalHacks.CoopHud

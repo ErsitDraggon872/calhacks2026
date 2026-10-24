@@ -26,6 +26,10 @@ namespace CalHacks
         PlayerController player;
 
         public override SocketType Type => SocketType.Gap;
+        public override string Goal => "get B across the gap";
+        public override string Banner => "THE GREAT GAP  ·  DRAW → BUILD → CROSS";
+        // Shape solves the gap, not meaning: whatever it is, the lines are the bridge.
+        public override string Verdict(InventionSpec spec, LabelOutcome outcome) => "YOUR LINES → A BRIDGE. WALK ACROSS!";
 
         float FarLedgeX => anchor.position.x + span.x * 0.5f;
 
@@ -60,7 +64,7 @@ namespace CalHacks
         // The bridge stands before its attributes are known; they arrive with the label.
         protected override void OnSpec(InventionSpec spec)
         {
-            if (bridge != null) bridge.Apply(spec);
+            if (bridge != null) bridge.Apply(spec, enableAbilities: false);
         }
 
         /// <summary>Manual accept (F1): always rebuilds the bridge from the fallback drawing (a full plank), then solves.</summary>

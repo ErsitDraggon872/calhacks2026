@@ -67,7 +67,7 @@ namespace CalHacks
             }
         }
 
-        static string DescribeError(UnityWebRequest request, string body)
+        internal static string DescribeError(UnityWebRequest request, string body)
         {
             if (request.result == UnityWebRequest.Result.ConnectionError)
             {

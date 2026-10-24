@@ -2,7 +2,8 @@
     "name": "Game",
     "rootNamespace": "CalHacks",
     "references": [
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "com.clockworklabs.spacetimedbsdk"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

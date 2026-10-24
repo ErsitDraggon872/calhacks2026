@@ -19,13 +19,15 @@ namespace CalHacks
         Mock,    // MockVisionClient: PNGs from Resources/MockDrawings, no hardware or service.
         Service, // HttpVisionClient: the Python service owns the camera, crops and labels.
         Webcam,  // WebcamVisionClient: Unity reads the webcam itself (BoardCamera) and cuts the ink out locally.
+        Replay,  // WebcamVisionClient on saved board photos (ReplayFrameSource): live pipeline, no camera rig.
+        DigitalBoard, // WebcamVisionClient on the SpacetimeDB browser whiteboard's strokes (DigitalBoardFrameSource).
     }
 
     [CreateAssetMenu(menuName = "Game/Game Config", fileName = "GameConfig")]
     public class GameConfig : ScriptableObject
     {
         [Header("Vision")]
-        [Tooltip("Where board images come from. A build can override this with -capture=mock, -capture=service or -capture=webcam.")]
+        [Tooltip("Where board images come from. A build can override this with -capture=mock|service|webcam|replay|digital.")]
         [FormerlySerializedAs("visionMode")]
         public CaptureSource captureSource = CaptureSource.Mock;
         public string serviceUrl = "http://localhost:8000";
@@ -35,6 +37,16 @@ namespace CalHacks
         public int labelTimeout = 20;
         [Tooltip("Seconds between GET /health polls while the debug overlay is open.")]
         public float healthPollInterval = 3f;
+
+        [Header("Interpreter")]
+        [Tooltip("The /interpret backend (tools/thinkink_backend.py) for Webcam and Replay captures. Empty: no AI, every " +
+                 "drawing is \"unknown\". A build can override with -interpret=<url> or -interpret=none.")]
+        public string interpretUrl = "http://127.0.0.1:8000";
+        [Tooltip("Seconds before POST /interpret gives up. Longer than the backend's own model timeout (30 s).")]
+        public int interpretTimeout = 35;
+        [Tooltip("Folder of whiteboard photos (.png) for the Replay capture source. Empty: StreamingAssets/Replay. " +
+                 "A build can override with -replay=<folder>.")]
+        public string replayFolder = "";
 
         [Header("Display")]
         [Tooltip("Frame rate cap (Application.targetFrameRate). Uncapped, a maximized Game view or fullscreen build " +
@@ -96,18 +108,34 @@ namespace CalHacks
                 if (a == "-capture=mock" || a == "-vision=mock") return CaptureSource.Mock;
                 if (a == "-capture=service" || a == "-vision=http") return CaptureSource.Service;
                 if (a == "-capture=webcam") return CaptureSource.Webcam;
+                if (a == "-capture=replay") return CaptureSource.Replay;
+                if (a == "-capture=digital") return CaptureSource.DigitalBoard;
             }
             return captureSource;
         }
 
-        public string ResolveCameraDevice()
+        public string ResolveCameraDevice() => Argument("-camera=") ?? cameraDevice;
+
+        /// <summary>The /interpret base URL, honouring -interpret=...; empty means no interpreter.</summary>
+        public string ResolveInterpretUrl()
         {
-            const string prefix = "-camera=";
+            var url = Argument("-interpret=") ?? interpretUrl;
+            return string.Equals(url, "none", StringComparison.OrdinalIgnoreCase) ? "" : url?.Trim() ?? "";
+        }
+
+        public string ResolveReplayFolder()
+        {
+            var folder = Argument("-replay=") ?? replayFolder;
+            return string.IsNullOrWhiteSpace(folder) ? System.IO.Path.Combine(Application.streamingAssetsPath, "Replay") : folder;
+        }
+
+        static string Argument(string prefix)
+        {
             foreach (var arg in Environment.GetCommandLineArgs())
             {
                 if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return arg.Substring(prefix.Length);
             }
-            return cameraDevice;
+            return null;
         }
     }
 }

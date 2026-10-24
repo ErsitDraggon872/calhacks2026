@@ -217,13 +217,56 @@ namespace CalHacks.Tests
         public void UnbuiltPartsDowngradeToSolid()
         {
             var r = Reply();
-            r.name = "rocket";
-            r.components = new[] { Part("support"), new InterpretComponent { type = "thrust", acceleration = 10f, duration_s = 1f } };
+            r.name = "firework";
+            r.components = new[] { Part("support"), new InterpretComponent { type = "explode", range_m = 2f } };
             var f = InventionFeasibility.Check(InventionSpec.Parse(r), true);
             Assert.AreEqual(Verdict.Downgraded, f.Verdict);
             Assert.IsTrue(f.Builds);
-            Assert.AreEqual(new[] { PartType.Thrust }, f.Unsupported.ToArray());
-            StringAssert.Contains("rocket", f.Message);
+            Assert.AreEqual(new[] { PartType.Explode }, f.Unsupported.ToArray());
+            StringAssert.Contains("firework", f.Message);
+        }
+
+        [TestCase("bounce")]
+        [TestCase("thrust")]
+        [TestCase("lift")]
+        [TestCase("glide")]
+        [TestCase("roll")]
+        [TestCase("attach")]
+        public void MainAbilitiesSurviveParsingAndAreSupported(string ability)
+        {
+            var reply = Reply("plant", "edible");
+            reply.components = new[] { Part("support"), Part(ability) };
+            var spec = InventionSpec.Parse(reply);
+            Assert.IsTrue(spec.Parts.Any(p => InventionSpec.Snake(p.Type) == ability), ability);
+            Assert.IsTrue(spec.Has(Trait.Edible), "physics must preserve puzzle identity");
+            Assert.AreEqual(Verdict.Ok, InventionFeasibility.Check(spec, true).Verdict);
+        }
+
+        [Test]
+        public void ExtendedAttributesAreBoundedAndOldRepliesHaveDefaults()
+        {
+            var spec = InventionSpec.Parse(JsonUtility.FromJson<InterpretResponse>(
+                "{\"status\":\"ok\",\"attributes\":{\"mass_kg\":999,\"carry_capacity_kg\":-2},\"components\":[{\"type\":\"support\"}]}"));
+            var property = typeof(InventionSpec).GetProperty("Attributes");
+            Assert.IsNotNull(property, "physics attributes must be retained by the existing spec");
+            var attributes = property.GetValue(spec);
+            Assert.AreEqual(20f, attributes.GetType().GetField("mass_kg").GetValue(attributes));
+            Assert.AreEqual(0f, attributes.GetType().GetField("carry_capacity_kg").GetValue(attributes));
+            Assert.IsNotNull(property.GetValue(InventionSpec.Parse(Reply())));
+        }
+
+        [TestCase("rocket car", true)]
+        [TestCase("go-kart", true)]
+        [TestCase("skateboard", true)]
+        [TestCase("cartoon bird", false)]
+        [TestCase("flying carpet", false)]
+        public void SupportOnlyVehiclesGainRollWithoutSubstringMatches(string name, bool vehicle)
+        {
+            var reply = Reply();
+            reply.name = name;
+            reply.components = new[] { Part("support") };
+            var spec = InventionSpec.Parse(reply);
+            Assert.AreEqual(vehicle, spec.Parts.Any(p => InventionSpec.Snake(p.Type) == "roll"));
         }
     }
 }
