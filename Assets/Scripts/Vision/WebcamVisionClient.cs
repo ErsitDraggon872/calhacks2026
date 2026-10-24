@@ -29,14 +29,14 @@ namespace CalHacks
             this.crop = crop;
         }
 
-        public string Name => $"Webcam {(camera != null ? camera.DeviceName ?? "-" : "(missing)")} + interpreter {interpreter.Name}";
+        public string Name => $"{(camera != null ? camera.DeviceName ?? "board" : "(missing)")} + interpreter {interpreter.Name}";
 
         public Task<VisionResult<CaptureResponse>> CaptureAsync(CaptureRequest request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             if (camera == null) return Fail("camera: BoardCamera missing from the scene");
             var frame = camera.Grab(out var w, out var h);
-            if (frame == null) return Fail("camera: " + camera.Status);
+            if (frame == null) return Fail(camera.DeviceName + ": " + camera.Status);
 
             var ink = InkExtractor.Extract(frame, w, h, crop, config.inkThreshold, config.minInkPx);
             var response = new CaptureResponse

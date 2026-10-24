@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -186,14 +187,43 @@ namespace CalHacks
 
             while (pendingInput.Count > 0) pendingInput.Dequeue()();
 
+            UpdateInventionInput();
+
             if (player != null && player.transform.position.y < config.killY) Respawn();
 
             if (OverlayVisible && Time.unscaledTime >= nextHealthPoll) PollHealth();
         }
 
+        void UpdateInventionInput()
+        {
+            var key = Keyboard.current?.eKey;
+            var held = player != null && !player.InputLocked && key != null && key.isPressed && !State.InFlight;
+            InventionPhysics closest = null;
+            var best = 2.5f * 2.5f;
+            foreach (var invention in inventions)
+            {
+                if (invention == null || invention.Abilities == null) continue;
+                var ability = invention.Abilities;
+                ability.SetHeld(held);
+                if (!ability.HasButton) continue;
+                foreach (var collider in invention.GetComponentsInChildren<BoxCollider>())
+                {
+                    var distance = (collider.ClosestPoint(player != null ? player.transform.position : transform.position) -
+                        (player != null ? player.transform.position : transform.position)).sqrMagnitude;
+                    if (distance >= best) continue;
+                    best = distance;
+                    closest = ability;
+                }
+            }
+            if (held && key.wasPressedThisFrame) closest?.TryInteract(player);
+        }
+
         // ---- CAST ----------------------------------------------------------------------------------------
 
-        public async void Cast()
+        public async void Cast() => await CastAsync();
+
+        /// <summary>Completes when this BUILD settles; board inputs keep their capture pinned until then.</summary>
+        public async Task CastAsync()
         {
             // In a two-machine co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
             // With the digital board, the room is where this machine's drawings come from, so CAST runs as usual.
@@ -454,6 +484,7 @@ namespace CalHacks
         static string DescribeError(string error)
         {
             var e = (error ?? string.Empty).ToLowerInvariant();
+            if (e.StartsWith("digital board")) return error + " (F4: drawing pad connection)";
             if (e.Contains("calibrat")) return "The camera isn't calibrated. Press F9 to recalibrate.";
             if (e.Contains("empty")) return "The board looks empty. Draw something first!";
             if (e.Contains("camera")) return "Can't see the board right now (camera error).";
@@ -468,6 +499,12 @@ namespace CalHacks
             requestCts.Cancel();
             requestCts = null;
             State.EndRequest();
+        }
+
+        /// <summary>A room switch must not apply the old room's in-flight interpretation to this game.</summary>
+        public void CancelBoardBuild()
+        {
+            if (UsesDigitalBoard) CancelRequest();
         }
 
         // ---- Station buttons and operator keys ----------------------------------------------------------

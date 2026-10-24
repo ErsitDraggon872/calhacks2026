@@ -10,8 +10,8 @@ namespace CalHacks
     public enum MaterialKind { Wood, Stone, Metal, Rubber, Cloth, Paper, Glass, Ice, Jelly, Plant, Flesh, Cloud }
     public enum WeightClass { Feather, Light, Medium, Heavy }
     public enum BodyKind { Static, Dynamic }
-    public enum PartType { Support, Bounce, Thrust, Emit, Explode }
-    public enum Activation { Always, Contact, Button }
+    public enum PartType { Support, Bounce, Thrust, Emit, Explode, Lift, Glide, Roll, Attach }
+    public enum Activation { Always, Contact, Button, Hold, Toggle }
     public enum EmitKind { None, Light, Fire, Water, Wind }
 
     public enum Trait
@@ -55,6 +55,7 @@ namespace CalHacks
         public float width_m;
         public int ink_cost;
         public InterpretComponent[] components;
+        public InventionAttributes attributes;
         public string provider;
         public float latency_ms;
     }
@@ -129,6 +130,7 @@ namespace CalHacks
         /// <summary>World width in metres, or 0 when the backend didn't say (the build slot decides).</summary>
         public float WidthM { get; private set; }
         public int InkCost { get; private set; }
+        public InventionAttributes Attributes { get; private set; } = new InventionAttributes();
         /// <summary>Strings from the reply that weren't in the vocabulary, for logging.</summary>
         public IReadOnlyList<string> Dropped { get; private set; } = Array.Empty<string>();
 
@@ -174,6 +176,11 @@ namespace CalHacks
                 InkCost = Mathf.Clamp(r.ink_cost, MinInk, MaxInk),
             };
             var dropped = new List<string>();
+            // Copy and normalize: callers can retain or reuse the untrusted wire response.
+            spec.Attributes = r.attributes != null
+                ? JsonUtility.FromJson<InventionAttributes>(JsonUtility.ToJson(r.attributes))
+                : new InventionAttributes();
+            spec.Attributes.Normalize();
             spec.Material = ParseOr(r.material, MaterialKind.Wood, dropped);
             spec.Weight = ParseOr(r.weight, WeightClass.Medium, dropped);
             spec.Body = ParseOr(r.body, BodyKind.Static, dropped);
@@ -205,6 +212,14 @@ namespace CalHacks
 
         static InventionPart ClampPart(PartType type, InterpretComponent c, List<string> dropped)
         {
+            c = JsonUtility.FromJson<InterpretComponent>(JsonUtility.ToJson(c));
+            c.anchor_x = Finite(c.anchor_x, .5f);
+            c.anchor_y = Finite(c.anchor_y, .5f);
+            c.launch_speed = Finite(c.launch_speed, 3f);
+            c.angle_deg = Finite(c.angle_deg, 0f);
+            c.acceleration = Finite(c.acceleration, 2f);
+            c.duration_s = Finite(c.duration_s, 1f);
+            c.range_m = Finite(c.range_m, 1f);
             var part = new InventionPart
             {
                 Type = type,
@@ -216,15 +231,30 @@ namespace CalHacks
                     part.Activation = Activation.Always;
                     break;
                 case PartType.Bounce:
-                    part.Activation = ActivationOr(c.activation, Activation.Contact, dropped, Activation.Contact, Activation.Button);
+                    part.Activation = ActivationOr(c.activation, Activation.Contact, dropped, Activation.Contact, Activation.Button, Activation.Hold, Activation.Toggle);
                     part.LaunchSpeed = Mathf.Clamp(c.launch_speed, 3f, 14f);
                     part.AngleDeg = Mathf.Clamp(c.angle_deg, -60f, 60f);
                     break;
                 case PartType.Thrust:
-                    part.Activation = ActivationOr(c.activation, Activation.Button, dropped, Activation.Button, Activation.Contact);
+                    part.Activation = ActivationOr(c.activation, Activation.Button, dropped, Activation.Button, Activation.Contact, Activation.Hold, Activation.Toggle);
                     part.Acceleration = Mathf.Clamp(c.acceleration, 2f, 25f);
                     part.DurationS = Mathf.Clamp(c.duration_s, 0.5f, 3f);
                     part.AngleDeg = Mathf.DeltaAngle(0f, c.angle_deg);
+                    break;
+                case PartType.Lift:
+                case PartType.Roll:
+                    part.Activation = ActivationOr(c.activation, Activation.Button, dropped,
+                        Activation.Always, Activation.Button, Activation.Contact, Activation.Hold, Activation.Toggle);
+                    part.Acceleration = Mathf.Clamp(c.acceleration, 2f, type == PartType.Roll ? 14f : 25f);
+                    part.DurationS = Mathf.Clamp(c.duration_s, 0f, 10f);
+                    part.AngleDeg = Mathf.DeltaAngle(0f, c.angle_deg);
+                    break;
+                case PartType.Glide:
+                    part.LaunchSpeed = Mathf.Clamp(c.launch_speed, 1f, 6f);
+                    part.Activation = Activation.Button;
+                    break;
+                case PartType.Attach:
+                    part.Activation = Activation.Button;
                     break;
                 case PartType.Emit:
                     if (!TryParse(c.emit_kind, out EmitKind kind) || kind == EmitKind.None)
@@ -247,6 +277,9 @@ namespace CalHacks
             return part;
         }
 
+        static float Finite(float value, float fallback) =>
+            float.IsNaN(value) || float.IsInfinity(value) ? fallback : value;
+
         // Merges the material's traits, lets emitting parts imply theirs, resolves exclusions, and guarantees a part.
         void Finish(List<Trait> declared, List<InventionPart> parts, List<string> dropped)
         {
@@ -266,6 +299,10 @@ namespace CalHacks
             }
 
             if (parts.Count == 0) parts.Add(new InventionPart { Type = PartType.Support, Anchor = new Vector2(0.5f, 0.5f) });
+            // Andy's updated vehicle fallback: preserve recognized cars even when the model omits ROLL.
+            if (!Rejected && parts.Count == 1 && parts[0].Type == PartType.Support && InventionPhysics.IsVehicleName(Name))
+                parts.Add(new InventionPart { Type = PartType.Roll, Activation = Activation.Button,
+                    Anchor = new Vector2(.5f, .1f), Acceleration = 12f, DurationS = 8f });
             Parts = parts;
             Dropped = dropped;
         }
@@ -378,7 +415,9 @@ namespace CalHacks
 
         /// <summary>True for the parts Unity can run today: Support, and Emit light (its light comes from Glows).</summary>
         public static bool Supported(InventionPart part) =>
-            part.Type == PartType.Support || (part.Type == PartType.Emit && part.EmitKind == EmitKind.Light);
+            part.Type == PartType.Support || part.Type == PartType.Bounce || part.Type == PartType.Thrust ||
+            part.Type == PartType.Lift || part.Type == PartType.Glide || part.Type == PartType.Roll ||
+            part.Type == PartType.Attach || (part.Type == PartType.Emit && part.EmitKind == EmitKind.Light);
 
         public static Feasibility Check(InventionSpec spec, bool spotClear)
         {

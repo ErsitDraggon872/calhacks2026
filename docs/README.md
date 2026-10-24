@@ -1,7 +1,7 @@
 # Docs: start here
 
 ## The game in one paragraph
-Paper Mario-style **side view**. Player B walks left and right, steps toward or away from the camera between terraces, and **jumps with Space**. Player A (at the demo, a judge) draws on a real whiteboard and presses BUILD. Unity grabs the webcam frame and cuts the ink out. The drawing then appears in the world as a flat paper cutout you can stand on. **It is solid only where there's ink: no hidden colliders.** At the same time the board image goes to the backend's `POST /interpret`, which says *what* the drawing is: its name, material and traits. Puzzles react to those traits, never to the name. A torch, a firefly and a lightbulb all light a cave because they all `glow`.
+Paper Mario-style **side view**. Player B walks left and right, steps toward or away from the camera between terraces, and **jumps with Space**. Player A (at the demo, a judge) draws in Henry's browser pad and presses BUILD. SpacetimeDB syncs the strokes to Unity, which cuts the ink out. A real whiteboard and webcam remain an alternative input. The drawing then appears in the world as a flat paper cutout you can stand on. **It is solid only where there's ink: no hidden colliders.** At the same time the board image goes to the backend's `POST /interpret`, which says *what* the drawing is: its name, material and traits. Puzzles react to those traits, never to the name. A torch, a firefly and a lightbulb all light a cave because they all `glow`.
 
 **The one rule we say out loud:** *your lines decide its shape; AI decides what it is.*
 
@@ -17,19 +17,19 @@ The high-ledge build slot is still in the level, but it's off the rehearsed rout
 ## What is in and out for the demo
 | In | Deferred (not on the demo route) |
 |---|---|
-| Ink-only bridge at the gap | Rideable rocket / thrust controller |
+| Ink-only bridge at the gap | Rope/tether, hinges and push/pull |
 | `/interpret` → name + traits (`edible`, `glows`, `hostile`) | Ink economy and pickups |
 | Gatekeeper decides on `edible` | Burning, extinguishing, floating, cutting, conductivity |
 | "Apple → food → lets you through" card | Approve screen with ghost placement |
-| Surface traits (`bouncy`, `slippery`, `sticky`) as a possible extra | `bounce`, `thrust`, `emit` (non-light) and `explode` components |
+| Bounce, thrust, lift, glide, roll, attach and surface traits | `emit` (non-light) and `explode` components |
 | | Grappling rope (`tether`): cut |
-| | Andy's in-Unity drawing pad (`DigitalDrawingCanvas`): dropped; Henry's SpacetimeDB browser whiteboard covers digital drawing |
+| Browser whiteboard + main free-invention physics | Andy's in-Unity drawing pad; Henry's SpacetimeDB browser whiteboard supplies drawing input |
 
-Unity still parses the deferred parts. Anything it can't run yet is built as a plain solid in the drawn shape: a rocket is a rocket-shaped solid.
+Free inventions support bounce, thrust, lift, glide, roll and attach (E activates/rides, Space jumps off). Unity still parses other deferred parts. Anything it cannot run yet keeps the drawn solid shape without the unsupported power. Recognized support-only vehicles gain a basic drive ability; puzzle solutions still depend on traits.
 
 ## Running it
 - **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.
-- **Unity:** the Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
+- **Unity:** defaults to Henry's browser whiteboard (`DigitalBoard`), opened from F4 > **Open browser drawing pad**. It syncs drawings through SpacetimeDB; one Unity Editor is sufficient. See [`coop-spacetimedb.md`](coop-spacetimedb.md). The Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
 - **Digital board instead of the whiteboard:** `-capture=digital` (`CaptureSource.DigitalBoard`). The judge draws in Henry's browser whiteboard (`tools/whiteboard/index.html`) and taps BUILD there; Unity joins its SpacetimeDB room and runs the same BUILD on the drawing. It needs `thinkink.key` and internet. See [`coop-spacetimedb.md`](coop-spacetimedb.md#the-digital-board-one-game-machine).
 - **Checking the backend:** `python tools/interpret_check.py --dir <photos>` checks a running backend against the demo expectations.
 

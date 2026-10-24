@@ -88,7 +88,7 @@ namespace CalHacks
             y += 54f;
             if (ThinkInkSession.TestWhiteboardPath != null)
             {
-                var label = session.WaitingForWhiteboard ? "Waiting for the browser tab..." : "Test: open a whiteboard tab";
+                var label = session.WaitingForWhiteboard ? "Waiting for the browser tab..." : "Open browser drawing pad";
                 if (GUI.Button(new Rect(x, y, w, 44f), label, button)) session.OpenTestWhiteboard();
                 y += 54f;
             }

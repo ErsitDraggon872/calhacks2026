@@ -64,7 +64,7 @@ namespace CalHacks
         // The bridge stands before its attributes are known; they arrive with the label.
         protected override void OnSpec(InventionSpec spec)
         {
-            if (bridge != null) bridge.Apply(spec);
+            if (bridge != null) bridge.Apply(spec, enableAbilities: false);
         }
 
         /// <summary>Manual accept (F1): always rebuilds the bridge from the fallback drawing (a full plank), then solves.</summary>

@@ -17,7 +17,10 @@ namespace CalHacks
 
         /// <summary>What B can do with a free build, from what it is.</summary>
         public static string FreeBuildAction(InventionSpec spec) =>
-            spec.Has(Trait.Bouncy) ? "IT'S BOUNCY: JUMP ON IT"
+            spec.HasPart(PartType.Roll) ? "PRESS E TO DRIVE  ·  SPACE TO JUMP OFF"
+            : spec.HasPart(PartType.Thrust) || spec.HasPart(PartType.Lift) || spec.HasPart(PartType.Glide) || spec.HasPart(PartType.Attach)
+                ? "PRESS E TO RIDE  ·  SPACE TO JUMP OFF"
+            : spec.Has(Trait.Bouncy) || spec.HasPart(PartType.Bounce) ? "IT'S BOUNCY: JUMP ON IT"
             : spec.Has(Trait.Slippery) ? "CAREFUL, IT'S SLIPPERY"
             : spec.Has(Trait.Sticky) ? "IT'S STICKY: NO SLIDING OFF"
             : spec.Has(Trait.Glows) ? "IT GIVES OFF LIGHT"

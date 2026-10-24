@@ -1,84 +1,40 @@
-# Handoff: finish and verify the digital board (Henry's SpacetimeDB whiteboard as BUILD input)
+# Handoff: browser digital board and main invention physics
 
-For the next Claude Code session, cloud or local.
-- **Integration:** merged into `wesley/interpret-backend` at Wesley's request. Preserve current puzzle banners and invention cards. Henry's browser board is the digital input; Andy's main physics abilities are integrated selectively.
-- **Background:**
-  - `docs/coop-spacetimedb.md`, section "The digital board (one game machine)": the design, as built.
-  - `docs/interpret-contract.md`: unchanged, and must stay that way.
-- **Can't happen in a cloud session:** compiling, tests and Play mode all need Unity 6000.3.18f1. A cloud session can do the code steps (part B) and leave the Unity checks (part C) for a session on Wesley's PC.
+## Current integration
 
-## What's on the branch
-1. **`4bff346`: a real merge of `origin/henry/spacetimedb-coop` onto `origin/wesley/interpret-backend`.** No conflicts.
-   - The merge-base was main's tip, and `ProjectSettings/` is untouched.
-   - Adds the SpacetimeDB module (`server/`), the browser whiteboard (`tools/whiteboard/index.html`), `Assets/Scripts/Multiplayer/` and the `Coop` prefab in `Level` and `Sandbox`.
-   - Adds the SDK `com.clockworklabs.spacetimedbsdk` v2.13.0 as a git package, referenced from `Game.asmdef`.
-2. **`f409bb7`: the digital board.**
-   - **Source switch:** `CaptureSource.DigitalBoard` (`-capture=digital`).
-   - **`DigitalBoardFrameSource`:** an `IBoardFrameSource`, added by `RunManager` at runtime.
-     - It caches the room's strokes per capture_id.
-     - A `pending` invention row from the page triggers `RunManager.Cast()`, waiting up to 5 s if BUILD is busy.
-     - If the strokes never arrived, it falls back to the cutout image carried in the `pending` row.
-   - **`StrokeBoard`:** draws strokes onto a white 992×572 board (the page's 960×540 canvas plus a 16 px border, because InkExtractor drops ink blobs that touch the frame edge).
-   - **`WebcamVisionClient`:** now takes the crop as a parameter. Webcam and Replay pass `boardCrop`; the digital board passes the whole frame.
-   - **Whiteboard page, `?mode=board`:** BUILD only publishes `pending`, then clears. The page also clears when `game_state.reset_count` changes (Unity's F5).
-   - **Two-machine co-op stays out of the way in this mode:** `ExplorerInventions` and the Explorer HUD line stand aside. The `Cast()` guard only blocks two-machine co-op.
-   - **Tests:** `PaperTexture.DestroySafe` is now public and used in the touched texture paths, so they work in EditMode tests. 8 new tests are in `DigitalBoardTests`.
-   - **Docs:** `README`, `coop-spacetimedb` and `unity-implementation-notes`.
+Work is on `wesley/interpret-backend`. Henry's co-op branch and the digital-board adaptation are merged, preserving the current puzzle banners and invention cards. Andy's `feature/thinkink-full-update` through `bb955d7` is integrated selectively: the browser pad remains the input, with his main free-invention physics and latest vehicle improvements. His local Unity drawing pad, alternate response classes and full HUD redesign are not imported.
 
-## Already verified (Wesley's PC, second Editor on the worktree)
-- [x] It compiles. The SDK git package resolves on Unity 6000.3.18f1.
-- [x] EditMode: 95/95 pass (the existing 87 plus 8 new).
-- [x] Mock, no `thinkink.key`, offline: the co-op panel shows "Offline · key missing", and a BUILD at the gap lays the bridge.
-- [x] Replay: the fixture photo goes to `/interpret` (fake backend) and comes back as "rope bridge" at the gap.
-- [x] DigitalBoard, not in a room: BUILD fails cleanly with "camera: SpacetimeDB connecting".
-- [~] Webcam: the C270 sent no frames, probably because the other Editor in Play mode held it. BUILD failed cleanly. Redo with the camera free.
+The flow is browser strokes -> SpacetimeDB -> Unity board snapshot/ink extraction -> Python `POST /interpret` -> puzzle socket or free invention. SpacetimeDB syncs the drawing, room and reset; it does not perform AI recognition.
 
-## B. Original review checklist (see integration update below)
-1. **Review `f409bb7`** for bugs, especially in `DigitalBoardFrameSource`:
-   - `TryCast` assumes `RunManager.Cast()` grabs the frame before its first `await`. It does today, because `WebcamVisionClient.CaptureAsync` is synchronous. If that ever changes, the capture is unpinned too early.
-   - An old `pending` row seen before `RoomReady` must not trigger BUILD.
-   - Rows keep arriving after `DrawingCleared` (the page clears right after BUILD).
-2. **Error prefix:** `WebcamVisionClient` prefixes every source failure with `camera:`, so the digital board says "camera: SpacetimeDB connecting". Either make the prefix come from the source, or accept it.
-3. **Optional (Wesley's call):** move `Assets/Scripts/Multiplayer/` into its own asmdef, so that if the SDK package fails to resolve, only co-op breaks and not the whole `Game` assembly. That means replacing `RunManager`'s and `Hud`'s references to `ThinkInkSession` with hooks. Ask before doing it.
-4. Keep `docs/coop-spacetimedb.md` in step with any behaviour change.
+## Use one Unity Editor
 
-## C. Unity checks (Wesley's PC only)
-**Setup:**
-- Run `unity status --format json`. Reuse the existing Editor for the root project, explicitly targeting `--project-path C:\Users\wesle\UnityGames\calhacks2026`. **Never automatically open another Editor or this worktree in Unity.** Stop Play mode before EditMode tests, and reload externally changed scenes when merging. If no Editor exists, report that rather than launching one.
-- Start the fake backend on its own port, because 8000 may already be taken: `THINKINK_PORT=8011 THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple,banana python tools/thinkink_backend.py`.
-- Set `GameConfig` **in memory only**, never saved: `captureSource=DigitalBoard`, `interpretUrl=http://127.0.0.1:8011`. Afterwards reload it with `Resources.UnloadAsset`.
-- Open `Assets/Scenes/Level.unity`. The player is at x 7.5, the gap at 12.3, the gatekeeper at 29.6. To move the player, disable its CharacterController, set the position, re-enable it, then `Physics.SyncTransforms()`.
+- Project: `C:/Users/wesle/UnityGames/calhacks2026`, Unity **6000.3.18f1**.
+- Run `unity status --format json` and target the existing root-project Editor with `--project-path`. Never automatically run `unity open`, open the old worktree in Unity, or launch a batch Editor alongside it.
+- Stop Play mode before EditMode tests. Allow domain reloads to finish before the next command. After a branch merge, reload scenes changed on disk in the existing Editor.
+- Default input: `CaptureSource.DigitalBoard` (`-capture=digital`). In Play mode, F4 > **Open browser drawing pad** opens Henry's browser page with `mode=board` and joins Unity as Explorer. No second Unity client is needed. Webcam and replay remain selectable via GameConfig/launch flags.
+- Start the recognition backend separately (see `DEERAI-SETUP.md`). Keys remain local and uncommitted. The root checkout has the gitignored sync-key file copied from the existing worktree.
 
-1. **Simulated room** (no network), through `unity command eval`:
-   - Set `ThinkInkSession`'s `Room` (a `new SpacetimeDB.Types.Room { RoomId = 4242, RoomCode = "SIMU" }`), `RoomReady = true` and `Role = Explorer` by reflection, then raise `RoomChanged`.
-   - Raise the `StrokeAdded`, `InventionChanged` (a `pending` row) and `DrawingCleared` events by reading their backing delegate fields and calling `DynamicInvoke`.
-   - [ ] **Gap:** bridge strokes, then a `pending` row: BUILD runs, the cutout spans the gap, and the fake backend answers "bridge".
-   - [ ] **Gatekeeper:** a bridge drawing is refused. An apple drawing sent while the bridge reading is still in flight waits, then BUILDs and is accepted (`edible`).
-   - [ ] Sending `DrawingCleared` right after a `pending` row doesn't lose that drawing.
-   - [ ] F5 (`ResetRun`) empties the cached board.
-2. **Live Maincloud room.** This needs Henry to **resume the paused `thinkink` database**: `https://maincloud.spacetimedb.com/v1/database/thinkink/schema?version=9` returned 503 "database is paused" on 2026-10-24. It also needs `thinkink.key` in the project root; Wesley has it, and it's never committed.
-   - [ ] The co-op panel's "Test: open a whiteboard tab" opens the page with `mode=board`, and Unity joins as the Explorer.
-   - [ ] Draw at the gap and BUILD on the page: the bridge appears and the page clears.
-   - [ ] Gatekeeper: a bridge is refused, then an apple is accepted.
-   - [ ] F5 in Unity empties the page canvas within about 1.5 s.
-   - [ ] A tablet on the LAN: `python -m http.server 8080` in `tools/whiteboard`, open `index.html?mode=board`, then join by typing the room code in the panel.
-3. [ ] Webcam with the C270 free: unchanged behaviour with or without the key.
+## Behavior
 
-**Don't commit these if they show up:**
-- `ProjectSettings/ShaderGraphSettings.asset` (import noise)
-- `runInBackground` in `ProjectSettings.asset`
-- `Assets/Prefabs/Materials/*.mat`
-- `ProjectSettings/Packages/com.unity.pipeline/EditorPipelineConfig.json`
+- Each browser BUILD keeps an immutable frame in FIFO order, up to 8 waiting drawings. Immediate CLEAR does not erase queued work. CAST is awaited instead of assuming capture completes synchronously; busy AI requests no longer discard a drawing after 5 seconds.
+- Historical and duplicate pending rows never rebuild. F5 discards queued frames and resets the room. Room changes discard queued work and cancel the old board request. Source failures identify the digital board instead of reporting a camera error.
+- Free inventions support bounce, thrust, lift, glide, roll and attach. E activates/boards the nearest eligible drawing within 2.5 m. Space jumps off; walking off releases the rider. Loaded gliders respect their descent limit, and weak lifts cannot carry the 6 kg gameplay rider.
+- Andy's updated whole-word vehicle fallback makes recognized support-only cars/carts drive. Roll-only engines run for at least 15 seconds and use target horizontal velocity. Powered lift has modest horizontal travel and capacity feedback.
+- Gap bridges remain anchored and solid only where ink exists. Gatekeeper acceptance still uses edible/hostile traits. Current invention cards remain and show E controls for rideable builds.
+- Rope/tether, hinges, push/pull, ink economy and the alternate Unity drawing interface remain deferred. Explicit backend rejection remains rejection.
 
-Delete any `Assets/Temp` captures.
+## Verified on Wesley's PC
 
-## Report back
-Which boxes you ticked, the EditMode count, the commits, and anything still blocked (most likely the paused database).
+- Unity compilation clean; **111/111 EditMode tests pass**. Backend **21/21 tests pass**.
+- Simulated browser room through the real capture/HTTP pipeline with a fake backend: static ink bridge at gap; bridge refused at gatekeeper; apple accepted. Immediate CLEAR retained the submitted drawing. Reset restored sockets and emptied pending captures.
+- Runtime deterministic checks all pass: parked-rocket activation, loaded glide (-2.48 m/s for a 2.5 limit), walking-off release, thrust, strong lift, cart drive, vehicle fallback, 15-second engine, button bounce, weak E-boarded lift and weak contact-boarded lift.
+- Reusable runtime fixtures: in Play mode, `unity command script eval_file --file tools/verify_invention_abilities.cs`. Results are in `Temp/ability-regressions-result.txt`; all Boolean checks must be True. This uses no cloud or AI and temporarily moves the player to a test area before returning to spawn.
+- Validation reused the existing Editor (PID 32524, port 7800). No additional Editor was launched.
 
-## Integration update (2026-10-24)
+## Still blocked / next checks
 
-- Browser DigitalBoard is the default capture source. SpacetimeDB syncs browser strokes and resets; Python `/interpret` still supplies recognition.
-- Each browser BUILD retains a separate immutable frame in a FIFO (up to 8 waiting). CLEAR does not destroy queued frames. CAST completion is awaited; there is no 5-second discard while AI is busy. Reset/room changes discard queued work, and historical/duplicate rows do not rebuild.
-- Main free-invention abilities: bounce, thrust, lift, glide, roll and attach. E activates/boards the nearest invention, Space disembarks. Gap geometry remains anchored; gatekeeper traits and invention cards remain intact.
-- Root checkout reuses the locally available gitignored sync-key file. Do not print or commit it.
-- Live cloud schema check: HTTP 503 `database is paused`. The database owner must resume it for live browser validation. Simulated-room and deterministic physics checks do not require the cloud.
+The Maincloud `thinkink` database schema endpoint returned **HTTP 503: database is paused** on 2026-10-24. The database owner must resume it before live browser/tablet checks can pass. Do not claim the live network flow has been verified.
+
+Once resumed, verify browser BUILD at gap and gatekeeper, then F5 clearing the browser canvas. Real webcam and real AI recognition were not rechecked in this integration.
+
+Keep local keys, temporary captures, import-only material changes, Run In Background and Pipeline override noise out of commits. Existing CameraFollow/CameraRig edits belong to Wesley's separate camera work.

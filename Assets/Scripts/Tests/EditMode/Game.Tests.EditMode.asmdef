@@ -3,6 +3,7 @@
     "rootNamespace": "CalHacks.Tests",
     "references": [
         "Game",
+        "com.clockworklabs.spacetimedbsdk",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

@@ -39,7 +39,7 @@ namespace CalHacks
                 : state.Finished ? StationSign
                 : state.InFlight ? Reading
                 : !string.IsNullOrEmpty(banner) ? banner
-                : StationSign;
+                : "DRAW → BUILD  ·  E ACTIVATE / RIDE  ·  SPACE JUMP OFF";
             GUI.Label(signRect, status, sign);
 
             DrawBuildBar(state, width);

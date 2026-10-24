@@ -150,3 +150,11 @@ The backend judges the **object** (what it is, valid combinations, clamps, `reje
 ## Open (team decision)
 - **Activation as a field.** The pitch lists "Activation" as a fourth component. Here it's a field on each active part, because a bare activation component means nothing without a part to trigger.
 - **Cooldown and the approval pause.** Proposal: the BUILD cooldown starts when A **places** the object, so the approval pause never eats into it. In the current slice (no approval step yet), it starts once the cutout appears.
+
+## Integrated runtime extensions (2026-10-24)
+
+The single shared `InterpretResponse` now also reads optional `attributes`, using the bounded defaults in `InventionAttributes`. Older responses without it remain valid. Identity (`name`, material, traits), capture/run echoes, explicit rejected/error status and existing component fields keep their original meanings.
+
+Free inventions support `bounce`, `thrust`, `lift`, `glide`, `roll`, and `attach` in addition to static support and glow. Lift uses `attributes.carry_capacity_kg` against the 6 kg gameplay rider; glide's `launch_speed` is terminal descent speed. Powered parts accept button, contact, hold and toggle modes; lift/roll can also activate on contact with always mode. Roll-only vehicles run for at least 15 seconds. A support-only recognized vehicle uses Andy's whole-word name fallback to gain roll. Gap bridges never get moving abilities, and gatekeeper acceptance still uses edible/hostile traits.
+
+The backend already emits these extended fields; the integration adds runtime support without importing Andy's conflicting duplicate response/request classes. Rope/tether, hinge, push/pull, unsupported emission and explosion mechanics remain deferred.

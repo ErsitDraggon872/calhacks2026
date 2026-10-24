@@ -4,34 +4,24 @@ using InventionRow = SpacetimeDB.Types.Invention;
 
 namespace CalHacks
 {
-    /// <summary>
-    /// The SpacetimeDB browser whiteboard (tools/whiteboard/index.html) as this machine's board, for
-    /// <see cref="CaptureSource.DigitalBoard"/>. The page is the room's Creator and this game joins as the Explorer.
-    /// Strokes are kept here per capture_id and drawn onto a clean board for <see cref="WebcamVisionClient"/>, so a
-    /// BUILD runs the usual CAST: ink cutout, /interpret, sockets. The page's BUILD publishes the drawing as a
-    /// "pending" invention; that row is what triggers CAST here.
-    ///
-    /// This keeps its own copy of the strokes, because the page clears the board right after its BUILD and the clear
-    /// can arrive before CAST has grabbed the frame.
-    /// </summary>
+    /// <summary>The browser board is this game's input. Each BUILD owns its frame until CAST settles.</summary>
     public class DigitalBoardFrameSource : MonoBehaviour, IBoardFrameSource
     {
-        [Tooltip("How long a BUILD from the page waits for CAST to be free (cooldown, a reading in flight).")]
-        [SerializeField] float castWaitSeconds = 5f;
-
+        const int MaxQueuedBuilds = 8;
+        sealed class Capture
+        {
+            public string Id;
+            public Color32[] Pixels;
+        }
         readonly StrokeBoard board = new StrokeBoard();
         readonly HashSet<string> seenBuilds = new HashSet<string>();
+        readonly Queue<Capture> pending = new Queue<Capture>();
         ThinkInkSession session;
         ulong roomId;
-        /// <summary>The capture the page's BUILD asked for; CAST grabs it rather than the latest strokes.</summary>
-        string pinned;
-        string pinnedImage;
-        float castDeadline;
-        bool castWaiting;
-        string lastGrabbed;
+        Capture active;
+        bool processing;
 
         public string DeviceName => "digital board " + (ThinkInkSession.InRoom ? ThinkInkSession.Instance.Room.RoomCode : "-");
-
         public string Status
         {
             get
@@ -42,41 +32,28 @@ namespace CalHacks
                     return "SpacetimeDB " + s.Link.ToString().ToLowerInvariant() + (s.LastError != null ? ": " + s.LastError : "");
                 if (s.KeyState != SyncKeyState.Accepted) return "sync key " + s.KeyState.ToString().ToLowerInvariant();
                 if (s.Room == null) return "not in a room: open the whiteboard from the co-op panel (F4)";
-                if (!s.RoomReady) return "loading room " + s.Room.RoomCode;
-                return "ready";
+                return s.RoomReady ? "ready" : "loading room " + s.Room.RoomCode;
             }
         }
-
         public bool HasFreshFrame => ThinkInkSession.InRoom && ThinkInkSession.Instance.RoomReady;
-
         public Color32[] Grab(out int width, out int height)
         {
             width = height = 0;
             if (!HasFreshFrame) return null;
-            var capture = pinned ?? board.Latest;
-            lastGrabbed = capture;
-            if (capture != null && capture == pinned && !board.Has(capture) && !string.IsNullOrEmpty(pinnedImage))
-            {
-                // The strokes never reached us (joined mid-drawing): use the cutout the page sent with its BUILD.
-                var cutout = PaperTexture.FromBase64(pinnedImage);
-                var frame = StrokeBoard.RenderCutout(cutout, out width, out height);
-                if (cutout != null) PaperTexture.DestroySafe(cutout);
-                return frame;
-            }
-            return board.Render(capture, out width, out height);
+            if (active == null) return board.Render(board.Latest, out width, out height);
+            width = StrokeBoard.Width;
+            height = StrokeBoard.Height;
+            return (Color32[])active.Pixels.Clone();
         }
-
         void OnEnable() => RunManager.RunReset += OnRunReset;
-
         void OnDisable()
         {
             RunManager.RunReset -= OnRunReset;
+            ClearCaptures();
             Unhook();
         }
-
         void Update()
         {
-            // The session may come up after this component; hook once it exists.
             if (session == null && ThinkInkSession.Instance != null)
             {
                 session = ThinkInkSession.Instance;
@@ -86,9 +63,8 @@ namespace CalHacks
                 session.RoomChanged += OnRoomChanged;
                 OnRoomChanged();
             }
-            if (castWaiting) TryCast();
+            TryCast();
         }
-
         void Unhook()
         {
             if (session == null) return;
@@ -98,74 +74,67 @@ namespace CalHacks
             session.RoomChanged -= OnRoomChanged;
             session = null;
         }
-
         void OnRoomChanged()
         {
             var id = session.Room?.RoomId ?? 0;
             if (id == roomId) return;
+            if (processing) RunManager.Instance?.CancelBoardBuild();
             roomId = id;
-            board.Clear();
+            ClearCaptures();
             seenBuilds.Clear();
-            Unpin();
         }
-
-        void OnStroke(SpacetimeDB.Types.DrawingStroke stroke) => board.Add(stroke.CaptureId, stroke.Points);
-
-        /// <summary>The page cleared its board (CLEAR, or right after BUILD): keep only a BUILD that's still waiting.</summary>
-        void OnCleared() => board.ForgetAllBut(pinned);
-
+        void OnStroke(SpacetimeDB.Types.DrawingStroke stroke)
+        {
+            if (stroke.RoomId == roomId && !seenBuilds.Contains(stroke.CaptureId))
+                board.Add(stroke.CaptureId, stroke.Points);
+        }
+        // BUILD snapshots are independent of the live board, so CLEAR cannot erase queued work.
+        void OnCleared() => board.Clear();
         void OnInvention(InventionRow row)
         {
-            if (row.Status != "pending" || !seenBuilds.Add(row.CaptureId)) return;
-            // Rows that were already there when the room loaded are old BUILDs, not new ones.
+            if (row.RoomId != roomId || row.Status != "pending" || string.IsNullOrEmpty(row.CaptureId) ||
+                !seenBuilds.Add(row.CaptureId)) return;
+            // Historical rows are marked seen before subscription readiness, including their later updates.
             if (!session.RoomReady) return;
-            pinned = row.CaptureId;
-            pinnedImage = row.ImagePngBase64;
-            castDeadline = Time.unscaledTime + castWaitSeconds;
-            castWaiting = true;
-            Debug.Log($"[DigitalBoard] BUILD from the whiteboard: capture {row.CaptureId}");
-            TryCast();
+            if (pending.Count >= MaxQueuedBuilds)
+            {
+                Subtitles.ShowNow("Too many drawings waiting. Wait for BUILD to finish, then send again.");
+                return;
+            }
+            Color32[] pixels;
+            if (board.Has(row.CaptureId)) pixels = board.Render(row.CaptureId, out _, out _);
+            else
+            {
+                var cutout = PaperTexture.FromBase64(row.ImagePngBase64);
+                try { pixels = StrokeBoard.RenderCutout(cutout, out _, out _); }
+                finally { if (cutout != null) PaperTexture.DestroySafe(cutout); }
+            }
+            pending.Enqueue(new Capture { Id = row.CaptureId, Pixels = pixels });
+            board.Forget(row.CaptureId);
+            Debug.Log("[DigitalBoard] Queued BUILD " + row.CaptureId);
         }
-
-        void TryCast()
+        async void TryCast()
         {
             var run = RunManager.Instance;
-            if (run == null) return;
-            switch (run.State.CanCast())
+            if (processing || pending.Count == 0 || run == null || !HasFreshFrame) return;
+            if (run.State.CanCast() == CastBlock.Finished) { ClearCaptures(); return; }
+            if (run.State.CanCast() != CastBlock.None) return;
+            processing = true;
+            var capture = pending.Dequeue();
+            active = capture;
+            try { await run.CastAsync(); }
+            finally
             {
-                case CastBlock.None:
-                    castWaiting = false;
-                    lastGrabbed = null;
-                    run.Cast();
-                    // CAST grabs the frame before its first await; once it has, this capture is done with.
-                    if (lastGrabbed != null && lastGrabbed == pinned)
-                    {
-                        board.Forget(pinned);
-                        Unpin();
-                    }
-                    return;
-                case CastBlock.Finished:
-                    Unpin();
-                    return;
-                default:
-                    if (Time.unscaledTime < castDeadline) return;
-                    Subtitles.ShowNow("Still busy with the last drawing. Press BUILD again.");
-                    Unpin();
-                    return;
+                if (ReferenceEquals(active, capture)) active = null;
+                processing = false;
             }
         }
-
-        void Unpin()
-        {
-            pinned = null;
-            pinnedImage = null;
-            castWaiting = false;
-        }
-
-        void OnRunReset()
+        void ClearCaptures()
         {
             board.Clear();
-            Unpin();
+            pending.Clear();
+            active = null;
         }
+        void OnRunReset() => ClearCaptures();
     }
 }

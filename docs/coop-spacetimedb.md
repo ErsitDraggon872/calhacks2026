@@ -17,7 +17,7 @@ inventions, Ink, and resets. The Explorer's Unity is authoritative for physics; 
    and the Ink drops on both screens.
 5. B's F5 resets the room for both: full Ink, empty board, no inventions.
 
-**Testing alone:** in the lobby, click **Test: open a whiteboard tab**. A browser tab
+**Testing alone:** in the lobby, click **Open browser drawing pad**. A browser tab
 (`tools/whiteboard/index.html`) opens as the Creator of a new room, and the game joins it as the Explorer by
 itself. Drag on the tab to draw; BUILD sends the drawing as a support. Each tab is its own player. The page uses the
 HTTP API, so it stays "online" through a `heartbeat` call every 4 s. **Leave** (in the panel) returns you to the lobby.
@@ -34,7 +34,7 @@ readings. Only one machine runs Unity.
 
 - **Turn it on:** `GameConfig.captureSource = DigitalBoard`, or `-capture=digital` on a build.
 - **Who draws:** the judge, in `tools/whiteboard/index.html?mode=board`. The page is the room's Creator, and the game
-  joins as the Explorer. Testing on one machine: the co-op panel's **Test: open a whiteboard tab** opens the page in
+  joins as the Explorer. Testing on one machine: the co-op panel's **Open browser drawing pad** opens the page in
   board mode and joins by itself. From a tablet: serve the page over the LAN (`python -m http.server 8080` in
   `tools/whiteboard`), open `http://<laptop-ip>:8080/index.html?mode=board`, paste the key once, then type the
   page's room code into the co-op panel and click **Join**.
@@ -43,9 +43,9 @@ readings. Only one machine runs Unity.
   (the page's 960×540 canvas inside a 16 px border, so a drawing that runs to the page's edge isn't taken for the
   board's frame), then `WebcamVisionClient` cuts the ink out with the whole frame as the crop, `/interpret` says
   what it is, and the socket in range (or a free build) gets it. If BUILD is cooling down or a reading is in
-  flight, the page's BUILD waits up to 5 s. Unity's own BUILD key also works, on the latest strokes.
+  flight, browser BUILDs wait in order (up to 8 waiting), each with its own immutable frame until CAST completes. Unity's own BUILD key also works, on the latest strokes.
 - **Clearing:** the page clears itself right after its BUILD (the game keeps its own copy of that capture's strokes
-  until it has grabbed them). CLEAR clears both. The game's F5 resets the room (`reset_level`) and the page notices
+  until that BUILD has completed). CLEAR clears both. The game's F5 resets the room (`reset_level`) and the page notices
   `game_state.reset_count` change and empties its canvas.
 - **Not used in this mode:** `ExplorerInventions` ignores the room's inventions (the `pending` rows only trigger
   BUILD and stay `pending` until a reset), and Ink isn't spent.
@@ -131,3 +131,11 @@ spacetime generate --lang csharp --out-dir Assets/Scripts/Multiplayer/Bindings -
 
 A breaking schema change needs `--delete-data=always`, which wipes every room. Useful checks:
 `spacetime sql thinkink "SELECT * FROM invention"` and `spacetime logs thinkink -f`.
+
+## Main invention abilities (integrated 2026-10-24)
+
+The default input is the browser board (`DigitalBoard`). Use **Open browser drawing pad** in F4's panel; it opens a browser tab, never a second Unity Editor. The room database must be running and the local `thinkink.key` must be present. A 503 `database is paused` needs the database owner to resume it.
+
+Free builds now run Andy's main components: bounce, thrust, lift, glide, roll, and attach. **E** activates or boards the nearest eligible drawing within 2.5 m; E again disembarks button-operated rides, and **Space** jumps off. Hold/toggle activation is honored for powered parts. Small lift capacity cannot support the 6 kg gameplay rider; gliders cap loaded descent. Walking off releases the rider. Gap bridges stay static and gatekeeper acceptance still uses identity traits. Rope/tether, hinges, push/pull and ink spending remain deferred in this mode.
+
+Runtime regression fixtures (Play mode, same Editor): `unity command script eval_file --file tools/verify_invention_abilities.cs`. Read `Temp/ability-regressions-result.txt`; every Boolean result must be True. This temporarily creates test inventions and returns the player to spawn. It needs no cloud or recognition backend. Stop Play mode before running EditMode tests.
