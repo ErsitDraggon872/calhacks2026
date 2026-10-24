@@ -1,5 +1,7 @@
 # Draw-to-physics: design
 
+> **Demo scope (2026-10-24):** the demo route is gap → gatekeeper → flag, built on `/interpret` traits. Ink, the Approve screen, rideable rockets and the planned interaction rules below are deferred. See the in/out table in [`docs/README.md`](../../README.md).
+
 ## Pitch
 One player draws an invention on a physical whiteboard. AI translates it into working physics as a game object.
 The other player controls, tests and uses that object to solve open-ended puzzles.

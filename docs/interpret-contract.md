@@ -1,6 +1,19 @@
 # `/interpret` contract (Unity ↔ backend)
 
-**Status:** agreed shape, backend not implemented yet. Unity currently uses `NoInterpreter`, so every drawing is `unknown`; until the backend lands, Unity turns the old labels into attributes with a small built-in table (`InventionSpec.FromLabel`). Unity already parses the whole response (`Assets/Scripts/Inventions/InventionSpec.cs`) and applies `material`, `traits` (`glows`, `slippery`, `bouncy`, `sticky`) and puzzle checks; `bounce`, `thrust`, `emit`, `explode` and `body: dynamic` are parsed but not built yet. Andy builds the backend (Bitdeer call, validation, clamping, Ink cost) against this contract. Unity plugs in an `HttpInterpreter : IInterpreter` (`Assets/Scripts/Vision/IInterpreter.cs`) without touching capture.
+**Status:** the shape is agreed; the backend isn't implemented yet and is now the critical path for the demo (Andy's handoff: [`handoff-interpret-backend.md`](handoff-interpret-backend.md)).
+- **Unity today:** uses `NoInterpreter`, so every drawing is `unknown`. Until the backend lands, the old labels become attributes through a small built-in table (`InventionSpec.FromLabel`).
+- **Unity next:** `HttpInterpreter : IInterpreter` (`Assets/Scripts/Vision/IInterpreter.cs`) calls this endpoint without touching capture.
+- **What Unity does with the reply:** it already parses the whole response (`Assets/Scripts/Inventions/InventionSpec.cs`). It applies `material`, `traits` (`edible`, `hostile`, `glows`, `slippery`, `bouncy`, `sticky`) and puzzle checks. `bounce`, `thrust`, `emit` (other than light), `explode` and `body: dynamic` are parsed but built as a plain solid.
+
+## Demo-critical subset (get these right first)
+The demo route is gap → gatekeeper → flag, and what decides it is the gatekeeper accepting `edible`. In priority order:
+1. `status` (`ok` / `rejected` / `error`), with `capture_id` and `run_id` echoed back.
+2. `name`: the specific everyday noun ("apple", "banana", "rubber duck"), never a category or a puzzle answer.
+3. `traits`, above all `edible` and `hostile` (then `glows`).
+4. `material`: Unity adds implied traits from it (`plant` implies `edible`), so an apple with `material: plant` passes even without the trait listed.
+5. `message`: one short player-facing line, required for `rejected`.
+
+Everything else can be a safe default for now: `components` = a single `support`, `weight` `medium`, `body` `static`, `width_m` 0, `ink_cost` 5, `adjectives` empty.
 
 Unity owns the webcam and the ink cut-out. The backend never sees the camera; it only receives the two images below.
 
@@ -29,7 +42,16 @@ Unity owns the webcam and the ink cut-out. The backend never sees the camera; it
 ```
 - **`board_png_base64`**: the untouched board crop (RGB PNG). **Recognise from this one.** Ink extraction can drop faint strokes or keep a smudge, and that mustn't spoil recognition.
 - **`cutout_png_base64`**: ink on transparent (RGBA PNG). It's exactly what the player sees in the world. The `cutout_*` rect says where it sits in the board image, so the backend can map part locations onto it.
-- **`goal`**: the puzzle framing ("draw something that gets B across the gap"). It helps the model resolve ambiguous drawings.
+- **`goal`**: the puzzle framing. Use it only to break a tie between two readings of the strokes (see `interpret-prompt.md`); it must never turn a duck into a bridge.
+- **`socket_id`** and the `goal` Unity sends with it:
+
+  | `socket_id` | `goal` |
+  |---|---|
+  | `gap` | `get B across the gap` |
+  | `gatekeeper` | `something the gatekeeper will accept` |
+  | `free` | `""` (a free build anywhere else) |
+
+  `cave` and `villager` exist only in the Sandbox scene.
 
 ## Response
 An object is a **combination of attributes**, like Scribblenauts: one value per property, any number of traits, and a few active components. Puzzles and the world react to the attributes, never to the name, so a torch, a firefly and a lightbulb all light the cave because they all `glow`.
