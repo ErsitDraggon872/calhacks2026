@@ -30,6 +30,14 @@ namespace CalHacks
         public override SocketType Type => SocketType.Villager;
         public override IReadOnlyList<Trait> SolvingTraits => Wants;
         public override string Goal => $"something the {socketId} will accept";
+        public override string Banner => $"THE HUNGRY {socketId.ToUpperInvariant()}  ·  DRAW SOMETHING TO EAT → BUILD";
+
+        public override string Verdict(InventionSpec spec, LabelOutcome outcome)
+        {
+            var who = "THE " + socketId.ToUpperInvariant();
+            if (outcome != LabelOutcome.Solve) return $"NOT FOOD → {who} SAYS NO";
+            return spec.Has(Trait.Edible) ? $"FOOD → {who} LETS YOU THROUGH" : $"SCARY → {who} RUNS OFF";
+        }
 
         protected override void Awake()
         {

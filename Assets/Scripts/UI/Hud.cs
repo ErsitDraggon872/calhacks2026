@@ -7,6 +7,7 @@ namespace CalHacks
     {
         const float ReferenceHeight = 1080f;
         const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
+        const string Reading = "AI is reading your drawing...";
 
         GUIStyle small, big, sign;
         Texture2D panel, barBack, barFill, barReady;
@@ -31,8 +32,11 @@ namespace CalHacks
             var signRect = new Rect((width - 1100f) * 0.5f, 18f, 1100f, 54f);
             GUI.DrawTexture(signRect, panel);
             var state = run.State;
+            // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
+            var banner = run.NearestSocket?.Banner;
             var status = state.Finished ? StationSign
-                : state.InFlight ? "Looking at the board..."
+                : state.InFlight ? Reading
+                : !string.IsNullOrEmpty(banner) ? banner
                 : StationSign;
             GUI.Label(signRect, status, sign);
 
@@ -57,8 +61,8 @@ namespace CalHacks
             var ready = state.CooldownRemaining <= 0f && !state.InFlight;
             var fill = state.InFlight ? 0f : state.CooldownFraction;
             GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * fill, bar.height), ready ? barReady : barFill);
-            var text = state.InFlight ? "Looking at the board..."
-                : ready ? "BUILD READY"
+            var text = state.InFlight ? Reading
+                : ready ? "READY TO INVENT"
                 : $"Recharging {state.CooldownRemaining:0.0}s";
             GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 40f), text, sign);
         }

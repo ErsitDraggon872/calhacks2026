@@ -43,6 +43,8 @@ namespace CalHacks
         public virtual IReadOnlyList<Trait> SolvingTraits => Array.Empty<Trait>();
         /// <summary>The puzzle in words, sent with the drawing as POST /interpret's tie-breaker (never what decides it).</summary>
         public virtual string Goal => "";
+        /// <summary>The station sign while B is in range, e.g. "THE GREAT GAP  ·  DRAW → BUILD → CROSS". "" for the default.</summary>
+        public virtual string Banner => "";
         public bool Solved { get; private set; }
         public abstract SocketType Type { get; }
         public Vector3 CastPoint => transform.position;
@@ -74,8 +76,8 @@ namespace CalHacks
 
         public void ApplyLabel(string label) => ApplySpec(InventionSpec.FromLabel(label));
 
-        /// <summary>The drawing's attributes arrived: solve if they fit, react otherwise.</summary>
-        public void ApplySpec(InventionSpec spec)
+        /// <summary>The drawing's attributes arrived: solve if they fit, react otherwise. Returns what they did here.</summary>
+        public LabelOutcome ApplySpec(InventionSpec spec)
         {
             spec = spec ?? InventionSpec.Plain();
             LastSpec = spec;
@@ -84,7 +86,7 @@ namespace CalHacks
             if (Solved)
             {
                 if (outcome == LabelOutcome.CatReaction) PlayCatReaction();
-                return;
+                return outcome;
             }
             switch (outcome)
             {
@@ -98,7 +100,12 @@ namespace CalHacks
                     OnWrongLabel(spec.Name);
                     break;
             }
+            return outcome;
         }
+
+        /// <summary>What the drawing did here, in plain words for the card: "FOOD → THE GATEKEEPER LETS YOU THROUGH".</summary>
+        public virtual string Verdict(InventionSpec spec, LabelOutcome outcome) =>
+            outcome == LabelOutcome.Solve ? "THAT DID IT!" : "NOT QUITE. TRY SOMETHING ELSE";
 
         /// <summary>Manual accept (F1): solve regardless of the label, using the fallback drawing if needed.</summary>
         public virtual void ForceSolve()

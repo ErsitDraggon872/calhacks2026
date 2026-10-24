@@ -64,6 +64,8 @@ namespace CalHacks
         public string LastError { get; private set; }
         public string BoundSocketId => boundSocket != null ? boundSocket.SocketId : null;
         public string NearestSocketId => NearestInRange()?.SocketId;
+        /// <summary>The unsolved socket a BUILD would go to right now, or null for a free build.</summary>
+        public PuzzleSocket NearestSocket => NearestInRange();
         public string MockNext => mock?.DescribeNext();
         public string SolvedSummary => sockets.Length == 0
             ? "-"
@@ -104,6 +106,7 @@ namespace CalHacks
             if (player == null) player = FindFirstObjectByType<PlayerController>();
             if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
             inventionRoot = new GameObject("Inventions").transform;
+            if (GetComponent<InventionCard>() == null) gameObject.AddComponent<InventionCard>();
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
@@ -355,7 +358,8 @@ namespace CalHacks
 
             var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
             invention.Apply(spec);
-            Subtitles.Show(feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : Understood(spec));
+            InventionCard.Show(spec, TraitWords.FreeBuildAction(spec), null,
+                feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : null);
             inventions.Add(invention);
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
@@ -412,18 +416,10 @@ namespace CalHacks
             LastLabel = spec.Name;
             LastAttributes = spec.Describe();
             Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
-            Subtitles.Show(Understood(spec));
-            socket.ApplySpec(spec);
-        }
-
-        /// <summary>The "AI understood" line: "Looks like: flaming rubber skateboard (glows, hot)."</summary>
-        static string Understood(InventionSpec spec)
-        {
-            if (spec.Name == SocketLogic.Unknown) return "Couldn't tell what that is, so it's just a solid shape.";
-            var shown = spec.Traits.Where(t => t == Trait.Glows || t == Trait.Hot || t == Trait.Cold || t == Trait.Edible
-                    || t == Trait.Hostile || t == Trait.Bouncy || t == Trait.Slippery || t == Trait.Sticky)
-                .OrderBy(t => t).Select(t => InventionSpec.Snake(t)).ToArray();
-            return $"Looks like: {spec.Name}{(shown.Length > 0 ? " (" + string.Join(", ", shown) + ")" : "")}.";
+            var outcome = socket.ApplySpec(spec);
+            // Only a socket that judges meaning gets a green or red verdict; the gap just turns lines into a bridge.
+            var worked = socket.SolvingTraits.Count > 0 ? outcome == LabelOutcome.Solve : (bool?)null;
+            InventionCard.Show(spec, socket.Verdict(spec, outcome), worked);
         }
 
         void FailRequest(string error)
@@ -584,6 +580,7 @@ namespace CalHacks
                 cameraFollow.Snap();
             }
             Subtitles.Clear();
+            InventionCard.Hide();
             Debug.Log($"[Run] Reset. run_id={runId}");
         }
 
