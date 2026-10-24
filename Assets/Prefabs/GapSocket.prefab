@@ -50,6 +50,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Game::CalHacks.GapSocket
   socketId: gap
   acceptedLabels: []
+  castRange: 0
   anchor: {fileID: 717076909042796853}
   span: {x: 4.9, y: 2.2}
   faceCamera: 0

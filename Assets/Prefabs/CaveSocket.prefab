@@ -104,6 +104,7 @@ MonoBehaviour:
   socketId: cave
   acceptedLabels:
   - light
+  castRange: 0
   anchor: {fileID: 5493435274294266404}
   span: {x: 2.2, y: 2.2}
   faceCamera: 1

@@ -6,13 +6,20 @@ namespace CalHacks
     /// <summary>
     /// A free-built drawing in the world: flat to look at, thick to stand on. The visual is a camera-facing
     /// <see cref="Cutout"/>; a "Solid" child gets one BoxCollider per silhouette box, extruded along Z and centred on
-    /// the drawing's depth. Every invention is a Support for now (no labels yet).
+    /// the drawing's depth. What it is comes later, from <see cref="Apply"/>: its attributes add behaviour (light, how it
+    /// feels to walk on) but never change the colliders.
     /// </summary>
     public class Invention : MonoBehaviour
     {
         public Cutout Cutout { get; private set; }
         public Vector2 Size { get; private set; }
         public int BoxCount { get; private set; }
+        /// <summary>The drawing's attributes. A plain Support until <see cref="Apply"/> is called.</summary>
+        public InventionSpec Spec { get; private set; } = InventionSpec.Plain();
+        /// <summary>How the invention feels to walk on, read by <see cref="PlayerController"/>.</summary>
+        public InventionSurface Surface { get; private set; } = InventionSurface.Normal;
+
+        Light glow;
 
         /// <summary>
         /// Builds an invention standing on <paramref name="bottomCentre"/>. The drawing is fitted inside
@@ -43,6 +50,31 @@ namespace CalHacks
             invention.BoxCount = AddColliders(go.transform, rects, Mathf.Max(0.1f, depth));
             Debug.Log($"[Invention] {invention.Size.x:0.00} x {invention.Size.y:0.00} m, {invention.BoxCount} boxes, depth {depth:0.0} m");
             return invention;
+        }
+
+        /// <summary>Gives the invention its attributes: a light if it <see cref="Trait.Glows"/>, and its surface feel.</summary>
+        public void Apply(InventionSpec spec)
+        {
+            Spec = spec ?? InventionSpec.Plain();
+            Surface = InventionSurface.For(Spec);
+            if (Spec.Has(Trait.Glows) && glow == null)
+            {
+                var go = new GameObject("Glow");
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = new Vector3(0f, Size.y * 0.6f, -0.5f);
+                glow = go.AddComponent<Light>();
+                glow.type = LightType.Point;
+                glow.color = Spec.Has(Trait.Hot) ? new Color(1f, 0.6f, 0.3f) : new Color(1f, 0.85f, 0.55f);
+                glow.range = 8f;
+                glow.intensity = 4f;
+                glow.shadows = LightShadows.None;
+            }
+            else if (!Spec.Has(Trait.Glows) && glow != null)
+            {
+                Destroy(glow.gameObject);
+                glow = null;
+            }
+            Debug.Log("[Invention] applied: " + Spec.Describe());
         }
 
         static int AddColliders(Transform root, List<Rect> rects, float depth)
