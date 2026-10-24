@@ -69,6 +69,10 @@ namespace CalHacks
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
         public int InventionCount => inventions.Count;
 
+        /// <summary>After every reset (F5, start, or a co-op partner's reset).</summary>
+        public static event Action RunReset;
+        public static event Action Won;
+
         void Awake()
         {
             Instance = this;
@@ -169,6 +173,8 @@ namespace CalHacks
 
         public async void Cast()
         {
+            // In a co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
+            if (ThinkInkSession.InRoom) return;
             switch (State.CanCast())
             {
                 case CastBlock.InFlight:
@@ -224,7 +230,7 @@ namespace CalHacks
                 {
                     // Free build. Labels are ignored for now: every invention is a Support.
                     State.EndRequest();
-                    if (PlaceInvention(paper)) State.StartCooldown(config.buildCooldown);
+                    if (PlaceInvention(paper) != null) State.StartCooldown(config.buildCooldown);
                     return;
                 }
 
@@ -263,15 +269,15 @@ namespace CalHacks
 
         /// <summary>
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
-        /// front of them on the side they face, moved out of the level's geometry. False if nothing was built.
+        /// front of them on the side they face, moved out of the level's geometry. Null if nothing was built.
         /// </summary>
-        bool PlaceInvention(Texture2D paper)
+        Invention PlaceInvention(Texture2D paper)
         {
             if (player == null || inventionMaterial == null)
             {
                 if (inventionMaterial == null) Debug.LogError("[Run] RunManager has no Invention Material; run Game/Build Assets.");
                 Destroy(paper);
-                return false;
+                return null;
             }
             var feet = player.transform.position;
             var slot = BuildSlot.At(feet);
@@ -292,7 +298,7 @@ namespace CalHacks
                 {
                     Destroy(paper);
                     Subtitles.ShowNow("No room to build here!");
-                    return false;
+                    return null;
                 }
                 bottom += shift;
             }
@@ -302,8 +308,11 @@ namespace CalHacks
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
             Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
-            return true;
+            return invention;
         }
+
+        /// <summary>A drawing that arrived from elsewhere (the co-op Creator): placed like a free build. Takes ownership of <paramref name="paper"/>.</summary>
+        public Invention SpawnInvention(Texture2D paper) => PlaceInvention(paper);
 
         /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
         List<Bounds> ObstaclesAround(Bounds build)
@@ -333,7 +342,7 @@ namespace CalHacks
                 Quaternion.LookRotation(Vector3.right * player.FacingSign));
         }
 
-        void RemoveInvention(Invention invention)
+        public void RemoveInvention(Invention invention)
         {
             if (invention == null) return;
             inventions.Remove(invention);
@@ -507,6 +516,7 @@ namespace CalHacks
             }
             Subtitles.Clear();
             Debug.Log($"[Run] Reset. run_id={runId}");
+            RunReset?.Invoke();
         }
 
         public void ReachCheckpoint(Checkpoint checkpoint)
@@ -537,6 +547,7 @@ namespace CalHacks
             CancelRequest();
             if (player != null) player.InputLocked = true;
             Debug.Log($"[Run] Win. run_id={State.RunId} time={Hud.FormatTime(FinalTime)}");
+            Won?.Invoke();
         }
     }
 }

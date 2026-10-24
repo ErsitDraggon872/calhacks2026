@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ThinkInk test whiteboard (Creator)</title>
+<!--
+  A second "device" for testing co-op: plays the Creator from a browser tab. Click and drag to draw; strokes go to
+  SpacetimeDB in small batches (add_stroke) and appear live in the Explorer's preview. BUILD sends the drawing like
+  CreatorBuild does: publish_invention as "pending", then "ready" with a support-only physics JSON.
+  Opened by the Unity co-op panel ("Test: open a whiteboard tab") with ?invite=..., so Unity joins this room by itself.
+  Talks to SpacetimeDB over its HTTP API only, so it's one file with no build step.
+-->
+<style>
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #2b2520; color: #f4efe8; }
+  header { display: flex; gap: 24px; align-items: center; padding: 12px 20px; flex-wrap: wrap; }
+  #code { font-size: 32px; font-weight: 700; letter-spacing: 4px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d55; margin-right: 6px; }
+  .dot.on { background: #5d5; }
+  main { padding: 0 20px 20px; }
+  canvas { background: #fff; border-radius: 6px; cursor: crosshair; touch-action: none; display: block; max-width: 100%; }
+  .bar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; padding: 8px 18px; border: 0; border-radius: 6px; cursor: pointer; }
+  #build { background: #f0a030; } #clear { background: #ddd; }
+  button:disabled { opacity: .5; cursor: default; }
+  input { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; width: 140px; }
+  #error { color: #ff9a85; min-height: 1.4em; }
+  .muted { color: #b9ada0; }
+</style>
+</head>
+<body>
+<header>
+  <div>Room <span id="code">····</span></div>
+  <div><span id="linkDot" class="dot"></span><span id="link">connecting…</span></div>
+  <div><span id="explorerDot" class="dot"></span>Explorer: <span id="explorer">not here</span></div>
+  <div>Ink: <b id="ink">–</b></div>
+  <div>BUILD: <span id="buildStatus">draw, then BUILD</span></div>
+</header>
+<main>
+  <canvas id="board" width="960" height="540"></canvas>
+  <div class="bar">
+    <button id="build">BUILD</button>
+    <button id="clear">CLEAR</button>
+    <label>Name <input id="name" value="drawing"></label>
+    <label>Ink cost <input id="cost" type="number" min="5" max="100" value="10" style="width:70px"></label>
+    <span class="muted">Click and drag to draw. Strokes appear in the Unity panel as you draw.</span>
+  </div>
+  <div id="error"></div>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+const SERVER = (params.get('server') || 'https://maincloud.spacetimedb.com').replace(/\/$/, '');
+const DB = params.get('db') || 'thinkink';
+const INVITE = params.get('invite') || Math.random().toString(16).slice(2, 14);
+// Per tab (sessionStorage), so every tab is its own device with its own identity and room.
+const TOKEN_KEY = 'thinkink.whiteboard.token.' + DB;
+// The shared sync key: from the #fragment Unity adds (never sent to any server), else asked for once per tab.
+const KEY_KEY = 'thinkink.whiteboard.key.' + DB;
+const hashKey = new URLSearchParams(location.hash.slice(1)).get('key');
+if (hashKey) { sessionStorage.setItem(KEY_KEY, hashKey); history.replaceState(null, '', location.pathname + location.search); }
+function syncKey() {
+  let key = sessionStorage.getItem(KEY_KEY);
+  if (!key) {
+    key = (prompt('ThinkInk sync key (the contents of thinkink.key):') || '').trim();
+    if (key) sessionStorage.setItem(KEY_KEY, key);
+  }
+  return key;
+}
+
+const FLUSH_MS = 60, MAX_BATCH_POINTS = 48, MIN_STEP = 0.003;
+const $ = id => document.getElementById(id);
+const canvas = $('board'), ctx = canvas.getContext('2d');
+// Ink on transparent, same strokes: what BUILD sends (the Explorer's cutout).
+const ink = document.createElement('canvas');
+ink.width = canvas.width; ink.height = canvas.height;
+const inkCtx = ink.getContext('2d');
+for (const c of [ctx, inkCtx]) { c.lineCap = c.lineJoin = 'round'; c.lineWidth = 8; c.strokeStyle = '#000'; }
+
+let token = sessionStorage.getItem(TOKEN_KEY);
+let roomId = null;
+let drawingNumber = 1, sequence = 0, builtCapture = null, building = false;
+const sessionTag = Math.random().toString(16).slice(2, 8);
+const captureId = () => `web-${sessionTag}-${drawingNumber}`;
+
+function showError(msg) { $('error').textContent = msg || ''; if (msg) console.warn(msg); }
+function setLink(ok, text) { $('linkDot').classList.toggle('on', ok); $('link').textContent = text; }
+
+async function newIdentity() {
+  const res = await fetch(`${SERVER}/v1/identity`, { method: 'POST' });
+  if (!res.ok) throw new Error('Could not get an identity: ' + res.status);
+  token = (await res.json()).token;
+  sessionStorage.setItem(TOKEN_KEY, token);
+}
+
+async function call(reducer, args) {
+  const res = await fetch(`${SERVER}/v1/database/${DB}/call/${reducer}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`${reducer}: ${(await res.text()).trim() || res.status}`);
+}
+
+async function sql(query) {
+  const res = await fetch(`${SERVER}/v1/database/${DB}/sql`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: query,
+  });
+  if (!res.ok) throw new Error(`sql: ${(await res.text()).trim() || res.status}`);
+  const [table] = await res.json();
+  const names = table.schema.elements.map(e => e.name.some ?? e.name);
+  return table.rows.map(r => Object.fromEntries(r.map((v, i) => [names[i], v])));
+}
+
+// Calls go one at a time, in order, so batches arrive in the order they were drawn.
+let queue = Promise.resolve();
+function enqueue(reducer, args) {
+  const p = queue.then(() => call(reducer, args));
+  queue = p.catch(e => showError(e.message));
+  return p;
+}
+
+// ---- Drawing -------------------------------------------------------------------------------------------------
+let drawing = false, batch = [], last = null, flushTimer = null;
+
+function norm(e) {
+  const r = canvas.getBoundingClientRect();
+  return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+          Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height))]; // origin bottom-left, like Unity
+}
+function px([x, y]) { return [x * canvas.width, (1 - y) * canvas.height]; }
+
+function segment(a, b) {
+  for (const c of [ctx, inkCtx]) {
+    c.beginPath(); c.moveTo(...px(a)); c.lineTo(...px(b)); c.stroke();
+  }
+}
+
+function flush(continuing) {
+  clearTimeout(flushTimer); flushTimer = null;
+  if (batch.length >= 4 && roomId != null) enqueue('add_stroke', [roomId, captureId(), sequence++, batch]);
+  batch = continuing && last ? [...last] : [];
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (roomId == null) return;
+  canvas.setPointerCapture(e.pointerId);
+  drawing = true;
+  last = norm(e);
+  batch = [...last];
+  segment(last, [last[0] + 0.0005, last[1]]);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  const p = norm(e);
+  if (Math.hypot(p[0] - last[0], p[1] - last[1]) < MIN_STEP) return;
+  segment(last, p);
+  batch.push(...p);
+  last = p;
+  if (batch.length / 2 >= MAX_BATCH_POINTS) flush(true);
+  else if (!flushTimer) flushTimer = setTimeout(() => flush(true), FLUSH_MS);
+});
+function endStroke() {
+  if (!drawing) return;
+  drawing = false;
+  if (batch.length === 2) batch.push(last[0] + MIN_STEP, last[1]); // a tap is a dot
+  flush(false);
+}
+canvas.addEventListener('pointerup', endStroke);
+canvas.addEventListener('pointercancel', endStroke);
+
+function clearLocal() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  inkCtx.clearRect(0, 0, ink.width, ink.height);
+  drawingNumber++; sequence = 0;
+}
+
+$('clear').onclick = () => {
+  clearLocal();
+  if (roomId != null) enqueue('clear_drawing', [roomId]);
+};
+
+// ---- BUILD ---------------------------------------------------------------------------------------------------
+function croppedPngBase64(margin = 8) {
+  const { data, width, height } = inkCtx.getImageData(0, 0, ink.width, ink.height);
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (data[(y * width + x) * 4 + 3] < 32) continue;
+    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  if (maxX < 0) return null;
+  minX = Math.max(0, minX - margin); minY = Math.max(0, minY - margin);
+  const w = Math.min(width, maxX + margin + 1) - minX, h = Math.min(height, maxY + margin + 1) - minY;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  out.getContext('2d').drawImage(ink, minX, minY, w, h, 0, 0, w, h);
+  return out.toDataURL('image/png').split(',')[1];
+}
+
+$('build').onclick = async () => {
+  if (roomId == null || building) return;
+  const image = croppedPngBase64();
+  if (!image) { showError('Nothing drawn yet.'); return; }
+  showError('');
+  const capture = captureId();
+  const name = $('name').value.trim() || 'drawing';
+  const cost = Math.round(Number($('cost').value) || 10);
+  building = true; builtCapture = capture;
+  $('build').disabled = true; $('buildStatus').textContent = 'interpreting…';
+  try {
+    await enqueue('publish_invention', [roomId, capture, image, '', 0, 0]);
+    // Stand-in for /interpret: a support (solid platform), like SupportOnlyInterpreter in Unity.
+    await new Promise(r => setTimeout(r, 600));
+    const physics = JSON.stringify({
+      status: 'ok', capture_id: capture, name, message: 'Drawn in the browser whiteboard.', width_m: 2, ink_cost: cost,
+      components: [{ type: 'support', activation: 'always', anchor_x: 0.5, anchor_y: 0.5,
+                     launch_speed: 0, angle_deg: 0, acceleration: 0, duration_s: 0 }],
+      provider: 'browser-test', latency_ms: 600,
+    });
+    await enqueue('publish_invention', [roomId, capture, image, physics, 0, 0]);
+    clearLocal();
+    await enqueue('clear_drawing', [roomId]);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    building = false; $('build').disabled = false;
+  }
+};
+
+// ---- Room and status -----------------------------------------------------------------------------------------
+function micros(ts) {
+  if (ts == null) return 0;
+  if (typeof ts === 'number') return ts;
+  return Number(ts.__timestamp_micros_since_unix_epoch__ ?? Object.values(ts)[0] ?? 0);
+}
+
+async function refresh() {
+  if (roomId == null) return;
+  try {
+    const [room] = await sql(`SELECT ink_remaining FROM room WHERE room_id = ${roomId}`);
+    $('ink').textContent = room ? room.ink_remaining : '–';
+    const [explorer] = await sql(`SELECT online, last_seen FROM player WHERE room_id = ${roomId} AND role = 'explorer'`);
+    const here = !!explorer && (explorer.online || Date.now() * 1000 - micros(explorer.last_seen) < 10e6);
+    $('explorerDot').classList.toggle('on', here);
+    $('explorer').textContent = here ? 'online' : 'not here';
+    if (builtCapture && !building) {
+      const [inv] = await sql(`SELECT status, name, message FROM invention WHERE room_id = ${roomId} AND capture_id = '${builtCapture}'`);
+      $('buildStatus').textContent = !inv ? 'sent' : inv.status === 'failed' ? `failed: ${inv.message}` : `${inv.status} (${inv.name})`;
+    }
+    setLink(true, 'online');
+  } catch (e) {
+    setLink(false, 'offline');
+    showError(e.message);
+  }
+}
+
+async function start() {
+  try {
+    if (!token) await newIdentity();
+    const key = syncKey();
+    if (!key) throw new Error('No sync key: open this tab from Unity, or reload and paste the key.');
+    try {
+      await call('authorize', [key]);
+    } catch (e) {
+      if (/sync key/i.test(e.message)) { sessionStorage.removeItem(KEY_KEY); throw e; }
+      // A stale or foreign token: start over with a fresh identity.
+      await newIdentity();
+      await call('authorize', [key]);
+    }
+    await call('create_room_with_invite', ['level1', INVITE]);
+    const [room] = await sql(`SELECT room_id, room_code FROM room WHERE invite = '${INVITE.replace(/'/g, '')}'`);
+    if (!room) throw new Error('Room was created but could not be found.');
+    roomId = room.room_id;
+    $('code').textContent = room.room_code;
+    document.title = `ThinkInk ${room.room_code} (Creator)`;
+    setLink(true, 'online');
+    await refresh();
+    setInterval(refresh, 1500);
+    setInterval(() => call('heartbeat', []).catch(() => {}), 4000);
+    call('heartbeat', []).catch(() => {});
+  } catch (e) {
+    setLink(false, 'offline');
+    showError(e.message);
+  }
+}
+start();
+</script>
+</body>
+</html>

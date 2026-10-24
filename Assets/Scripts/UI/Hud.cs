@@ -31,7 +31,9 @@ namespace CalHacks
             var signRect = new Rect((width - 1100f) * 0.5f, 18f, 1100f, 54f);
             GUI.DrawTexture(signRect, panel);
             var state = run.State;
-            var status = state.Finished ? StationSign
+            var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer;
+            var status = explorer ? "Your partner draws  ·  you bring it to life"
+                : state.Finished ? StationSign
                 : state.InFlight ? "Looking at the board..."
                 : StationSign;
             GUI.Label(signRect, status, sign);
