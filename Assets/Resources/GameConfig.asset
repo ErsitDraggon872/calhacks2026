@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ffd89053002d5f4a8e43004cb8d49e3, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: Game::CalHacks.GameConfig
+  useMockVision: 1
+  serviceUrl: http://localhost:8000
+  captureTimeout: 10
+  labelTimeout: 20
+  healthPollInterval: 3
+  castRange: 5
+  killY: -5
+  mockCaptureDelay: 0.1
+  mockLabelDelay: 1
+  mockDrawings:
+  - resourceName: bridge
+    label: bridge
+  - resourceName: sun
+    label: light
+  - resourceName: fish
+    label: fish
+  - resourceName: cat
+    label: cat
+  - resourceName: scribble
+    label: unknown
