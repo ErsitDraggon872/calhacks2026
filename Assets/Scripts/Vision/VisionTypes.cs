@@ -22,6 +22,14 @@ namespace CalHacks
         public bool empty_board;
         public int ink_px;
         public string png_base64;
+        // Unity's raw board image and crop coordinates for POST /interpret.
+        public string board_png_base64;
+        public int board_width;
+        public int board_height;
+        public int cutout_x;
+        public int cutout_y;
+        public int cutout_width;
+        public int cutout_height;
         public int width;
         public int height;
         public float angle;
@@ -38,8 +46,6 @@ namespace CalHacks
         public float confidence;
         public string provider;
         public float latency_ms;
-        /// <summary>The drawing's attributes from POST /interpret. Empty (no <c>status</c>) from label-only services.</summary>
-        public InterpretResponse interpretation;
     }
 
     [Serializable]

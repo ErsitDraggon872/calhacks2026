@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace CalHacks
@@ -12,19 +11,14 @@ namespace CalHacks
     }
 
     /// <summary>
-    /// A place in the level where a drawing lands, shown as a cutout at <see cref="anchor"/>. A socket decides where the
-    /// drawing goes and what solves it, never the drawing's physics: anything solid in a drawing comes from its silhouette
-    /// (the gap builds an <see cref="Invention"/>, like a free build). The optional <see cref="solutionCollider"/> is
-    /// level geometry switched on by solving, never a stand-in for the drawing. What solves it is a drawing's attributes
-    /// (<see cref="SolvingTraits"/>), with <see cref="acceptedLabels"/> as a fallback by name.
+    /// A place in the level where a drawing lands. The drawing is shown as a cutout at <see cref="anchor"/>;
+    /// any physics comes from the hidden, pre-placed <see cref="solutionCollider"/>, never from the drawing.
     /// </summary>
     public abstract class PuzzleSocket : MonoBehaviour
     {
         [SerializeField] protected string socketId = "socket";
-        [Tooltip("Names that solve this socket, besides its solving traits. Sent to the service as accepted_labels.")]
+        [Tooltip("Labels that solve this socket. Sent to the service as accepted_labels.")]
         [SerializeField] protected string[] acceptedLabels = Array.Empty<string>();
-        [Tooltip("How close (m, on the ground plane) B must be for a BUILD to go to this socket. 0 = GameConfig.castRange.")]
-        [SerializeField] protected float castRange;
         [Tooltip("Bottom-centre of the cutout. Its forward is used when Face Camera is off.")]
         [SerializeField] protected Transform anchor;
         [Tooltip("Largest width and height (metres) the cutout is fitted into, keeping the drawing's aspect.")]
@@ -39,17 +33,11 @@ namespace CalHacks
 
         public string SocketId => socketId;
         public string[] AcceptedLabels => acceptedLabels;
-        /// <summary>Traits that solve this socket, any one of them: anything edible feeds the villager.</summary>
-        public virtual IReadOnlyList<Trait> SolvingTraits => Array.Empty<Trait>();
         public bool Solved { get; private set; }
         public abstract SocketType Type { get; }
         public Vector3 CastPoint => transform.position;
-        /// <summary>This socket's own BUILD range, or 0 for the default.</summary>
-        public float CastRange => castRange;
 
         protected Cutout CurrentCutout { get; private set; }
-        /// <summary>The attributes of the last drawing given to this socket, or null.</summary>
-        protected InventionSpec LastSpec { get; private set; }
 
         protected virtual void Awake()
         {
@@ -70,15 +58,10 @@ namespace CalHacks
             return true;
         }
 
-        public void ApplyLabel(string label) => ApplySpec(InventionSpec.FromLabel(label));
-
-        /// <summary>The drawing's attributes arrived: solve if they fit, react otherwise.</summary>
-        public void ApplySpec(InventionSpec spec)
+        public void ApplyLabel(string label)
         {
-            spec = spec ?? InventionSpec.Plain();
-            LastSpec = spec;
-            OnSpec(spec);
-            var outcome = SocketLogic.Resolve(spec, SolvingTraits, acceptedLabels);
+            var normalized = SocketLogic.Normalize(label);
+            var outcome = SocketLogic.Resolve(normalized, acceptedLabels);
             if (Solved)
             {
                 if (outcome == LabelOutcome.CatReaction) PlayCatReaction();
@@ -93,13 +76,13 @@ namespace CalHacks
                     PlayCatReaction();
                     break;
                 default:
-                    OnWrongLabel(spec.Name);
+                    OnWrongLabel(normalized);
                     break;
             }
         }
 
         /// <summary>Manual accept (F1): solve regardless of the label, using the fallback drawing if needed.</summary>
-        public virtual void ForceSolve()
+        public void ForceSolve()
         {
             if (Solved) return;
             if (CurrentCutout == null && fallbackDrawing != null)
@@ -114,7 +97,6 @@ namespace CalHacks
             StopAllCoroutines();
             foreach (var cutout in GetComponentsInChildren<Cutout>(true)) Destroy(cutout.gameObject);
             CurrentCutout = null;
-            LastSpec = null;
             Solved = false;
             if (solutionCollider != null) solutionCollider.enabled = false;
             OnReset();
@@ -141,7 +123,7 @@ namespace CalHacks
             return cutout;
         }
 
-        protected void ShowCutout(Texture2D texture, bool ownsTexture)
+        void ShowCutout(Texture2D texture, bool ownsTexture)
         {
             if (CurrentCutout != null) Destroy(CurrentCutout.gameObject);
             CurrentCutout = CreateCutout(texture, ownsTexture);
@@ -151,8 +133,6 @@ namespace CalHacks
             Cutout.Create(texture, ownsTexture, cutoutMaterial, anchor, span, faceCamera, transform);
 
         protected virtual void OnCaptured(CaptureResponse capture) { }
-        /// <summary>Called with every drawing's attributes, solved or not, before the solve check.</summary>
-        protected virtual void OnSpec(InventionSpec spec) { }
         protected abstract void OnSolved();
         protected virtual void OnWrongLabel(string label) { }
         protected virtual void OnReset() { }

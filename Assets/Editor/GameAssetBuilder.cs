@@ -192,7 +192,6 @@ namespace CalHacks.EditorTools
             Save(BuildGapSocket(), "GapSocket");
             Save(BuildCaveSocket(), "CaveSocket");
             Save(BuildVillagerSocket(), "VillagerSocket");
-            Save(BuildGatekeeperSocket(), "GatekeeperSocket");
             Save(BuildCheckpoint(), "Checkpoint");
             Save(BuildExit(), "Exit");
             Save(BuildHintZone(), "HintZone");
@@ -228,10 +227,7 @@ namespace CalHacks.EditorTools
             var texture = material != null ? material.GetTexture("_BaseMap") : null;
             const float height = 1.9f;
             var width = texture != null && texture.height > 0 ? height * texture.width / texture.height : 0.9f;
-            // The CharacterController rests skinWidth above the ground, and the paper has a margin under the drawn feet:
-            // drop the quad by both so the feet touch the surface (the paper under them dips into it).
-            var drop = cc.skinWidth + PlayerFeetMargin() * height;
-            var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f - drop, -0.05f),
+            var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f, -0.05f),
                 new Vector3(width, height, 1f), "PlayerPaper");
             quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
 
@@ -243,18 +239,6 @@ namespace CalHacks.EditorTools
             Fields(controller, ("config", config), ("visual", visual.transform));
             Fields(ghost, ("outline", outline.transform));
             return root;
-        }
-
-        /// <summary>Fraction of B's paper texture (the PlayerPaper drawing, rebuilt) below the drawn feet.</summary>
-        static float PlayerFeetMargin()
-        {
-            var ink = MockDrawingGenerator.Character();
-            var paper = PaperTexture.MakePaper(ink);
-            var row = PaperTexture.LowestInkRow(paper.GetPixels32(), paper.width, paper.height);
-            var margin = row > 0 ? (float)row / paper.height : 0f;
-            Object.DestroyImmediate(ink);
-            Object.DestroyImmediate(paper);
-            return margin;
         }
 
         static GameObject BuildCameraRig()
@@ -289,9 +273,13 @@ namespace CalHacks.EditorTools
         {
             var root = new GameObject("GapSocket");
             var socket = root.AddComponent<GapSocket>();
-            // The bridge is an invention built from the drawing (no hidden deck): one face at ledge level, in the middle
-            // of its 3.2 m depth, its colliders reaching the rails' inner faces (z -1.6..1.6).
+            // One face, in the middle of the deck's depth (like a free-built invention), its top edge at deck level.
             var anchor = Empty("Anchor", root.transform, Vector3.zero);
+            var deck = Empty("Deck", root.transform, Vector3.zero);
+            var box = deck.AddComponent<BoxCollider>();
+            box.center = new Vector3(0f, -0.25f, 0f);
+            box.size = new Vector3(5.2f, 0.5f, 3.2f);
+            box.enabled = false;
             var rails = Empty("Rails", root.transform, Vector3.zero);
             foreach (var z in new[] { -1.75f, 1.75f })
             {
@@ -299,7 +287,7 @@ namespace CalHacks.EditorTools
                 rail.center = new Vector3(0f, 0.6f, z);
                 rail.size = new Vector3(5.2f, 1.2f, 0.3f);
             }
-            // Where the drawing will appear: 4.6 m wide (the gap), top 0.4 m above the ledges (GapSocket.railHeight).
+            // Where the drawing will appear: 4.6 m wide (the gap), top 0.4 m above the deck (GapSocket.railHeight).
             var drawHint = Visual(PrimitiveType.Quad, "DrawHere", root.transform, new Vector3(0f, 0.4f - 1.1f, 0f),
                 new Vector3(4.6f, 2.2f, 1f), "DrawHere");
             drawHint.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
@@ -312,7 +300,7 @@ namespace CalHacks.EditorTools
                 ("faceCamera", false),
                 ("rails", rails),
                 ("drawHint", drawHint),
-                ("depth", 3.2f),
+                ("solutionCollider", box),
                 ("fallbackDrawing", Drawing("bridge")),
                 ("cutoutMaterial", Mat("Cutout")));
             return root;
@@ -341,24 +329,17 @@ namespace CalHacks.EditorTools
             return root;
         }
 
-        /// <summary>A capsule villager with a hat, standing on <paramref name="localPosition"/>.</summary>
-        static GameObject Villager(Transform parent, Vector3 localPosition)
+        static GameObject BuildVillagerSocket()
         {
-            var villager = Empty("Villager", parent, localPosition);
+            var root = new GameObject("VillagerSocket");
+            var socket = root.AddComponent<VillagerSocket>();
+            var villager = Empty("Villager", root.transform, Vector3.zero);
             var capsule = villager.AddComponent<CapsuleCollider>();
             capsule.center = new Vector3(0f, 1f, 0f);
             capsule.radius = 0.6f;
             capsule.height = 2f;
             Visual(PrimitiveType.Capsule, "Body", villager.transform, new Vector3(0f, 1f, 0f), new Vector3(1.1f, 1f, 1.1f), "Villager");
             Visual(PrimitiveType.Cylinder, "Hat", villager.transform, new Vector3(0f, 2.1f, 0f), new Vector3(1.3f, 0.08f, 1.3f), "Wall");
-            return villager;
-        }
-
-        static GameObject BuildVillagerSocket()
-        {
-            var root = new GameObject("VillagerSocket");
-            var socket = root.AddComponent<VillagerSocket>();
-            var villager = Villager(root.transform, Vector3.zero);
             var aside = Empty("StepAside", root.transform, new Vector3(2.2f, 0f, 0.95f));
             var anchor = Empty("Anchor", root.transform, new Vector3(-1.4f, 0.3f, 1.1f));
             Hint(root.transform, new Vector3(-3f, 1f, 0f), new Vector3(2.5f, 2f, 2.4f),
@@ -372,43 +353,6 @@ namespace CalHacks.EditorTools
                 ("cutoutMaterial", Mat("Cutout")),
                 ("villager", villager.transform),
                 ("stepAsidePoint", aside.transform));
-            return root;
-        }
-
-        /// <summary>
-        /// Side-view gatekeeper beside the gate at the foot of the island stairs (SceneBuilder builds the stairs). The gate
-        /// closes the left side of the two lowest steps (2.5 m of depth from the front edge, 3 m high): B's capsule rides
-        /// up edges to about 1.65 m, so the 1.6 m second step is in reach from the floor too; the higher ones aren't. Anything edible feeds them (anything hostile scares them): they step back and the
-        /// gate rises. Their BUILD range is short, so builds near the high ledge aren't taken for food.
-        /// </summary>
-        static GameObject BuildGatekeeperSocket()
-        {
-            var root = new GameObject("GatekeeperSocket");
-            var socket = root.AddComponent<VillagerSocket>();
-            var villager = Villager(root.transform, new Vector3(0f, 0f, 0.2f));
-            var aside = Empty("StepAside", root.transform, new Vector3(-0.8f, 0f, 0.8f));
-            var anchor = Empty("Anchor", root.transform, new Vector3(-1.3f, 0.2f, -0.6f));
-            var gate = Block("Gate", "Wood");
-            gate.transform.SetParent(root.transform, false);
-            gate.transform.localPosition = new Vector3(1.2f, 1.5f, 0.25f);
-            gate.transform.localScale = new Vector3(0.4f, 3f, 2.5f);
-            Hint(root.transform, new Vector3(-2.2f, 1f, 0f), new Vector3(2.4f, 2f, 2.5f),
-                "Gatekeeper: Nobody climbs my stairs! ...Unless they bring me a snack.", socket);
-            Fields(socket,
-                ("socketId", "gatekeeper"),
-                ("castRange", 2.5f),
-                ("acceptedLabels", new[] { "fish", "food" }),
-                ("anchor", anchor.transform),
-                ("span", new Vector2(1.6f, 1.4f)),
-                ("fallbackDrawing", Drawing("fish")),
-                ("cutoutMaterial", Mat("Cutout")),
-                ("villager", villager.transform),
-                ("stepAsidePoint", aside.transform),
-                ("gate", gate.transform),
-                ("gateRise", 3.5f),
-                ("acceptLine", "Food! Thanks, friend. Up you go!"),
-                ("scaredLine", "Yikes! Fine, fine, go on up! Just keep that thing away!"),
-                ("rejectLine", "I can't eat that! I'm hungry, not desperate."));
             return root;
         }
 

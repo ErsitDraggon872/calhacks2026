@@ -27,25 +27,6 @@ namespace CalHacks.Tests
         }
 
         [Test]
-        public void LowestInkRowSkipsPaperBorder()
-        {
-            var src = new Texture2D(20, 20, TextureFormat.RGBA32, false);
-            src.SetPixels32(new Color32[400]);
-            src.SetPixel(10, 6, Color.black);
-            src.SetPixel(4, 15, Color.black);
-            src.Apply();
-
-            var paper = PaperTexture.MakePaper(src);
-            var border = (paper.width - src.width) / 2;
-            // The paper reaches below the ink, but the lowest ink row is the inked pixel's.
-            Assert.AreEqual(6 + border, PaperTexture.LowestInkRow(paper.GetPixels32(), paper.width, paper.height));
-            Assert.AreEqual(-1, PaperTexture.LowestInkRow(new Color32[16], 4, 4));
-
-            Object.DestroyImmediate(src);
-            Object.DestroyImmediate(paper);
-        }
-
-        [Test]
         public void EnclosedAreasBecomePaper()
         {
             // A 1 px ring of ink, radius 30: its inside is far wider than the border, but a cutout has no holes.

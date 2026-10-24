@@ -37,27 +37,11 @@ namespace CalHacks
             else UnityEngine.Object.DestroyImmediate(obj);
         }
 
-        /// <summary>
-        /// Lowest row (bottom row first, as <c>GetPixels32</c> returns them) holding ink rather than paper, or -1. For B,
-        /// that's the drawn feet, so the builder can stand them on the ground.
-        /// </summary>
-        public static int LowestInkRow(Color32[] pixels, int width, int height)
-        {
-            if (pixels == null || pixels.Length < width * height) return -1;
-            for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-            {
-                var p = pixels[y * width + x];
-                if (p.a >= 128 && p.r + p.g + p.b < 3 * 128) return y;
-            }
-            return -1;
-        }
-
         public static Texture2D MakePaper(Texture2D source)
         {
             var w = source.width;
             var h = source.height;
-            var border = Mathf.Clamp(Mathf.RoundToInt(Mathf.Max(w, h) * 0.035f), 3, 24);
+            var border = Mathf.Clamp(Mathf.RoundToInt(Mathf.Max(w, h) * 0.018f), 3, 12);
             var outW = w + border * 2;
             var outH = h + border * 2;
 

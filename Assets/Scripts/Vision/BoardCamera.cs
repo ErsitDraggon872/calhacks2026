@@ -45,16 +45,45 @@ namespace CalHacks
 
         void Start()
         {
-            // Only the Webcam source uses it. With Service the Python process owns the webcam (Windows usually lets
-            // only one process open it); with Mock there is no hardware at all.
-            var source = config.ResolveCaptureSource();
-            if (source != CaptureSource.Webcam)
+            // RunManager can select either source at runtime. Avoid opening the device in Digital mode.
+            if (RunManager.Instance != null)
             {
-                Status = $"disabled (capture source: {source})";
+                SetCaptureEnabled(RunManager.Instance.ActiveCaptureSource == CaptureSource.Webcam);
                 return;
             }
+            SetCaptureEnabled(config.ResolveCaptureSource() == CaptureSource.Webcam);
+        }
+
+        /// <summary>Start/stop the USB camera when the player switches input source in the game.</summary>
+        public void SetCaptureEnabled(bool enabled)
+        {
+            if (!enabled)
+            {
+                wanted = false;
+                PreviewWanted = false;
+                if (webcam != null)
+                {
+                    webcam.Stop();
+                    Destroy(webcam);
+                    webcam = null;
+                }
+                if (preview != null)
+                {
+                    Destroy(preview);
+                    preview = null;
+                }
+                disconnected = false;
+                lastFrameTime = float.NegativeInfinity;
+                Status = "disabled (digital drawing mode)";
+                return;
+            }
+
             wanted = true;
-            Open();
+            if (webcam == null)
+            {
+                nextDeviceCheck = Time.unscaledTime + 2f;
+                Open();
+            }
         }
 
         void OnDestroy()
@@ -70,6 +99,7 @@ namespace CalHacks
 
         void Update()
         {
+            if (!wanted) return;
             if (webcam == null)
             {
                 // Not plugged in yet: keep looking, so plugging the webcam in mid-game just works.
@@ -96,6 +126,7 @@ namespace CalHacks
 
         public void Open()
         {
+            if (!wanted || (webcam != null && !disconnected)) return;
             var devices = WebCamTexture.devices;
             var named = config.ResolveCameraDevice();
             // Never fall back to the laptop's own camera: pointing at the player instead of the board is worse than

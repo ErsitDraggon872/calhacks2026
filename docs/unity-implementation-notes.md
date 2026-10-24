@@ -1,6 +1,6 @@
 # Unity implementation notes
 
-How the Unity half is put together, for Wesley, Henry, Andy and Person 4. Start at `docs/README.md`; the design is `docs/superpowers/specs/2026-10-23-draw-to-physics-design.md` (`docs/unity-agent-handoff.md` is the superseded isometric spec).
+How the Unity half is put together, for Wesley, Henry, Andy and Person 4. The spec is `docs/unity-agent-handoff.md`.
 
 ## Station keys (Person 4: the firmware must send these)
 
@@ -33,7 +33,7 @@ How the Unity half is put together, for Wesley, Henry, Andy and Person 4. Start 
 ## Side view (Paper Mario look)
 
 - **Camera:** `CameraFollow` on the CameraRig. Perspective, FOV 35°, yaw 0 (looking along +Z), pitch 17°. It smooth-follows B on X and Y, but only 30% on depth, so walking in depth doesn't swing the shot. It has two framings: `Tight` (14 m, the opening shot on the gap) and `Wide` (24 m, looking a bit ahead). It blends between them over 1 s. Reaching the run's first checkpoint (just past the gap) calls `Reveal()`: it blends out to `Wide`, holds for 2.5 s (`revealHold`), then blends back to `Tight`. F5 snaps back to `Tight`. All of this is tunable on the component.
-- **Player B:** a flat paper cutout (`Player/Visual/Paper`, texture drawn in code by `MockDrawingGenerator.Character` and run through `PaperTexture.MakePaper`). The quad is lowered by the CharacterController's skin width plus the paper below the drawn feet (`PaperTexture.LowestInkRow`), so the feet touch the ground. The body never rotates; `Visual`'s X scale flips to face left or right (`PlayerController.FacingSign`). The collider is still the `CharacterController` (step offset 0.3 m, so drawn stair-steps can be climbed).
+- **Player B:** a flat paper cutout (`Player/Visual/Paper`, texture drawn in code by `MockDrawingGenerator.Character` and run through `PaperTexture.MakePaper`). The body never rotates; `Visual`'s X scale flips to face left or right (`PlayerController.FacingSign`). The collider is still the `CharacterController` (step offset 0.3 m, so drawn stair-steps can be climbed).
 
 ## Free builds: inventions you can stand on
 
@@ -43,8 +43,7 @@ BUILD with no unsolved socket within 5 m makes an `Invention` (every one is a Su
 - **Everywhere else:** the build stands at B's feet height and depth, on the side B faces, 0.4 m clear of B (`InventionPlacement.BottomCentre`), then moves out of level geometry and other builds: the smallest shift toward the camera or further from B that clears them (`InventionPlacement.ClearSpot`, up to 4 m each way). With no room, nothing is built and "No room to build here!" shows.
 - **Build ghost:** an orange dashed outline (the gap's "draw here" look) of the slot's front face, shown while B is inside a slot (`BuildGhost` on the Player). Every drawing lands inside it, and the slot stands where nothing hides it. G toggles it (`RunManager.BuildGhostVisible`). The ghost texture is drawn at `BuildSlot.DefaultBox`'s aspect.
 - **Still to come:** the spec's Approve step (show the real drawing as the ghost, nudge, confirm).
-- **Flat to look at, thick to stand on:** the visual is a camera-facing `Cutout`. The colliders are the paper silhouette rebuilt as 0.15 m-wide columns whose tops and bottoms are exact to the pixel (`GameConfig.inventionCell`, `SilhouetteBoxes`), so B stands on the drawn edge, not up to a cell above it. Each is `GameConfig.inventionDepth` (2 m; a slot sets its own) deep along Z and centred on the drawing. What you see is what you stand on: the paper cutout has no holes (`PaperTexture.MakePaper` fills enclosed areas), so an outlined shape is solid, and a diagonal line is a staircase.
-- **Standing on the drawing, at any depth:** the drawing is flat but its collider is deep, and the camera looks down, so B near the back of the collider would look like they're floating above the drawing (about 0.3 m on a 2 m build, 0.47 m on the gap's 3.2 m bridge). While B stands on an invention, `PlayerController` slides B's picture to the drawing's depth (`planeSnapSpeed`, 8 m/s); on anything else it slides back. The body doesn't move.
+- **Flat to look at, thick to stand on:** the visual is a camera-facing `Cutout`. The colliders are the paper silhouette rebuilt from 0.15 m cells (`GameConfig.inventionCell`, `SilhouetteBoxes`), each `GameConfig.inventionDepth` (2 m; a slot sets its own) deep along Z and centred on the drawing. What you see is what you stand on: the paper cutout has no holes (`PaperTexture.MakePaper` fills enclosed areas), so an outlined shape is solid, and a diagonal line is a staircase.
 - **Stacking:** building while standing on an invention puts the next one at that height, floating beside you.
 - F5 removes every invention. The F3 overlay shows how many there are.
 
@@ -52,7 +51,7 @@ BUILD with no unsolved socket within 5 m makes an `Invention` (every one is a Su
 
 Everything runs along +X, with depth toward the back (+Z). Nothing solid stands in front of the paths, and invisible walls stop B walking off the front edge.
 - **Start ledge** x −6..10: front path (z −1..1) and a raised back terrace (z 1..3, 0.8 m: jump onto it). B starts at x 7.5, within CAST range of the gap.
-- **Gap** x 10..14.6 (`GapSocket` at x 12.3). Hint: "Too far to jump!". A dashed "draw here" outline shows where the bridge will go, until one stands. Every drawing becomes the bridge: stretched to 4.9 m (overlapping both ledges), its top 0.4 m above them (`railHeight`), 3.2 m deep, and solid only where it's inked, like a free build (no hidden deck). A drawing with a break drops B; the gap stays unsolved, so the next BUILD in range replaces the bridge. `Rails` stand while a bridge does. The gap is solved once B is past the far ledge (x 14.75), and BUILD stops binding to it. F1 always rebuilds the bridge from the fallback drawing (a full plank) and solves it.
+- **Gap** x 10..14.6 (`GapSocket` at x 12.3). Hint: "Too far to jump!". A dashed "draw here" outline shows where the bridge will go. Any drawing snaps across it, and the hidden deck collider makes the first build always work.
 - **Hub floor** x 14.6..40, z −2..3. Checkpoint at x 17.
 - **High ledge** x 24..30 on the back layer (z 0.5..3), 2.3 m tall. Hint: "Too high to climb!" (x 20..30, whole depth). One invention plus a jump gets up: builds from the floor near it land in its build slot, x 21..24 against its left face.
 - **Floating island** x 34..40, top at 4 m, with the `Exit` and a goal flag. Reach it by stacking inventions, or by building off the high ledge.
@@ -85,7 +84,7 @@ Field names are the contract. Unity parses with `JsonUtility`, so the **types** 
 
 - Drop socket prefabs where the obstacle is. The orange gizmo shows the cutout box and the 5 m CAST range.
 - **Side view**: the camera looks along +Z from the front (−Z). Keep walls and props out of the front, and put obstacles on different depth layers.
-- **Gap**: there is no deck collider; the bridge is the drawing itself. The socket's `span` width (4.9 m) must overlap both ledges, and its `depth` (3.2 m) must reach the inner faces of the `Rails`, which keep the explorer on it while a bridge stands. The far ledge, where the gap counts as solved, is the anchor's x plus half the span. The `DrawHere` quad marks where the drawing lands. Leave the hole in the ground empty; falling below y = -5 respawns at the last checkpoint.
+- **Gap**: the `Deck` collider (disabled until solved) must cover the hole, and `Rails` keep the explorer on it. The `DrawHere` quad marks where the drawing lands. Leave the hole in the ground empty; falling below y = -5 respawns at the last checkpoint.
 - **Cave**: `Darkness` covers the interior and `Blocker` closes the mouth. Scale both to fit the cave.
 - **Villager**: the lane must be narrower than the villager plus the explorer (under 2.4 m), and `StepAside` must be clear of walls.
 - Each socket's `Hint` child states the need. Edit its text, but never give away the answer.

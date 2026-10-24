@@ -8,10 +8,6 @@ namespace CalHacks
     /// Paper explorer (Player B) for the side view. WASD moves relative to the camera's yaw (with the side camera:
     /// A/D along X, W/S in depth), Space jumps. Grounded by a 3D downward raycast. The body never rotates: the
     /// <see cref="visual"/> child's X scale flips to face left or right. The transform's pivot is at the feet.
-    /// An invention is a flat drawing with a deep collider, so while B stands on one the visual slides to the drawing's
-    /// depth: seen from the pitched camera, B then stands on the drawn edge wherever B is in the collider's depth.
-    /// An invention's <see cref="InventionSurface"/> changes how B moves on it: slippery slides, bouncy throws B up,
-    /// sticky slows B down.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
@@ -29,20 +25,18 @@ namespace CalHacks
         [SerializeField] Transform cameraTransform;
         [Tooltip("Child holding the paper sprite. Its X scale is flipped to face left or right.")]
         [SerializeField] Transform visual;
-        [Tooltip("How fast (m/s) the visual slides to an invention's drawing plane and back.")]
-        [SerializeField] float planeSnapSpeed = 8f;
 
         CharacterController controller;
         float verticalVelocity;
         float jumpPressedAt = float.NegativeInfinity;
         Vector3 visualScale = Vector3.one;
-        Vector3 visualPosition;
-        float planeOffset;
-        Invention standingOn;
-        // What B last landed on, for its surface; null on level geometry.
-        Invention ground;
-        Vector3 walkVelocity;
         Action<InputAction.CallbackContext> onJump;
+        float horizontalImpulse;
+        float forcedAirborneUntil;
+        InventionPhysics riding;
+        Vector3 lastPlatformPosition;
+        float rideContactTime;
+        float rideLockedUntil;
 
         public bool IsGrounded { get; private set; }
         public bool InputLocked { get; set; }
@@ -58,11 +52,7 @@ namespace CalHacks
         {
             controller = GetComponent<CharacterController>();
             if (config == null) config = Resources.Load<GameConfig>("GameConfig");
-            if (visual != null)
-            {
-                visualScale = visual.localScale;
-                visualPosition = visual.localPosition;
-            }
+            if (visual != null) visualScale = visual.localScale;
             ApplyFacing();
         }
 
@@ -81,6 +71,17 @@ namespace CalHacks
 
         void Update()
         {
+            // CharacterController doesn't automatically inherit a moving Rigidbody platform's delta.
+            // Apply the ride motion before standard WASD/Space movement.
+            if (riding != null && (Time.time < rideLockedUntil || Time.time - rideContactTime <= 0.22f))
+            {
+                var movement = riding.transform.position - lastPlatformPosition;
+                if (movement.sqrMagnitude > 0f && movement.sqrMagnitude < 16f)
+                    controller.Move(movement);
+                lastPlatformPosition = riding.transform.position;
+            }
+            else riding = null;
+
             var input = InputLocked ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
             var move = CameraRelative(input);
 
@@ -88,9 +89,28 @@ namespace CalHacks
             IsGrounded = controller.isGrounded || Physics.Raycast(transform.position + Vector3.up * rayStart, Vector3.down,
                 rayStart + groundProbe, groundMask, QueryTriggerInteraction.Ignore);
 
-            var surface = IsGrounded && ground != null ? ground.Surface : InventionSurface.Normal;
             var wantsJump = !InputLocked && Time.time - jumpPressedAt <= jumpBuffer;
-            if (IsGrounded && verticalVelocity <= 0f)
+            if (riding != null && Time.time < rideLockedUntil)
+            {
+                // CharacterController has its own gravity and does not inherit
+                // Rigidbody velocity. While riding a rocket, only carry the
+                // platform delta; Space detaches so the player can jump away.
+                if (wantsJump)
+                {
+                    rideLockedUntil = 0f;
+                    riding = null;
+                    verticalVelocity = Mathf.Sqrt(2f * gravity * JumpHeight);
+                    forcedAirborneUntil = Time.time + 0.2f;
+                    jumpPressedAt = float.NegativeInfinity;
+                }
+                else
+                {
+                    verticalVelocity = 0f;
+                    horizontalImpulse = 0f;
+                    return;
+                }
+            }
+            if (IsGrounded && Time.time >= forcedAirborneUntil && verticalVelocity <= 0f)
             {
                 verticalVelocity = -2f;
                 if (wantsJump)
@@ -98,54 +118,76 @@ namespace CalHacks
                     verticalVelocity = Mathf.Sqrt(2f * gravity * JumpHeight);
                     jumpPressedAt = float.NegativeInfinity;
                 }
-                else if (surface.Bounce > 0f)
-                {
-                    verticalVelocity = surface.Bounce;
-                }
             }
             else
             {
                 verticalVelocity -= gravity * Time.deltaTime;
             }
 
-            // In the air, and on normal ground, walking speed changes instantly; on a slippery build it slides.
-            var targetWalk = move * moveSpeed * surface.SpeedScale;
-            walkVelocity = IsGrounded ? Vector3.MoveTowards(walkVelocity, targetWalk, surface.Grip * Time.deltaTime) : targetWalk;
-            var velocity = walkVelocity + Vector3.up * verticalVelocity;
-            standingOn = null;
+            horizontalImpulse = Mathf.MoveTowards(horizontalImpulse, 0f, 4f * Time.deltaTime);
+            var velocity = move * moveSpeed + new Vector3(horizontalImpulse, verticalVelocity, 0f);
             var flags = controller.Move(velocity * Time.deltaTime);
             // Bumped a ceiling: start falling instead of sticking to it.
             if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
-            var landed = (flags & CollisionFlags.Below) != 0;
-            if (landed) ground = standingOn;
-            FollowDrawingPlane(landed);
 
             if (move.x > 0.1f) SetFacing(1f);
             else if (move.x < -0.1f) SetFacing(-1f);
         }
 
-        // Called during controller.Move for everything B touches. Anything below B counts, edges included (a box edge
-        // under the capsule gives a tilted normal); walls don't.
-        void OnControllerColliderHit(ControllerColliderHit hit)
+        public void Launch(Vector3 velocity)
         {
-            if (hit.normal.y < 0.1f) return;
-            var invention = hit.collider.GetComponentInParent<Invention>();
-            if (invention != null) standingOn = invention;
+            verticalVelocity = Mathf.Max(0f, velocity.y);
+            horizontalImpulse = velocity.x;
+            forcedAirborneUntil = Time.time + 0.20f;
+            riding = null;
+            rideLockedUntil = 0f;
         }
 
-        /// <summary>
-        /// On an invention, slides the visual to its drawing's depth; on anything else, back to B's own. In the air it
-        /// keeps the last plane, so jumping off a build doesn't make B bob.
-        /// </summary>
-        void FollowDrawingPlane(bool grounded)
+        public bool IsRiding(InventionPhysics invention) => riding == invention;
+
+        public void Disembark(InventionPhysics invention)
         {
-            if (visual == null) return;
-            if (grounded)
+            if (riding != invention) return;
+            riding = null;
+            rideLockedUntil = 0f;
+            forcedAirborneUntil = Time.time + 0.15f;
+            verticalVelocity = -1f;
+        }
+
+        public void BoardInvention(InventionPhysics platform, Invention invention, float duration)
+        {
+            if (platform == null || invention == null) return;
+            var boxes = invention.GetComponentsInChildren<BoxCollider>();
+            if (boxes.Length == 0) return;
+            var bounds = boxes[0].bounds;
+            for (int i = 1; i < boxes.Length; i++) bounds.Encapsulate(boxes[i].bounds);
+            // Let the character board via E from the side; do not require
+            // climbing to the top of a tall, vertically drawn rocket first.
+            float x = bounds.size.x >= Radius * 2f ? Mathf.Clamp(transform.position.x, bounds.min.x + Radius, bounds.max.x - Radius) : bounds.center.x;
+            var pos = new Vector3(x, bounds.max.y + 0.07f, platform.transform.position.z);
+            controller.enabled = false;
+            transform.position = pos;
+            controller.enabled = true;
+            verticalVelocity = 0f;
+            horizontalImpulse = 0f;
+            jumpPressedAt = float.NegativeInfinity;
+            riding = platform;
+            lastPlatformPosition = platform.transform.position;
+            rideLockedUntil = Time.time + duration + 0.2f;
+            rideContactTime = Time.time;
+        }
+
+        void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            var behavior = hit.collider.GetComponentInParent<InventionPhysics>();
+            if (behavior == null) return;
+            behavior.PlayerContact(this, hit);
+            if (behavior.MovingPlatform && hit.normal.y > 0.45f && verticalVelocity <= 0f)
             {
-                var target = standingOn != null ? standingOn.transform.position.z - transform.position.z : 0f;
-                planeOffset = Mathf.MoveTowards(planeOffset, target, planeSnapSpeed * Time.deltaTime);
+                if (riding != behavior) lastPlatformPosition = behavior.transform.position;
+                riding = behavior;
+                rideContactTime = Time.time;
             }
-            visual.localPosition = visualPosition + Vector3.forward * planeOffset;
         }
 
         Vector3 CameraRelative(Vector2 input)
@@ -177,13 +219,12 @@ namespace CalHacks
             transform.SetPositionAndRotation(position, Quaternion.identity);
             controller.enabled = true;
             verticalVelocity = 0f;
-            walkVelocity = Vector3.zero;
-            ground = null;
+            horizontalImpulse = 0f;
+            riding = null;
+            rideLockedUntil = 0f;
             jumpPressedAt = float.NegativeInfinity;
             FacingSign = (rotation * Vector3.forward).x < -0.01f ? -1f : 1f;
             ApplyFacing();
-            planeOffset = 0f;
-            if (visual != null) visual.localPosition = visualPosition;
         }
     }
 }

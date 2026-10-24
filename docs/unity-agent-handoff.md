@@ -1,7 +1,5 @@
 # Handoff: Unity agent (Wesley + Henry tasks)
 
-> **SUPERSEDED.** This is the original spec. Its isometric camera, "no jump" and hidden pre-placed solution colliders are all gone. The game is now a side view with Space jump, and drawings are solid only where there's ink. Start at [`docs/README.md`](README.md). The vision service API below (`/capture`, `/label`) is still what the mock and service capture sources speak, but recognition now goes through `POST /interpret` ([`interpret-contract.md`](interpret-contract.md)).
-
 You are building the Unity half of a Cal Hacks 13.0 game (Oct 23–25, 2026; 38 hours of hacking). One player draws on a physical whiteboard; a camera captures it; a Python service crops and labels it; **your Unity game shows the drawing itself as a paper cutout at the obstacle and makes it work** (a bridge you can walk on, a light that opens a cave, a fish the villager accepts).
 
 Full team plan (source of truth for anything not covered here): https://claude.ai/artifact/LEyWvcDRgaQMgg8ZQi8ScS

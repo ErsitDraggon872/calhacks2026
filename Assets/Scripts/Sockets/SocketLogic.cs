@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace CalHacks
@@ -33,43 +32,18 @@ namespace CalHacks
             return normalized == Cat ? LabelOutcome.CatReaction : LabelOutcome.Decor;
         }
 
-        /// <summary>
-        /// Attributes first: any of <paramref name="solvingTraits"/> solves (a torch lights the cave without being called
-        /// "light"). Otherwise the name is matched against <paramref name="acceptedLabels"/> as before. A drawing the
-        /// backend rejected never solves.
-        /// </summary>
-        public static LabelOutcome Resolve(InventionSpec spec, IReadOnlyList<Trait> solvingTraits, IReadOnlyList<string> acceptedLabels)
-        {
-            if (spec == null) return Resolve(Unknown, acceptedLabels);
-            if (spec.Rejected) return LabelOutcome.Decor;
-            if (solvingTraits != null && solvingTraits.Any(spec.Has)) return LabelOutcome.Solve;
-            return Resolve(spec.Name, acceptedLabels);
-        }
-
         /// <summary>Index of the nearest unsolved point within range on the XZ plane, or -1.</summary>
-        public static int FindNearest(IReadOnlyList<Vector3> points, IReadOnlyList<bool> solved, Vector3 from, float range) =>
-            FindNearest(points, solved, null, from, range, float.PositiveInfinity);
-
-        /// <summary>
-        /// Index of the nearest unsolved point on the XZ plane, or -1. Each point must be within its own range
-        /// (<paramref name="ranges"/>, where 0 or a missing list means <paramref name="range"/>) and at most
-        /// <paramref name="maxRise"/> above or below <paramref name="from"/>, so a socket on the floor doesn't take a
-        /// build made on a ledge above it.
-        /// </summary>
-        public static int FindNearest(IReadOnlyList<Vector3> points, IReadOnlyList<bool> solved, IReadOnlyList<float> ranges,
-            Vector3 from, float range, float maxRise)
+        public static int FindNearest(IReadOnlyList<Vector3> points, IReadOnlyList<bool> solved, Vector3 from, float range)
         {
             var best = -1;
-            var bestSqr = float.PositiveInfinity;
+            var bestSqr = range * range;
             for (var i = 0; i < points.Count; i++)
             {
                 if (solved != null && solved[i]) continue;
-                if (Mathf.Abs(points[i].y - from.y) > maxRise) continue;
-                var reach = ranges != null && ranges[i] > 0f ? Mathf.Min(ranges[i], range) : range;
                 var dx = points[i].x - from.x;
                 var dz = points[i].z - from.z;
                 var sqr = dx * dx + dz * dz;
-                if (sqr <= reach * reach && sqr < bestSqr)
+                if (sqr <= bestSqr)
                 {
                     bestSqr = sqr;
                     best = i;

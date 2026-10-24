@@ -329,7 +329,6 @@ MonoBehaviour:
   socketId: villager
   acceptedLabels:
   - fish
-  castRange: 0
   anchor: {fileID: 4602587557320515216}
   span: {x: 2.2, y: 1.6}
   faceCamera: 1
@@ -339,10 +338,7 @@ MonoBehaviour:
   catLine: Meow! The cat curls up and watches you.
   villager: {fileID: 8694826227113212221}
   stepAsidePoint: {fileID: 5878222724941941848}
-  gate: {fileID: 0}
-  gateRise: 4
-  acceptLine: Food! Just what I was craving. Go on through, friend!
-  scaredLine: Yikes! Keep that thing away from me!
+  acceptLine: A fish! Just what I was craving. Go on through, friend!
   rejectLine: Hmm... I can't eat that.
 --- !u!1 &8877312383730404894
 GameObject:

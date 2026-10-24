@@ -33,6 +33,7 @@ namespace CalHacks
         {
             var index = forcedNext ?? cycleIndex;
             if (index == EmptyBoard) return "(empty board)";
+            if (config.mockDrawings == null || config.mockDrawings.Length == 0) return "(no mock drawings configured)";
             var d = config.mockDrawings[index % config.mockDrawings.Length];
             return $"{d.resourceName} -> {d.label}";
         }
@@ -52,7 +53,7 @@ namespace CalHacks
                 outline = Array.Empty<float>(),
             };
 
-            if (index == EmptyBoard || config.mockDrawings.Length == 0)
+            if (index == EmptyBoard || config.mockDrawings == null || config.mockDrawings.Length == 0)
             {
                 response.empty_board = true;
                 return VisionResult<CaptureResponse>.Success(response);

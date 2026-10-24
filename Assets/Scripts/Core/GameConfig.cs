@@ -19,16 +19,23 @@ namespace CalHacks
         Mock,    // MockVisionClient: PNGs from Resources/MockDrawings, no hardware or service.
         Service, // HttpVisionClient: the Python service owns the camera, crops and labels.
         Webcam,  // WebcamVisionClient: Unity reads the webcam itself (BoardCamera) and cuts the ink out locally.
+        Digital, // DigitalVisionClient: player draws black on a white canvas in the Unity Game view.
     }
 
     [CreateAssetMenu(menuName = "Game/Game Config", fileName = "GameConfig")]
     public class GameConfig : ScriptableObject
     {
         [Header("Vision")]
-        [Tooltip("Where board images come from. A build can override this with -capture=mock, -capture=service or -capture=webcam.")]
+        [Tooltip("Where board images come from. A build can override this with -capture=mock, -capture=service, -capture=webcam or -capture=digital.")]
         [FormerlySerializedAs("visionMode")]
         public CaptureSource captureSource = CaptureSource.Mock;
         public string serviceUrl = "http://localhost:8000";
+        [Tooltip("Use POST /interpret to assign AI physics to DRAW and WEBCAM free builds. Disable to keep solid-only builds.")]
+        public bool enableAiPhysics = true;
+        [Tooltip("Player goal passed to the model for interpreting ambiguous inventions.")]
+        public string inventionGoal = "get across the gap";
+        [Tooltip("Seconds before an AI interpretation request times out.")]
+        public int interpretTimeout = 40;
         [Tooltip("Seconds before POST /capture gives up.")]
         public int captureTimeout = 10;
         [Tooltip("Seconds before GET /label/{id} (held open by the service) gives up.")]
@@ -70,8 +77,7 @@ namespace CalHacks
         public Vector2 inventionSize = new Vector2(3f, 2.5f);
         [Tooltip("How far an invention's collider reaches along the view (Z), centred on the drawing.")]
         public float inventionDepth = 2f;
-        [Tooltip("Width in metres of the columns an invention's silhouette is rebuilt from as box colliders. " +
-                 "Their tops and bottoms are exact to the pixel.")]
+        [Tooltip("Size in metres of the cells an invention's silhouette is rebuilt from as box colliders.")]
         public float inventionCell = 0.15f;
 
         [Header("Mock vision")]
@@ -96,6 +102,7 @@ namespace CalHacks
                 if (a == "-capture=mock" || a == "-vision=mock") return CaptureSource.Mock;
                 if (a == "-capture=service" || a == "-vision=http") return CaptureSource.Service;
                 if (a == "-capture=webcam") return CaptureSource.Webcam;
+                if (a == "-capture=digital") return CaptureSource.Digital;
             }
             return captureSource;
         }

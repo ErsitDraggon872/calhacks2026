@@ -8,6 +8,25 @@ namespace CalHacks
     {
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
         static readonly int MainTex = Shader.PropertyToID("_MainTex");
+        static Mesh visualQuad;
+
+        // Create geometry directly: CreatePrimitive(Quad) temporarily creates a
+        // non-convex MeshCollider. Destroy() is delayed until end of frame, so
+        // adding a dynamic Rigidbody that frame logs a collider error.
+        static Mesh VisualQuad()
+        {
+            if (visualQuad != null) return visualQuad;
+            visualQuad = new Mesh { name = "ThinkInk visual-only quad" };
+            visualQuad.vertices = new[] {
+                new Vector3(-0.5f,-0.5f,0f), new Vector3(0.5f,-0.5f,0f),
+                new Vector3(-0.5f,0.5f,0f), new Vector3(0.5f,0.5f,0f) };
+            visualQuad.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
+            visualQuad.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+            // Both sides visible when the cutout faces a different camera yaw.
+            visualQuad.triangles = new[] { 0,1,2, 2,1,3, 2,1,0, 3,1,2 };
+            visualQuad.RecalculateBounds();
+            return visualQuad;
+        }
 
         Texture2D texture;
         bool ownsTexture;
@@ -34,9 +53,8 @@ namespace CalHacks
         public static Cutout Create(Texture2D texture, bool ownsTexture, Material baseMaterial, Vector3 bottomCentre,
             float yaw, Vector2 size, Transform parent)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            go.name = "Cutout";
-            Destroy(go.GetComponent<Collider>());
+            var go = new GameObject("Cutout", typeof(MeshFilter), typeof(MeshRenderer));
+            go.GetComponent<MeshFilter>().sharedMesh = VisualQuad();
             go.transform.SetParent(parent, true);
 
             var cutout = go.AddComponent<Cutout>();

@@ -11,7 +11,7 @@ namespace CalHacks
     /// <summary>
     /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, free builds, checkpoints, reset and win.
     /// BUILD next to an unsolved socket hands the drawing to that socket; anywhere else it becomes a free-standing
-    /// <see cref="Invention"/> just in front of the explorer, once its attributes (<see cref="InventionSpec"/>) are back.
+    /// <see cref="Invention"/> just in front of the explorer.
     /// </summary>
     public class RunManager : MonoBehaviour
     {
@@ -28,7 +28,17 @@ namespace CalHacks
         public const string FreeBuildId = "free";
 
         IVisionClient vision;
+        IVisionClient digitalVision;
+        IVisionClient webcamVision;
         MockVisionClient mock;
+        InterpretHttpClient interpretClient;
+        public string LastInventionMessage { get; private set; }
+        public int LastInkCost { get; private set; }
+        DigitalDrawingCanvas digitalCanvas;
+        BoardCamera boardCamera;
+        CaptureSource activeCaptureSource;
+        GUIStyle inputLabel;
+        GUIStyle selectedInputButton;
         PuzzleSocket[] sockets = Array.Empty<PuzzleSocket>();
         Checkpoint[] checkpoints = Array.Empty<Checkpoint>();
         HintZone[] hints = Array.Empty<HintZone>();
@@ -53,11 +63,10 @@ namespace CalHacks
         /// <summary>The build ghost outline in free-build hint zones. On by default; G toggles.</summary>
         public bool BuildGhostVisible { get; private set; } = true;
         public string VisionName => vision?.Name ?? "-";
+        public CaptureSource ActiveCaptureSource => activeCaptureSource;
         public string LastProvider { get; private set; }
         public float LastLatencyMs { get; private set; } = -1f;
         public string LastLabel { get; private set; }
-        /// <summary>The last drawing's attributes, as <see cref="InventionSpec.Describe"/> prints them.</summary>
-        public string LastAttributes { get; private set; }
         public float LastConfidence { get; private set; } = -1f;
         public HealthResponse LastHealth { get; private set; }
         public string LastHealthError { get; private set; }
@@ -78,16 +87,29 @@ namespace CalHacks
             if (config == null) config = ScriptableObject.CreateInstance<GameConfig>();
             Application.targetFrameRate = config.targetFrameRate;
 
-            switch (config.ResolveCaptureSource())
+            // Keep both input systems ready, so users can switch inside the running game.
+            // The digital canvas costs no camera resources until it is opened.
+            digitalCanvas = GetComponent<DigitalDrawingCanvas>();
+            if (digitalCanvas == null) digitalCanvas = gameObject.AddComponent<DigitalDrawingCanvas>();
+            digitalCanvas.Initialize(this);
+            boardCamera = GetComponent<BoardCamera>();
+            if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
+            if (boardCamera == null) boardCamera = gameObject.AddComponent<BoardCamera>();
+            interpretClient = new InterpretHttpClient(config);
+            digitalVision = new DigitalVisionClient(digitalCanvas, new NoInterpreter());
+            webcamVision = new WebcamVisionClient(config, boardCamera, new NoInterpreter());
+
+            activeCaptureSource = config.ResolveCaptureSource();
+            switch (activeCaptureSource)
             {
                 case CaptureSource.Service:
                     vision = new HttpVisionClient(config);
                     break;
+                case CaptureSource.Digital:
+                    vision = digitalVision;
+                    break;
                 case CaptureSource.Webcam:
-                    var boardCamera = GetComponent<BoardCamera>();
-                    if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
-                    // No interpreter backend yet (POST /interpret, docs/interpret-contract.md): every drawing is "unknown".
-                    vision = new WebcamVisionClient(config, boardCamera, new NoInterpreter());
+                    vision = webcamVision;
                     break;
                 default:
                     mock = new MockVisionClient(config);
@@ -102,6 +124,7 @@ namespace CalHacks
             if (player == null) player = FindFirstObjectByType<PlayerController>();
             if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
             inventionRoot = new GameObject("Inventions").transform;
+            if (GetComponent<InventionGuide>() == null) gameObject.AddComponent<InventionGuide>();
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
@@ -118,7 +141,11 @@ namespace CalHacks
             Bind(GameInput.ManualAccept, _ => ManualAccept());
             Bind(GameInput.ManualReject, _ => ManualReject());
             Bind(GameInput.DebugOverlay, _ => OverlayVisible = !OverlayVisible);
-            Bind(GameInput.CameraPreview, _ => PreviewVisible = !PreviewVisible);
+            Bind(GameInput.CameraPreview, _ =>
+            {
+                if (activeCaptureSource == CaptureSource.Digital) digitalCanvas.Toggle();
+                else if (activeCaptureSource == CaptureSource.Webcam) PreviewVisible = !PreviewVisible;
+            });
             Bind(GameInput.BuildGhost, _ => BuildGhostVisible = !BuildGhostVisible);
             Bind(GameInput.Recalibrate, _ => Recalibrate());
             Bind(GameInput.MockPick, control => PickMockDrawing(control as KeyControl));
@@ -146,6 +173,7 @@ namespace CalHacks
         {
             Debug.Log($"[Run] Vision client: {vision.Name}. Sockets: {string.Join(", ", sockets.Select(s => s.SocketId))}");
             ResetRun();
+            if (activeCaptureSource == CaptureSource.Webcam) boardCamera.SetCaptureEnabled(true);
             PollHealth();
         }
 
@@ -164,6 +192,36 @@ namespace CalHacks
 
             if (player != null && player.transform.position.y < config.killY) Respawn();
 
+            // E triggers the closest interpreted object only, not all nearby boosters.
+            // Keep HOLD activation state synchronized with the physical E key.
+            bool holdingInteract = player != null && !player.InputLocked && Keyboard.current != null &&
+                                   Keyboard.current.eKey.isPressed && !State.InFlight;
+            foreach (var invention in inventions)
+            {
+                if (invention == null) continue;
+                var behavior = invention.GetComponent<InventionPhysics>();
+                if (behavior != null) behavior.SetHeld(holdingInteract);
+            }
+            if (holdingInteract && Keyboard.current.eKey.wasPressedThisFrame)
+            {
+                InventionPhysics closest = null;
+                float best = 2.5f * 2.5f;
+                foreach (var invention in inventions)
+                {
+                    if (invention == null) continue;
+                    var physics = invention.GetComponent<InventionPhysics>();
+                    if (physics == null || !physics.HasButton) continue;
+                    float distance = float.PositiveInfinity;
+                    foreach (var box in physics.GetComponentsInChildren<BoxCollider>())
+                    {
+                        var point = box.ClosestPoint(player.transform.position);
+                        distance = Mathf.Min(distance, (point - player.transform.position).sqrMagnitude);
+                    }
+                    if (distance < best) { closest = physics; best = distance; }
+                }
+                if (closest != null) closest.TryInteract(player);
+            }
+
             if (OverlayVisible && Time.unscaledTime >= nextHealthPoll) PollHealth();
         }
 
@@ -180,12 +238,16 @@ namespace CalHacks
             }
 
             // An unsolved socket in range gets the drawing (that's how the gap snaps it across itself); otherwise it's a free build.
-            var socket = NearestInRange();
+            // AI paper inventions are free builds. Legacy socket label flow remains for Mock/Service mode.
+            bool interpretBuild = config.enableAiPhysics &&
+                (activeCaptureSource == CaptureSource.Digital || activeCaptureSource == CaptureSource.Webcam);
+            var socket = interpretBuild ? null : NearestInRange();
             var runId = State.RunId;
             boundSocket = socket;
             State.BeginRequest();
-            requestCts = CancellationTokenSource.CreateLinkedTokenSource(runCts.Token);
-            var ct = requestCts.Token;
+            var activeRequest = CancellationTokenSource.CreateLinkedTokenSource(runCts.Token);
+            requestCts = activeRequest;
+            var ct = activeRequest.Token;
             var request = new CaptureRequest
             {
                 socket_id = socket != null ? socket.SocketId : FreeBuildId,
@@ -222,31 +284,83 @@ namespace CalHacks
                     return;
                 }
 
-                // A socket shows the drawing right away (the gap never waits); a free build waits for what it is, so
-                // it can be checked before it's placed.
-                if (socket != null && socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
-                if (socket == null) Subtitles.ShowNow("Hmm, what is it...", 3f);
-
-                var label = await vision.GetLabelAsync(capture.Data.id, ct);
-                if (!State.IsCurrent(runId) || ct.IsCancellationRequested)
+                if (interpretBuild)
                 {
-                    if (socket == null) Destroy(paper);
+                    Subtitles.ShowNow("DeerAI is interpreting your invention...", 2f);
+                    var isDigital = activeCaptureSource == CaptureSource.Digital && digitalCanvas != null;
+                    var result = await interpretClient.InterpretAsync(capture.Data, runId, FreeBuildId,
+                        config.inventionGoal, ct,
+                        isDigital ? (digitalCanvas.IntentText + " " + digitalCanvas.IntentHint).Trim() : "",
+                        isDigital ? digitalCanvas.IntentMode : "auto");
+                    if (!State.IsCurrent(runId) || ct.IsCancellationRequested) { Destroy(paper); return; }
+                    State.EndRequest();
+                    if (!result.Ok)
+                    {
+                        Destroy(paper);
+                        FailRequest(result.Error);
+                        return;
+                    }
+                    var spec = result.Data;
+                    if (!InterpretContract.Validate(spec, out var reason))
+                    {
+                        Destroy(paper);
+                        LastError = reason;
+                        Subtitles.ShowNow(reason, 4f);
+                        return;
+                    }
+                    LastProvider = spec.provider;
+                    LastLatencyMs = spec.latency_ms;
+                    LastInkCost = spec.ink_cost;
+                    LastInventionMessage = spec.message;
+                    LastLabel = spec.name;
+                    Debug.Log($"[DeerAI] {JsonUtility.ToJson(spec, true)}");
+                    if (PlaceInvention(paper, spec))
+                    {
+                        State.StartCooldown(config.buildCooldown);
+                        Subtitles.ShowNow($"{spec.name} ({spec.ink_cost} Ink): {spec.message}", 4f);
+                        InventionGuide.Show(spec);
+                        digitalCanvas?.Close();
+                        if (activeCaptureSource == CaptureSource.Digital) digitalCanvas.Clear();
+                    }
                     return;
                 }
-                State.EndRequest();
-                var spec = SpecFor(label, runId, out var stale);
-                if (stale)
+
+                // The capture already owns an immutable copy; ready the pad for the next invention.
+                if (activeCaptureSource == CaptureSource.Digital)
                 {
-                    if (socket == null) Destroy(paper);
-                    return;
+                    digitalCanvas.Close();
+                    digitalCanvas.Clear();
                 }
 
                 if (socket == null)
                 {
-                    if (PlaceInvention(paper, spec)) State.StartCooldown(config.buildCooldown);
+                    // AI disabled: preserve solid-cutout builds.
+                    State.EndRequest();
+                    if (PlaceInvention(paper)) State.StartCooldown(config.buildCooldown);
                     return;
                 }
-                ApplySpec(socket, spec);
+
+                if (socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
+
+                var label = await vision.GetLabelAsync(capture.Data.id, ct);
+                if (!State.IsCurrent(runId) || ct.IsCancellationRequested) return;
+                State.EndRequest();
+                if (!label.Ok)
+                {
+                    LastError = label.Error;
+                    Debug.LogWarning("[Run] Label failed: " + label.Error);
+                    ApplyLabel(socket, SocketLogic.Unknown);
+                    return;
+                }
+                if (!State.ShouldApply(runId, label.Data.run_id))
+                {
+                    Debug.LogWarning($"[Run] Dropped stale label (run_id {label.Data.run_id}, current {State.RunId}).");
+                    return;
+                }
+                LastProvider = label.Data.provider;
+                LastLatencyMs = label.Data.latency_ms;
+                LastConfidence = label.Data.confidence;
+                ApplyLabel(socket, label.Data.status == "done" ? label.Data.label : SocketLogic.Unknown);
             }
             catch (OperationCanceledException)
             {
@@ -257,46 +371,18 @@ namespace CalHacks
                 Debug.LogException(e);
                 if (State.IsCurrent(runId)) FailRequest(e.Message);
             }
-        }
-
-        /// <summary>
-        /// The drawing's attributes from a label reply: the backend's interpretation when there is one, else the label
-        /// mapped through <see cref="InventionSpec.FromLabel"/>. A failed reply is a plain Support. Sets
-        /// <paramref name="stale"/> for a reply from an older run, which must be dropped.
-        /// </summary>
-        InventionSpec SpecFor(VisionResult<LabelResponse> label, int runId, out bool stale)
-        {
-            stale = false;
-            if (!label.Ok)
+            finally
             {
-                LastError = label.Error;
-                Debug.LogWarning("[Run] Label failed: " + label.Error);
-                return InventionSpec.Plain();
+                if (ReferenceEquals(requestCts, activeRequest)) requestCts = null;
+                activeRequest.Dispose();
             }
-            if (!State.ShouldApply(runId, label.Data.run_id))
-            {
-                Debug.LogWarning($"[Run] Dropped stale label (run_id {label.Data.run_id}, current {State.RunId}).");
-                stale = true;
-                return null;
-            }
-            LastProvider = label.Data.provider;
-            LastLatencyMs = label.Data.latency_ms;
-            LastConfidence = label.Data.confidence;
-            var spec = InventionSpec.IsPresent(label.Data.interpretation)
-                ? InventionSpec.Parse(label.Data.interpretation)
-                : InventionSpec.FromLabel(label.Data.status == "done" ? label.Data.label : SocketLogic.Unknown);
-            if (spec.Dropped.Count > 0) Debug.LogWarning("[Run] Ignored unknown attributes: " + string.Join(", ", spec.Dropped));
-            LastLabel = spec.Name;
-            LastAttributes = spec.Describe();
-            return spec;
         }
 
         /// <summary>
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
-        /// front of them on the side they face, moved out of the level's geometry, once <see cref="InventionFeasibility"/>
-        /// agrees. False if nothing was built (nothing is spent then).
+        /// front of them on the side they face, moved out of the level's geometry. False if nothing was built.
         /// </summary>
-        bool PlaceInvention(Texture2D paper, InventionSpec spec)
+        bool PlaceInvention(Texture2D paper, InterpretResponse spec = null)
         {
             if (player == null || inventionMaterial == null)
             {
@@ -306,37 +392,41 @@ namespace CalHacks
             }
             var feet = player.transform.position;
             var slot = BuildSlot.At(feet);
-            var box = slot != null ? slot.Box : config.inventionSize;
+            var desiredWidth = spec == null ? 0f : Mathf.Clamp(spec.width_m, 0.5f, 6f);
+            // Keep the original silhouette aspect: do not force the sprite to a fixed box height.
+            var box = spec == null ? (slot != null ? slot.Box : config.inventionSize)
+                : new Vector2(desiredWidth, desiredWidth * paper.height / Mathf.Max(1f, paper.width));
             var depth = slot != null ? slot.Depth : config.inventionDepth;
             var size = InventionPlacement.FitInside(paper.width, paper.height, box);
             Vector3 bottom;
-            var spotClear = true;
             if (slot != null)
             {
                 bottom = slot.BottomCentreFor(size);
+                RemoveInvention(slot.Occupant);
             }
             else
             {
                 bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
                 var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift);
+                if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
+                {
+                    Destroy(paper);
+                    Subtitles.ShowNow("No room to build here!");
+                    return false;
+                }
                 bottom += shift;
             }
 
-            var feasibility = InventionFeasibility.Check(spec, spotClear);
-            Debug.Log($"[Run] Free build '{spec.Name}': {feasibility.Verdict}");
-            if (!feasibility.Builds)
-            {
-                Destroy(paper);
-                Subtitles.ShowNow(feasibility.Message);
-                return false;
-            }
-            if (slot != null) RemoveInvention(slot.Occupant);
-
-            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
-            invention.Apply(spec);
-            Subtitles.Show(feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : Understood(spec));
+            // A finer box grid follows the cutout edge more closely. These are all
+            // primitive convex colliders and work with a dynamic Rigidbody.
+            var cell = spec == null ? config.inventionCell : Mathf.Min(config.inventionCell, 0.10f);
+            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, cell);
             inventions.Add(invention);
+            if (spec != null)
+            {
+                var physics = invention.gameObject.AddComponent<InventionPhysics>();
+                physics.Configure(invention, spec);
+            }
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
             Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
@@ -387,22 +477,13 @@ namespace CalHacks
             inventions.Clear();
         }
 
-        void ApplySpec(PuzzleSocket socket, InventionSpec spec)
+        void ApplyLabel(PuzzleSocket socket, string label)
         {
-            LastLabel = spec.Name;
-            LastAttributes = spec.Describe();
-            Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
-            Subtitles.Show(Understood(spec));
-            socket.ApplySpec(spec);
-        }
-
-        /// <summary>The "AI understood" line: "Looks like: flaming rubber skateboard (glows, hot)."</summary>
-        static string Understood(InventionSpec spec)
-        {
-            var shown = spec.Traits.Where(t => t == Trait.Glows || t == Trait.Hot || t == Trait.Cold || t == Trait.Edible
-                    || t == Trait.Hostile || t == Trait.Bouncy || t == Trait.Slippery || t == Trait.Sticky)
-                .OrderBy(t => t).Select(t => InventionSpec.Snake(t)).ToArray();
-            return $"Looks like: {spec.Name}{(shown.Length > 0 ? " (" + string.Join(", ", shown) + ")" : "")}.";
+            var normalized = SocketLogic.Normalize(label);
+            LastLabel = normalized;
+            Debug.Log($"[Run] Label '{normalized}' -> socket {socket.SocketId}");
+            Subtitles.Show($"Looks like: {normalized}.");
+            socket.ApplyLabel(normalized);
         }
 
         void FailRequest(string error)
@@ -449,7 +530,7 @@ namespace CalHacks
             if (socket == null) return;
             if (boundSocket == socket) CancelRequest();
             Debug.Log("[Run] Manual reject -> " + socket.SocketId);
-            ApplySpec(socket, InventionSpec.Plain());
+            ApplyLabel(socket, SocketLogic.Unknown);
         }
 
         /// <summary>The bound socket while unsolved, else the nearest unsolved socket in range, else the nearest unsolved.</summary>
@@ -459,17 +540,7 @@ namespace CalHacks
             return NearestInRange() ?? NearestUnsolved(float.PositiveInfinity);
         }
 
-        /// <summary>How far above or below a socket B can be and still BUILD for it (B on a ledge over it can't).</summary>
-        const float MaxCastRise = 1.5f;
-
-        /// <summary>The nearest unsolved socket within its own BUILD range (default <see cref="GameConfig.castRange"/>).</summary>
-        PuzzleSocket NearestInRange()
-        {
-            if (player == null || sockets.Length == 0) return null;
-            var index = SocketLogic.FindNearest(sockets.Select(s => s.CastPoint).ToArray(), sockets.Select(s => s.Solved).ToArray(),
-                sockets.Select(s => s.CastRange).ToArray(), player.transform.position, config.castRange, MaxCastRise);
-            return index >= 0 ? sockets[index] : null;
-        }
+        PuzzleSocket NearestInRange() => NearestUnsolved(config.castRange);
 
         PuzzleSocket NearestUnsolved(float range)
         {
@@ -534,9 +605,84 @@ namespace CalHacks
             }
         }
 
+        /// <summary>In-game input selector. Switching is unavailable while a build request is running.</summary>
+        public void SelectCaptureSource(CaptureSource source)
+        {
+            if (source != CaptureSource.Digital && source != CaptureSource.Webcam) return;
+            if (State.InFlight)
+            {
+                Subtitles.ShowNow("Finish the current build before changing input.", 2f);
+                return;
+            }
+            if (source == activeCaptureSource)
+            {
+                if (source == CaptureSource.Digital) digitalCanvas.Open();
+                return;
+            }
+
+            // Release webcam when drawing digitally, so USB devices need not be plugged in.
+            PreviewVisible = false;
+            if (boardCamera != null) boardCamera.SetCaptureEnabled(source == CaptureSource.Webcam);
+            if (digitalCanvas != null) digitalCanvas.Close();
+            activeCaptureSource = source;
+            vision = source == CaptureSource.Digital ? digitalVision : webcamVision;
+            mock = null;
+            LastHealth = null;
+            LastHealthError = null;
+            LastError = null;
+            if (source == CaptureSource.Digital)
+            {
+                digitalCanvas.Open();
+                Subtitles.ShowNow("Digital drawing selected: draw in black, then BUILD.", 2f);
+            }
+            else
+            {
+                Subtitles.ShowNow("Webcam selected: aim your USB camera at the board (P to preview).", 3f);
+                PreviewVisible = true;
+            }
+            PollHealth();
+            Debug.Log($"[Run] Input source changed to {source}.");
+        }
+
+        // Visible during Play mode and in standalone builds, without editor-only menus.
+        void OnGUI()
+        {
+            if (inputLabel == null)
+            {
+                inputLabel = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 13,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter
+                };
+                selectedInputButton = new GUIStyle(GUI.skin.button)
+                {
+                    fontStyle = FontStyle.Bold
+                };
+            }
+            GUI.depth = -200; // Above the drawing pad, so modes can be switched while drawing.
+            float x = Mathf.Max(8f, Screen.width - 312f);
+            GUI.Box(new Rect(x, 8f, 304f, 46f), GUIContent.none);
+            GUI.Label(new Rect(x + 8f, 12f, 54f, 36f), "INPUT", inputLabel);
+            if (GUI.Button(new Rect(x + 65f, 14f, 112f, 32f),
+                activeCaptureSource == CaptureSource.Digital ? "DRAW ✓" : "DRAW",
+                activeCaptureSource == CaptureSource.Digital ? selectedInputButton : GUI.skin.button))
+                SelectCaptureSource(CaptureSource.Digital);
+            if (GUI.Button(new Rect(x + 184f, 14f, 112f, 32f),
+                activeCaptureSource == CaptureSource.Webcam ? "WEBCAM ✓" : "WEBCAM",
+                activeCaptureSource == CaptureSource.Webcam ? selectedInputButton : GUI.skin.button))
+                SelectCaptureSource(CaptureSource.Webcam);
+        }
+
         // ---- Run flow -----------------------------------------------------------------------------------
 
         /// <summary>F5: new run_id, cancel pending waits, restore every socket, remove free builds, reset the explorer and the camera.</summary>
+        /// <summary>Keep B still while Player A is drawing; avoid unlocking after winning.</summary>
+        public void SetDigitalDrawingOpen(bool open)
+        {
+            if (player != null) player.InputLocked = open || State.Finished;
+        }
+
         public void ResetRun()
         {
             runCts.Cancel();
@@ -547,6 +693,8 @@ namespace CalHacks
             boundSocket = null;
             currentCheckpoint = null;
             FinalTime = 0f;
+            LastInventionMessage = null;
+            LastInkCost = 0;
 
             foreach (var socket in sockets) socket.ResetSocket();
             ClearInventions();
@@ -563,6 +711,13 @@ namespace CalHacks
                 cameraFollow.Snap();
             }
             Subtitles.Clear();
+            InventionGuide.Close();
+            if (digitalCanvas != null)
+            {
+                digitalCanvas.Clear();
+                if (activeCaptureSource == CaptureSource.Digital) digitalCanvas.Open();
+                else digitalCanvas.Close();
+            }
             Debug.Log($"[Run] Reset. run_id={runId}");
         }
 

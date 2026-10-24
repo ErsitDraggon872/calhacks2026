@@ -5,9 +5,8 @@ namespace CalHacks
 {
     /// <summary>
     /// Rebuilds a cutout's silhouette as a few boxes ("flat to look at, thick to stand on"). The alpha is cut into
-    /// columns about <c>cell</c> metres wide. In each column, every run of pixel rows holding a pixel with alpha of at
-    /// least <see cref="SolidAlpha"/> becomes a box, so tops and bottoms are exact to the pixel and B stands on the
-    /// drawn edge, not above it. Identical runs in neighbouring columns merge into one box.
+    /// cells of about <c>cell</c> metres; a cell is solid when enough of its pixels have alpha of at least <see cref="SolidAlpha"/>.
+    /// Each row's solid cells merge into horizontal runs, and identical runs in neighbouring rows merge into one box.
     /// Pure: no Unity objects, so EditMode tests cover it.
     /// </summary>
     public static class SilhouetteBoxes
@@ -34,36 +33,36 @@ namespace CalHacks
             if (size.x <= 0f || size.y <= 0f || cell <= 0f) return boxes;
 
             var cols = Mathf.Max(1, Mathf.RoundToInt(size.x / cell));
-            var colW = size.x / cols;
-            var rowH = size.y / height;
+            var rows = Mathf.Max(1, Mathf.RoundToInt(size.y / cell));
+            var cellW = size.x / cols;
+            var cellH = size.y / rows;
+            var solid = Downsample(alpha, width, height, cols, rows);
 
-            // Runs still growing sideways, keyed by (first row, last row).
+            // Runs still growing upward, keyed by (first column, last column).
             var open = new Dictionary<(int, int), Rect>();
-            for (var col = 0; col < cols; col++)
+            for (var row = 0; row < rows; row++)
             {
-                var x0 = col * width / cols;
-                var x1 = Mathf.Max(x0 + 1, (col + 1) * width / cols);
                 var next = new Dictionary<(int, int), Rect>();
-                var row = 0;
-                while (row < height)
+                var col = 0;
+                while (col < cols)
                 {
-                    if (!AnySolid(alpha, width, x0, x1, row))
+                    if (!solid[row * cols + col])
                     {
-                        row++;
+                        col++;
                         continue;
                     }
-                    var first = row;
-                    while (row < height && AnySolid(alpha, width, x0, x1, row)) row++;
-                    var key = (first, row - 1);
-                    if (open.TryGetValue(key, out var left))
+                    var first = col;
+                    while (col < cols && solid[row * cols + col]) col++;
+                    var key = (first, col - 1);
+                    if (open.TryGetValue(key, out var below))
                     {
-                        left.width += colW;
-                        next[key] = left;
+                        below.height += cellH;
+                        next[key] = below;
                         open.Remove(key);
                     }
                     else
                     {
-                        next[key] = new Rect(-size.x * 0.5f + col * colW, first * rowH, colW, (row - first) * rowH);
+                        next[key] = new Rect(-size.x * 0.5f + first * cellW, row * cellH, (col - first) * cellW, cellH);
                     }
                 }
                 boxes.AddRange(open.Values);
@@ -73,13 +72,38 @@ namespace CalHacks
             return boxes;
         }
 
-        static bool AnySolid(byte[] alpha, int width, int x0, int x1, int row)
+        static bool[] Downsample(byte[] alpha, int width, int height, int cols, int rows)
         {
+            var solid = new bool[cols * rows];
+            for (var row = 0; row < rows; row++)
+            {
+                var y0 = row * height / rows;
+                var y1 = Mathf.Max(y0 + 1, (row + 1) * height / rows);
+                for (var col = 0; col < cols; col++)
+                {
+                    var x0 = col * width / cols;
+                    var x1 = Mathf.Max(x0 + 1, (col + 1) * width / cols);
+                    solid[row * cols + col] = MostlySolid(alpha, width, height, x0, x1, y0, y1);
+                }
+            }
+            return solid;
+        }
+
+        // 'Any ink' grows a single stray pixel into a whole world-space cell.
+        // An occupancy threshold preserves skinny edges without the oversized
+        // stair-steps that made drawing colliders inaccurate.
+        static bool MostlySolid(byte[] alpha, int width, int height, int x0, int x1, int y0, int y1)
+        {
+            int filled = 0;
+            int total = 0;
+            for (var y = y0; y < y1 && y < height; y++)
             for (var x = x0; x < x1 && x < width; x++)
             {
-                if (alpha[row * width + x] >= SolidAlpha) return true;
+                total++;
+                if (alpha[y * width + x] >= SolidAlpha) filled++;
             }
-            return false;
+            return total > 0 && filled >= Mathf.Max(1f, total * 0.18f);
         }
+
     }
 }

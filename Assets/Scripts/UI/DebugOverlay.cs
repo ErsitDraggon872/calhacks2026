@@ -22,10 +22,10 @@ namespace CalHacks
 
             var s = run.State;
             sb.Clear();
+            sb.AppendLine($"Input mode: {run.ActiveCaptureSource}  (choose DRAW or WEBCAM at top-right)");
             sb.AppendLine($"Vision client: {run.VisionName}");
             sb.AppendLine($"Provider: {run.LastProvider ?? "-"}   latency: {(run.LastLatencyMs >= 0 ? run.LastLatencyMs.ToString("0") + " ms" : "-")}");
             sb.AppendLine($"Last label: {run.LastLabel ?? "-"}   confidence: {(run.LastConfidence >= 0 ? run.LastConfidence.ToString("0.00") : "-")}");
-            sb.AppendLine($"Attributes: {run.LastAttributes ?? "-"}");
             sb.AppendLine($"run_id: {s.RunId}   time: {Hud.FormatTime(s.Elapsed)}{(s.Finished ? " (finished)" : "")}");
             sb.AppendLine($"Build cooldown: {(s.CooldownRemaining > 0f ? s.CooldownRemaining.ToString("0.0") + " s" : "ready")}   in flight: {(s.InFlight ? "YES" : "no")}");
             if (BoardCamera.Instance != null) sb.AppendLine($"Camera: {BoardCamera.Instance.Status}   (P preview)");

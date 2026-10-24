@@ -12,8 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ffd89053002d5f4a8e43004cb8d49e3, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: Game::CalHacks.GameConfig
-  captureSource: 2
+  captureSource: 3
   serviceUrl: http://localhost:8000
+  enableAiPhysics: 1
+  inventionGoal: get across the gap
+  interpretTimeout: 40
   captureTimeout: 10
   labelTimeout: 20
   healthPollInterval: 3

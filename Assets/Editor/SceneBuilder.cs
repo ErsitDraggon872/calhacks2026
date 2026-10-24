@@ -42,9 +42,7 @@ namespace CalHacks.EditorTools
 
         /// <summary>
         /// Side-view demo level along +X, with depth (Z) toward the back. Start ledge (front path + raised back terrace)
-        /// → the gap (every drawing becomes a bridge, solid where it's inked) → the hub: checkpoint, then two puzzles in
-        /// either order up to a floating island with the exit: a high ledge (build a step) and the gatekeeper (feed them
-        /// and they open the gate to the island stairs).
+        /// → the gap (first build always works) → the hub: checkpoint, a high ledge and a floating island with the exit.
         /// The camera looks along +Z, so nothing solid stands in front (−Z) of the paths; invisible walls stop B
         /// walking off the front edge.
         /// </summary>
@@ -62,25 +60,16 @@ namespace CalHacks.EditorTools
             Walkable("Block", geo, "Start Path", new Vector3(-6f, -1f, -1f), new Vector3(10f, 0f, 1f));
             Walkable("Block", geo, "Start Terrace", new Vector3(-6f, -1f, 1f), new Vector3(10f, 0.8f, 3f));
 
-            // The gap is x 10..14.6 (GapSocket's 4.9 m bridge overlaps both ledges). Hub floor, x 14.6..40, z -2..3.
+            // The gap is x 10..14.6 (GapSocket's deck). Hub floor, x 14.6..40, z -2..3.
             Walkable("Block", geo, "Hub Floor", new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f));
 
             // High ledge on the back layer, 2.3 m: out of jump reach (1.2 m), one invention plus a jump gets up.
             Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(30f, 2.3f, 3f));
 
-            // Floating island, top at 4 m, with the exit and the goal flag. Reached by the stairs below.
-            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 3f))
+            // Floating island, top at 4 m, with the exit and the goal flag. Reached by stacking inventions
+            // (or by building off the high ledge).
+            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 2.5f))
                 .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
-
-            // Island stairs, x 31..34: five 0.8 m steps climbing toward the back (z -2..3), the top one level with the
-            // island. Only the two lowest steps are in reach from the floor (B rides edges up to ~1.65 m), and the
-            // gatekeeper's gate closes their side. The other ways up: from the high ledge (step 3 is 1 m away and 0.1 m
-            // higher), or builds.
-            for (var i = 0; i < 5; i++)
-            {
-                Walkable("Rock", geo, $"Stair {i + 1}", new Vector3(31f, 0f, -2f + i), new Vector3(34f, 0.8f * (i + 1), -1f + i))
-                    .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
-            }
 
             // Low backdrop wall behind everything, so the sky and hills show above it, and end walls. Nothing in
             // front, so the side camera sees in.
@@ -97,24 +86,16 @@ namespace CalHacks.EditorTools
             Invisible("Front Edge Start", geo, new Vector3(-6f, 0f, -1.4f), new Vector3(10f, 4f, -1f));
             Invisible("Front Edge Hub", geo, new Vector3(14.6f, 0f, -2.4f), new Vector3(40f, 8f, -2f));
             Invisible("Front Edge Island", geo, new Vector3(34f, 4f, -1.9f), new Vector3(40f, 7f, -1.5f));
-            // Under the island's left edge, so B can't walk off the stairs' right end into the space below it.
-            Invisible("Under Island", geo, new Vector3(34f, 0f, -2f), new Vector3(34.4f, 3f, 3f));
 
             var puzzles = new GameObject("Puzzles").transform;
             Place("GapSocket", puzzles, new Vector3(12.3f, 0f, 0f)); // its Hint says "Too far to jump!"
             Place("Checkpoint", puzzles, new Vector3(17f, 0f, 0.5f)).name = "Checkpoint 1";
-            // Two puzzles, taken in either order, both leading up to the island. The high ledge: its hint and build slot
-            // cover only the approach to its left face (x 18..24), not its length.
-            AddHint(puzzles, "Hint High Ledge", new Vector3(19.5f, 0f, -2f), new Vector3(24f, 2f, 3f), "Too high to climb!");
-            // A build made on the floor in front of the ledge lands as a step against its left face, at the ledge's
+            AddHint(puzzles, "Hint High Ledge", new Vector3(20f, 0f, -2f), new Vector3(30f, 2f, 3f), "Too high to climb!");
+            // A build made anywhere on the floor near the ledge lands as a step against its left face, at the ledge's
             // depth (the ghost shows the box). 3 x 1.2 m keeps almost any fitted drawing a 0.7-1.6 m step: jump on, jump off.
-            AddBuildSlot(puzzles, "Build Slot High Ledge", new Vector3(18f, 0f, -2f), new Vector3(24f, 1f, 3f),
+            AddBuildSlot(puzzles, "Build Slot High Ledge", new Vector3(18f, 0f, -2f), new Vector3(30f, 1f, 3f),
                 new Vector3(24f - BuildSlot.DefaultBox.x * 0.5f, 0f, 1.75f), 2.5f);
-            // The gatekeeper, on the front path beside the gate at the foot of the island stairs (gate x 30.6..31,
-            // z -2..0.5). Anything edible opens it. Their 2.5 m BUILD range keeps the high ledge's builds out of it.
-            Place("GatekeeperSocket", puzzles, new Vector3(29.6f, 0f, -1f));
-            // Centred on the island's depth (z -1.5..3), so B touches the 3.2 m-deep trigger wherever B crosses it.
-            Place("Exit", puzzles, new Vector3(38f, 4f, 0.75f));
+            Place("Exit", puzzles, new Vector3(38f, 4f, 0.5f));
             GoalFlag(puzzles, new Vector3(39.3f, 4f, 1.8f));
 
             // Start within CAST range (5 m) of the gap, so the opening shot is B at the gap and the first build bridges it.

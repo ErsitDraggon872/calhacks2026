@@ -52,14 +52,27 @@ namespace CalHacks
                 response.png_base64 = Convert.ToBase64String(texture.EncodeToPNG());
                 response.width = ink.Width;
                 response.height = ink.Height;
+                response.cutout_x = ink.X;
+                response.cutout_y = ink.Y;
+                response.cutout_width = ink.Width;
+                response.cutout_height = ink.Height;
                 UnityEngine.Object.Destroy(texture);
 
                 var board = InkExtractor.BoardRect(w, h, config.boardCrop);
-                pending[response.id] = new BoardCapture
+                var boardPixels = Crop(frame, w, board);
+                response.board_width = board.width;
+                response.board_height = board.height;
+                var boardTexture = new Texture2D(board.width, board.height, TextureFormat.RGBA32, false);
+                boardTexture.SetPixels32(boardPixels);
+                boardTexture.Apply(false);
+                response.board_png_base64 = Convert.ToBase64String(boardTexture.EncodeToPNG());
+                UnityEngine.Object.Destroy(boardTexture);
+                // Free builds never call GetLabelAsync, so do not retain large board frames for them.
+                if (request.socket_id != RunManager.FreeBuildId) pending[response.id] = new BoardCapture
                 {
                     Request = request,
                     Cutout = response,
-                    Board = Crop(frame, w, board),
+                    Board = boardPixels,
                     BoardWidth = board.width,
                     BoardHeight = board.height,
                     CutoutRect = new RectInt(ink.X, ink.Y, ink.Width, ink.Height),

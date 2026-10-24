@@ -6,7 +6,7 @@ namespace CalHacks
     public class Hud : MonoBehaviour
     {
         const float ReferenceHeight = 1080f;
-        const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
+        const string StationSign = "Choose DRAW / WEBCAM at top-right  ·  Enter = BUILD  ·  P = preview";
 
         GUIStyle small, big, sign;
         Texture2D panel, barBack, barFill, barReady;
