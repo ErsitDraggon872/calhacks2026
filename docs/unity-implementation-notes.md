@@ -30,7 +30,7 @@ How the Unity half is put together, for Wesley, Henry, Andy and Person 4. The sp
 
 ## Side view (Paper Mario look)
 
-- **Camera:** `CameraFollow` on the CameraRig. Perspective, FOV 35°, yaw 0 (looking along +Z), pitch 17°. It smooth-follows B on X and Y, but only 30% on depth, so walking in depth doesn't swing the shot. It has two framings: `Tight` (14 m, the opening shot on the gap) and `Wide` (24 m, looking a bit ahead). It blends between them over 1 s. Solving the gap calls `Reveal()`: it blends out to `Wide`, holds for 2.5 s (`revealHold`), then blends back to `Tight`. F5 snaps back to `Tight`. All of this is tunable on the component.
+- **Camera:** `CameraFollow` on the CameraRig. Perspective, FOV 35°, yaw 0 (looking along +Z), pitch 17°. It smooth-follows B on X and Y, but only 30% on depth, so walking in depth doesn't swing the shot. It has two framings: `Tight` (14 m, the opening shot on the gap) and `Wide` (24 m, looking a bit ahead). It blends between them over 1 s. Reaching the run's first checkpoint (just past the gap) calls `Reveal()`: it blends out to `Wide`, holds for 2.5 s (`revealHold`), then blends back to `Tight`. F5 snaps back to `Tight`. All of this is tunable on the component.
 - **Player B:** a flat paper cutout (`Player/Visual/Paper`, texture drawn in code by `MockDrawingGenerator.Character` and run through `PaperTexture.MakePaper`). The body never rotates; `Visual`'s X scale flips to face left or right (`PlayerController.FacingSign`). The collider is still the `CharacterController` (step offset 0.3 m, so drawn stair-steps can be climbed).
 
 ## Free builds: inventions you can stand on

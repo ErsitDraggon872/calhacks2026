@@ -5,7 +5,7 @@ namespace CalHacks
     /// <summary>
     /// Tutorial gap: any non-empty drawing becomes the bridge on /capture, without waiting for the label, so the
     /// first build never fails. The drawing is stretched to span the gap (Span.x), its top edge at deck level, and the
-    /// hidden deck collider is what B walks on. Solving it reveals the world (the camera's Wide framing).
+    /// hidden deck collider is what B walks on.
     /// </summary>
     public class GapSocket : PuzzleSocket
     {
@@ -39,12 +39,7 @@ namespace CalHacks
             if (!capture.empty_board) Solve();
         }
 
-        protected override void OnSolved()
-        {
-            ShowSolved(true);
-            var follow = FindFirstObjectByType<CameraFollow>();
-            if (follow != null) follow.Reveal();
-        }
+        protected override void OnSolved() => ShowSolved(true);
 
         protected override void OnReset() => ShowSolved(false);
 

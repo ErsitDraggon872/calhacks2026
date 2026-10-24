@@ -68,7 +68,7 @@ Fix, re-run that step, and carry on. If a project-local `unity` CLI or the unity
   - tight opening shot on the gap with the dashed outline and "Too far to jump!"
   - A/D/W/S movement and sprite flip; the camera doesn't swing on depth
   - a single 1.2 m jump
-  - Enter at the gap bridges it and blends to the wide shot
+  - Enter at the gap bridges it; the first checkpoint blends to the wide shot and back
   - a hub free build appears beside B and is standable at several Z depths
   - the high ledge is reachable with one invention plus a jump
   - the island is reachable by stacking, and the flag wins

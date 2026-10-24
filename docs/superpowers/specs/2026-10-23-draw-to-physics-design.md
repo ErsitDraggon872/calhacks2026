@@ -51,7 +51,7 @@ The request/response contract is in `docs/interpret-contract.md`: `POST /interpr
 ## Demo level and flow
 - **Who plays:** judges draw and press BUILD. A teammate plays B and narrates; the keyboard stays with the team for now.
 - **Opening shot:** the camera is tight on B at **the gap**, with a dotted "draw here" hint and B saying "Too far to jump!". Any drawing solves it, because anything unrecognised is still a solid Support. The first build never fails.
-- **Reveal:** once the first invention lands, the camera pulls back and the world opens.
+- **Reveal:** when B reaches the first checkpoint (just past the gap), the camera pulls back to show the world, then returns to the normal shot.
 - **The open world:** a few obstacles visible at once, on different depth layers and taken in any order, each with many solutions:
   - a high ledge (mushroom, stairs, rocket)
   - a floating island with the goal flag (rocket skateboard, balloon, big bounce)

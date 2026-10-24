@@ -447,10 +447,13 @@ namespace CalHacks
         public void ReachCheckpoint(Checkpoint checkpoint)
         {
             if (currentCheckpoint == checkpoint) return;
+            var first = currentCheckpoint == null;
             if (currentCheckpoint != null) currentCheckpoint.SetReached(false);
             currentCheckpoint = checkpoint;
             checkpoint.SetReached(true);
             Subtitles.Show("Checkpoint!", 1.5f);
+            // The run's first checkpoint is where the world opens up: zoom out to show it, then back in.
+            if (first && cameraFollow != null) cameraFollow.Reveal();
         }
 
         void Respawn()
