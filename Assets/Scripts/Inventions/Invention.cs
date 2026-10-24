@@ -60,12 +60,17 @@ namespace CalHacks
             Spec = spec ?? InventionSpec.Plain();
             Surface = InventionSurface.For(Spec);
             // Puzzle sockets (especially the gap) retain anchored, static ink geometry.
-            if (enableAbilities && Abilities == null && Spec.Parts.Any(p =>
+            // Andy's motion: a drawn cat wanders, a frog hops, a bird flies, even with no powers.
+            var motion = enableAbilities && Abilities == null ? InventionMotion.For(Spec) : InventionMotion.Kind.Static;
+            if (enableAbilities && Abilities == null && (motion != InventionMotion.Kind.Static || Spec.Parts.Any(p =>
                 p.Type == PartType.Bounce || p.Type == PartType.Thrust || p.Type == PartType.Lift ||
-                p.Type == PartType.Glide || p.Type == PartType.Roll || p.Type == PartType.Attach))
+                p.Type == PartType.Glide || p.Type == PartType.Roll || p.Type == PartType.Attach)))
             {
+                // A support-only creature still gets InventionPhysics, so B can ride it like a moving platform.
                 Abilities = gameObject.AddComponent<InventionPhysics>();
                 Abilities.Configure(this, Spec);
+                if (motion != InventionMotion.Kind.Static)
+                    gameObject.AddComponent<InventionMotion>().Configure(this, Abilities, motion);
             }
             if (Spec.Has(Trait.Glows) && glow == null)
             {

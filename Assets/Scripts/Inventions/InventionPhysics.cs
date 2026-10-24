@@ -29,8 +29,7 @@ namespace CalHacks
                 word == "bicycle" || word == "motorcycle" || word == "kart" || word == "train" || word == "wagon");
         }
 
-        public bool MovingPlatform => body != null;
-        public bool HasButton => thrust != null || lift != null || glide != null || roll != null ||
+        public bool MovingPlatform => body != null || (GetComponent<InventionMotion>()?.CarriesPlayer ?? false);        public bool HasButton => thrust != null || lift != null || glide != null || roll != null ||
             attach != null || (bounce != null && bounce.Activation != Activation.Contact);
         bool HoldMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Hold);
         bool ToggleMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Toggle);
