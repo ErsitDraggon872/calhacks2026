@@ -1,8 +1,11 @@
 # `/interpret` contract (Unity ↔ backend)
 
-**Status:** the shape is agreed; the backend isn't implemented yet and is now the critical path for the demo (Andy's handoff: [`handoff-interpret-backend.md`](handoff-interpret-backend.md)).
-- **Unity today:** uses `NoInterpreter`, so every drawing is `unknown`. Until the backend lands, the old labels become attributes through a small built-in table (`InventionSpec.FromLabel`).
-- **Unity next:** `HttpInterpreter : IInterpreter` (`Assets/Scripts/Vision/IInterpreter.cs`) calls this endpoint without touching capture.
+**Status:** wired end to end; real-model accuracy is still to be checked with a Bitdeer key.
+- **Backend:** `tools/thinkink_backend.py` (Andy's, on `http://127.0.0.1:8000`; setup in `docs/DEERAI-SETUP.md`). It returns this contract's identity fields (`name`, `material`, `traits`, `adjectives`) next to Andy's mechanics. That means components with the eight fields `type` … `duration_s` (no `emit_kind`/`range_m`; JsonUtility defaults them), extra types `lift` `glide` `roll` `attach` `hinge` `push_pull`, and a numeric `attributes` object. Unity ignores what it doesn't build. There is no `tether`: the grappling rope is cut.
+- **Unity:** `HttpInterpreter` (`Assets/Scripts/Vision/HttpInterpreter.cs`) posts every Webcam and Replay capture to `GameConfig.interpretUrl` (`-interpret=<url>`, or `-interpret=none` for no AI).
+  - An `error` reply, a timeout or an unreachable server is a failure, never "unknown". At the gatekeeper it says "Couldn't read that drawing. Press BUILD to try again."
+  - `-capture=replay` feeds saved board photos (`GameConfig.replayFolder`, default `StreamingAssets/Replay`) through the same path.
+  - Before the backend existed, labels became attributes through `InventionSpec.FromLabel`; that table is still the fallback for the mock and service capture sources.
 - **What Unity does with the reply:** it already parses the whole response (`Assets/Scripts/Inventions/InventionSpec.cs`). It applies `material`, `traits` (`edible`, `hostile`, `glows`, `slippery`, `bouncy`, `sticky`) and puzzle checks. `bounce`, `thrust`, `emit` (other than light), `explode` and `body: dynamic` are parsed but built as a plain solid.
 
 ## Demo-critical subset (get these right first)

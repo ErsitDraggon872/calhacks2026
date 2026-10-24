@@ -25,6 +25,11 @@ The high-ledge build slot is still in the level, but it's off the rehearsed rout
 
 Unity still parses the deferred parts. Anything it can't run yet is built as a plain solid in the drawn shape: a rocket is a rocket-shaped solid.
 
+## Running it
+- **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.
+- **Unity:** the Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
+- **Checking the backend:** `python tools/interpret_check.py --dir <photos>` checks a running backend against the demo expectations.
+
 ## Current docs
 | Doc | What it's for |
 |---|---|
@@ -32,6 +37,7 @@ Unity still parses the deferred parts. Anything it can't run yet is built as a p
 | [`interpret-contract.md`](interpret-contract.md) | The `POST /interpret` request and response between Unity and the backend |
 | [`interpret-prompt.md`](interpret-prompt.md) | The system prompt the backend sends to the model, and why models over-answer "bridge" |
 | [`handoff-interpret-backend.md`](handoff-interpret-backend.md) | **Andy:** what to build for `/interpret`, in priority order, with acceptance tests |
+| [`DEERAI-SETUP.md`](DEERAI-SETUP.md) | Running the `/interpret` backend (`tools/thinkink_backend.py`): key, fake mode, health check. Its "apply patch" step and DRAW mode come from Andy's branch and don't apply on `main` |
 | [`unity-implementation-notes.md`](unity-implementation-notes.md) | How the Unity half is put together: station keys, free builds, the demo level |
 
 ## Finished handoffs (history; the work has landed)

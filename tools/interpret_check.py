@@ -10,8 +10,8 @@ Name each photo after what's drawn on it; the stem before any "-" or "_" decides
     empty.png                               -> status "rejected"
     anything else                           -> only checked against the schema
 
-    python tools/interpret_check.py --url http://localhost:8001 --dir path/to/photos
-    python tools/interpret_check.py --url http://localhost:8001 --dir photos --socket gap
+    python tools/interpret_check.py --url http://127.0.0.1:8000 --dir path/to/photos
+    python tools/interpret_check.py --url http://127.0.0.1:8000 --dir photos --socket gap
 """
 
 import argparse
@@ -107,7 +107,7 @@ def expectation_problem(stem, reply):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--url", default="http://localhost:8001")
+    parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--socket", default="gatekeeper", choices=sorted(GOALS))
     args = parser.parse_args()

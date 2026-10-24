@@ -1,5 +1,19 @@
 # Handoff: finish the `/interpret` backend (Andy)
 
+> **Update (2026-10-24, branch `wesley/interpret-backend`):** your `tools/thinkink_backend.py` is in, unchanged except for these additions:
+> - identity (`name`, `material`, `traits`, `adjectives`) in the prompt, schema and validation
+> - the image now goes before a tie-breaker-only goal
+> - food, bridge and blank fixtures, plus `THINKINK_FAKE_SEQUENCE` for fake mode
+> - `THINKINK_PORT`
+> - the grappling rope (`tether`) is cut
+>
+> Your Unity changes stay on `feature/thinkink-full-update`. What's left for you:
+> 1. Run it with the real key.
+> 2. Run `tools/interpret_check.py` on real whiteboard photos for both sockets.
+> 3. Tune `tools/thinkink_system_prompt.txt` until foods come back `edible` and the goal doesn't turn things into bridges.
+>
+> The checklist below still applies; read "your backend" as `tools/thinkink_backend.py`.
+
 **`/interpret` is the most valuable missing piece of the demo.** Right now every drawing comes back as `unknown`. A judge can't see any AI: any scribble becomes a bridge, and nothing shows that the game understood what was drawn. Once your backend says "apple → `edible`", the gatekeeper accepts it, a "Apple → food → lets you through" card appears, and the pitch works.
 
 **Please park the rocket until this ships.** Rockets and thrust are not on the demo route. Unity builds a `thrust` component as a plain rocket-shaped solid, so nothing breaks while the rocket is unfinished.
@@ -83,12 +97,12 @@ Start from [`docs/interpret-prompt.md`](interpret-prompt.md): system prompt, use
 Variants like `apple-2.png` are expected to behave the same as `apple.png`. Photos must be PNG; take them of the real whiteboard with black marker, roughly like the C270 sees it.
 
 ```bash
-python tools/interpret_check.py --url http://localhost:8001 --dir path/to/photos
+python tools/interpret_check.py --url http://127.0.0.1:8000 --dir path/to/photos
 ```
 
 To check that the goal doesn't leak (a duck at the gap must stay a duck):
 ```bash
-python tools/interpret_check.py --url http://localhost:8001 --dir path/to/photos --socket gap
+python tools/interpret_check.py --url http://127.0.0.1:8000 --dir path/to/photos --socket gap
 ```
 
 **Done when:**
@@ -96,7 +110,7 @@ python tools/interpret_check.py --url http://localhost:8001 --dir path/to/photos
 - median latency is under 4 s
 
 ## Running it for the demo
-- Serve on the demo laptop at **`http://localhost:8001`**. Unity defaults to that URL, and running locally avoids an extra network hop. Your server still needs internet for Bitdeer.
+- Serve on the demo laptop at **`http://127.0.0.1:8000`**. Unity defaults to that URL, and running locally avoids an extra network hop. Your server still needs internet for Bitdeer.
 - Add `GET /health` returning `{"ok": true, "provider": "bitdeer"}`, so we can check it before going on stage.
 - Read the Bitdeer key from an environment variable. Never commit it.
 
@@ -104,7 +118,7 @@ python tools/interpret_check.py --url http://localhost:8001 --dir path/to/photos
 - **The card:** shows the name, a plain word for the key property ("food", "gives light", "scary") and the outcome. For example: "Apple → food → lets you through ✓".
 - **When the request fails:** if you return `error`, time out, or can't be reached, Unity says "Couldn't read that drawing. Press BUILD to try again". It doesn't pretend the drawing was "unknown".
 - **When a reply is stale:** a reply with an old `run_id` (after F5 reset) is dropped.
-- **Unity's side of the integration** (`HttpInterpreter`, the card, photo replay) is being built in parallel. Until it lands, the acceptance script is how you prove the backend works.
+- **Unity's side is wired** (`HttpInterpreter`, photo replay). Run the game with `-capture=replay` (or the webcam) and it calls your backend at `GameConfig.interpretUrl`. Unity was checked against your backend in fake mode: bridge refused, apple and banana accepted, gate opens, flag reached.
 
 ## Hand back
 Send Wesley:
