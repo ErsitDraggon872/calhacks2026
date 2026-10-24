@@ -286,7 +286,7 @@ namespace CalHacks
 
                 if (interpretBuild)
                 {
-                    Subtitles.ShowNow("DeerAI is interpreting your invention...", 2f);
+                    Subtitles.ShowNow("Bringing your sketch to life...", 2f);
                     var isDigital = activeCaptureSource == CaptureSource.Digital && digitalCanvas != null;
                     var result = await interpretClient.InterpretAsync(capture.Data, runId, FreeBuildId,
                         config.inventionGoal, ct,
@@ -317,7 +317,7 @@ namespace CalHacks
                     if (PlaceInvention(paper, spec))
                     {
                         State.StartCooldown(config.buildCooldown);
-                        Subtitles.ShowNow($"{spec.name} ({spec.ink_cost} Ink): {spec.message}", 4f);
+                        Subtitles.ShowNow("Invention ready! Explorer, it is your turn.", 2f);
                         InventionGuide.Show(spec);
                         digitalCanvas?.Close();
                         if (activeCaptureSource == CaptureSource.Digital) digitalCanvas.Clear();
@@ -647,6 +647,8 @@ namespace CalHacks
         // Visible during Play mode and in standalone builds, without editor-only menus.
         void OnGUI()
         {
+            // Keep the webcam selector out of the drawing modal itself.
+            if (digitalCanvas != null && digitalCanvas.IsOpen) return;
             if (inputLabel == null)
             {
                 inputLabel = new GUIStyle(GUI.skin.label)

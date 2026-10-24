@@ -24,7 +24,7 @@ namespace CalHacks.Tests
   ""provider"": ""bitdeer"", ""latency_ms"": 2140
 }";
 
-        static InterpretResponse Reply(string material = "wood", params string[] traits) => new InterpretResponse
+        static LegacyInterpretResponse Reply(string material = "wood", params string[] traits) => new LegacyInterpretResponse
         {
             status = "ok",
             name = "thing",
@@ -38,7 +38,7 @@ namespace CalHacks.Tests
         [Test]
         public void ContractExampleParses()
         {
-            var spec = InventionSpec.Parse(JsonUtility.FromJson<InterpretResponse>(ExampleJson));
+            var spec = InventionSpec.Parse(JsonUtility.FromJson<LegacyInterpretResponse>(ExampleJson));
             Assert.AreEqual("flaming rubber skateboard", spec.Name);
             Assert.AreEqual(MaterialKind.Rubber, spec.Material);
             Assert.AreEqual(WeightClass.Light, spec.Weight);
@@ -54,10 +54,15 @@ namespace CalHacks.Tests
         }
 
         [Test]
-        public void LabelOnlyReplyHasNoInterpretation()
+        public void LabelOnlyReplyIsParsedWithoutAnEmbeddedInvention()
         {
+            // The old /label response carries only a label. The separate
+            // /interpret endpoint provides the physics DTO, not LabelResponse.
             var label = JsonUtility.FromJson<LabelResponse>(@"{""status"":""done"",""label"":""fish"",""run_id"":1}");
-            Assert.IsFalse(InventionSpec.IsPresent(label.interpretation));
+            Assert.IsNotNull(label);
+            Assert.AreEqual("done", label.status);
+            Assert.AreEqual("fish", label.label);
+            Assert.AreEqual(1, label.run_id);
         }
 
         [Test]
@@ -150,10 +155,10 @@ namespace CalHacks.Tests
         [Test]
         public void MissingOrErrorReplyIsAPlainSupport()
         {
-            var empty = InventionSpec.Parse(new InterpretResponse());
+            var empty = InventionSpec.Parse(new LegacyInterpretResponse());
             Assert.AreEqual(PartType.Support, empty.Parts.Single().Type);
             Assert.IsFalse(empty.Rejected);
-            var error = InventionSpec.Parse(new InterpretResponse { status = "error", name = "lamp", traits = new[] { "glows" } });
+            var error = InventionSpec.Parse(new LegacyInterpretResponse { status = "error", name = "lamp", traits = new[] { "glows" } });
             Assert.IsFalse(error.Has(Trait.Glows), "an error reply's attributes aren't trusted");
         }
 

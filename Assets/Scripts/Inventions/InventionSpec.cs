@@ -40,7 +40,7 @@ namespace CalHacks
 
     /// <summary>A POST /interpret reply, exactly as the JSON has it. Untrusted: <see cref="InventionSpec.Parse"/> cleans it.</summary>
     [Serializable]
-    public class InterpretResponse
+    public class LegacyInterpretResponse
     {
         public string status; // "ok", "rejected" or "error"
         public string capture_id;
@@ -157,7 +157,7 @@ namespace CalHacks
         /// again, exclusions resolved, at most one part per type, and at least one part (a Support). A missing reply or
         /// an "error" status is a plain Support, never a failure.
         /// </summary>
-        public static InventionSpec Parse(InterpretResponse r)
+        public static InventionSpec Parse(LegacyInterpretResponse r)
         {
             if (!IsPresent(r)) return Plain();
             var status = Lower(r.status);
@@ -201,7 +201,7 @@ namespace CalHacks
         }
 
         /// <summary>A reply that was actually sent: <c>JsonUtility</c> leaves an absent nested object empty, not null.</summary>
-        public static bool IsPresent(InterpretResponse r) => r != null && !string.IsNullOrWhiteSpace(r.status);
+        public static bool IsPresent(LegacyInterpretResponse r) => r != null && !string.IsNullOrWhiteSpace(r.status);
 
         static InventionPart ClampPart(PartType type, InterpretComponent c, List<string> dropped)
         {

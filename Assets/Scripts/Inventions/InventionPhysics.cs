@@ -20,12 +20,33 @@ namespace CalHacks
         Vector3 tetherWorldAnchor;
         LineRenderer ropeLine;
         float poweredUntil, nextUseAt, nextBounceAt, overloadSince = -1f;
-        bool active, everActivated, held;
+        bool active, everActivated, held, warnedWeakLift;
+        float poweredStartedAt;
 
         public bool MovingPlatform => body != null;
         public bool HasButton => thrust != null || lift != null || glide != null || roll != null ||
                                  attach != null || tether != null || pushPull != null ||
                                  (bounce != null && bounce.activation != "contact") || hinge != null;
+
+        public static bool IsVehicleName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            // Whole-word match avoids matching 'car' inside 'cartoon' or 'carpet'.
+            var words = System.Text.RegularExpressions.Regex.Split(name.ToLowerInvariant(), @"[^a-z0-9]+",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            foreach (var word in words)
+            {
+                switch (word)
+                {
+                    case "car": case "cart": case "truck": case "bus": case "taxi":
+                    case "van": case "jeep": case "buggy": case "vehicle": case "sedan":
+                    case "skateboard": case "scooter": case "bike": case "bicycle":
+                    case "motorcycle": case "kart": case "train": case "wagon":
+                        return true;
+                }
+            }
+            return false;
+        }
 
         static Vector3 Direction(int angle)
         {
@@ -53,6 +74,22 @@ namespace CalHacks
                     case "push_pull": pushPull = part; break;
                 }
             }
+
+            // Avoid turning an ordinary car into an inert block when the vision
+            // model identifies it correctly but forgets the optional ROLL ability.
+            if (roll == null && thrust == null && lift == null && response.components.Length == 1 &&
+                IsVehicleName(response.name))
+            {
+                roll = new PhysicsPart
+                {
+                    type = "roll", activation = "button", angle_deg = 0,
+                    acceleration = 12f, duration_s = 8f, anchor_x = .5f, anchor_y = .1f
+                };
+                response.components = new[] { response.components[0], roll };
+                Debug.Log("[ThinkInk AI] " + response.name + ": support, roll (vehicle fallback)");
+            }
+            else Debug.Log("[ThinkInk AI] " + response.name + ": " +
+                string.Join(", ", Array.ConvertAll(response.components, p => p.type)));
 
             // Surface friction/restitution are attributes rather than separate components.
             surfaceMaterial = new PhysicsMaterial("ThinkInk temporary surface")
@@ -157,6 +194,19 @@ namespace CalHacks
             if (player == null || player.InputLocked || !HasButton) return false;
             if (player.IsRiding(this))
             {
+                // CharacterController marks the player as riding on ordinary contact.
+                // The FIRST E press must START a parked vehicle, not dismount it.
+                if (!everActivated && body != null &&
+                    (roll != null || thrust != null || lift != null || glide != null))
+                {
+                    if (Time.time < nextUseAt) return false;
+                    nextUseAt = Time.time + traits.cooldown_s;
+                    rider = player;
+                    player.BoardInvention(this, invention, 120f);
+                    BeginMotion();
+                    Debug.Log("[ThinkInk Vehicle] First E started " + (roll != null ? "ROLL" : "powered invention"));
+                    return true;
+                }
                 if (ToggleMode)
                 {
                     active = !active;
@@ -178,6 +228,7 @@ namespace CalHacks
 
             if (body != null || attach != null)
             {
+                Debug.Log("[ThinkInk Input] E activated " + (roll != null ? "ROLL" : "invention"));
                 // ATTACH is explicit for baskets/claws; existing rocket/skateboard
                 // handling is preserved so old inventions still ride on pressing E.
                 if (attach != null || thrust != null || lift != null || glide != null || roll != null || tether != null)
@@ -206,6 +257,7 @@ namespace CalHacks
                 {
                     // Brittle bridge/platform fails visibly under too much load.
                     Debug.Log("[ThinkInk] Overloaded invention collapsed");
+                    Subtitles.ShowNow("Too much weight! Draw a sturdier bridge.", 3.5f);
                     Destroy(gameObject);
                 }
             }
@@ -222,14 +274,21 @@ namespace CalHacks
             if (active && Time.time < poweredUntil && !ToggleMode && !HoldMode) return;
             active = true;
             everActivated = true;
+            poweredStartedAt = Time.time;
+            warnedWeakLift = false;
             body.isKinematic = false;
             body.useGravity = true;
             body.WakeUp();
             float duration = Mathf.Max(thrust != null ? thrust.duration_s : 0f,
                 Mathf.Max(lift != null ? lift.duration_s : 0f, roll != null ? roll.duration_s : 0f));
             if (duration <= 0f) duration = traits.duration_s;
+            // A normal car is not a short-fuse rocket: let the engine run long
+            // enough for the explorer to cross a level.
+            if (roll != null && thrust == null && lift == null)
+                duration = Mathf.Max(duration, 15f);
             // Preserve old rocket fuel duration; batteries alter newer powered modes.
-            float energyFactor = thrust != null ? 1f : Mathf.Lerp(.4f, 1f, traits.energy_capacity);
+            float energyFactor = (thrust != null || (roll != null && lift == null)) ? 1f :
+                Mathf.Lerp(.4f, 1f, traits.energy_capacity);
             poweredUntil = Time.time + duration * energyFactor;
             // Keep existing rocket feel: boosted rocket temporarily overcomes gravity.
             if (thrust != null && lift == null) body.useGravity = false;
@@ -243,6 +302,8 @@ namespace CalHacks
             {
                 active = false;
                 body.useGravity = true;
+                if (thrust != null && rider != null && rider.IsRiding(this))
+                    Subtitles.ShowNow("Out of fuel! Try a bigger booster or jump off.", 3.5f);
             }
             if (rider == null || !rider.IsRiding(this)) rider = null;
 
@@ -262,12 +323,33 @@ namespace CalHacks
                 float newtons = (body.mass + traits.carry_capacity_kg) * 9.81f +
                                 body.mass * lift.acceleration * .08f * traits.force;
                 body.AddForce(Vector3.up * newtons, ForceMode.Force);
+                if (powered)
+                {
+                    // Small, consistent horizontal movement makes bird drawings
+                    // useful for the Great Gap, without granting unlimited flight.
+                    float sign = Mathf.Cos(traits.direction_deg * Mathf.Deg2Rad) < -0.2f ? -1f : 1f;
+                    body.AddForce(Vector3.right * sign * Mathf.Lerp(1.5f, 3.2f, traits.speed),
+                        ForceMode.Acceleration);
+                    if (rider != null && !warnedWeakLift &&
+                        traits.carry_capacity_kg < DemoPlayerMassKg && Time.time - poweredStartedAt > 0.75f)
+                    {
+                        warnedWeakLift = true;
+                        Subtitles.ShowNow("The wings can't carry you! Try drawing a bigger bird.", 4f);
+                    }
+                }
             }
             if (powered && roll != null)
             {
-                float sign = (roll.angle_deg >= 90 || roll.angle_deg <= -90) ? -1f : 1f;
-                body.AddForce(Vector3.right * sign * roll.acceleration * traits.force,
-                    ForceMode.Acceleration);
+                float sign = Mathf.Cos(roll.angle_deg * Mathf.Deg2Rad) < 0f ? -1f : 1f;
+                float targetSpeed = sign * Mathf.Lerp(4.5f, 9f, traits.speed);
+                float acceleration = Mathf.Max(5f, roll.acceleration * Mathf.Max(.5f, traits.force));
+                // Irregular box colliders can have enormous friction/briefly lose
+                // ground contacts. Target horizontal velocity gives dependable
+                // motion while physics still handles gravity and collisions.
+                var velocity = body.linearVelocity;
+                velocity.x = Mathf.MoveTowards(velocity.x, targetSpeed,
+                    acceleration * Time.fixedDeltaTime);
+                body.linearVelocity = velocity;
             }
             if (glide != null && body.linearVelocity.y < -glide.launch_speed)
             {

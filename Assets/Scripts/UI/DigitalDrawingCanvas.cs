@@ -31,7 +31,7 @@ namespace CalHacks
         GUIStyle promptPlaceholderStyle;
         GUIStyle primaryButtonStyle;
         GUIStyle secondaryButtonStyle;
-        int intentMode; // Kept for backend compatibility; UI now relies on free-text intent.
+        Texture2D panelTexture, accentTexture, neutralButton, neutralHover, accentHover;
         string intentText = ""; // The creator's own words often disambiguate rough sketches.
         public string IntentHint => string.Empty;
         public string IntentMode => "auto";
@@ -76,6 +76,7 @@ namespace CalHacks
         public void Clear()
         {
             EnsureCanvas();
+            intentText = ""; // Do not carry one invention's intent into the next drawing.
             for (var i = 0; i < pixels.Length; i++) pixels[i] = White;
             Upload();
         }
@@ -156,6 +157,21 @@ namespace CalHacks
                     fixedHeight = 42
                 };
                 primaryButtonStyle = new GUIStyle(secondaryButtonStyle);
+                panelTexture = MakePixel(new Color(.065f, .11f, .18f, .98f));
+                accentTexture = MakePixel(new Color(.2f, .85f, .68f));
+                accentHover = MakePixel(new Color(.35f, .96f, .78f));
+                neutralButton = MakePixel(new Color(.27f, .34f, .42f));
+                neutralHover = MakePixel(new Color(.36f, .45f, .55f));
+                primaryButtonStyle.normal.background=accentTexture;
+                primaryButtonStyle.hover.background=accentHover;
+                primaryButtonStyle.active.background=accentHover;
+                primaryButtonStyle.normal.textColor=new Color(.04f,.13f,.17f);
+                primaryButtonStyle.hover.textColor=new Color(.04f,.13f,.17f);
+                secondaryButtonStyle.normal.background=neutralButton;
+                secondaryButtonStyle.hover.background=neutralHover;
+                secondaryButtonStyle.active.background=neutralHover;
+                secondaryButtonStyle.normal.textColor=Color.white;
+                secondaryButtonStyle.hover.textColor=Color.white;
             }
 
             GUI.depth = -100; // In front of the gameplay HUD.
@@ -164,19 +180,19 @@ namespace CalHacks
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = overlayColor;
 
-            var panelWidth = Mathf.Min(Screen.width - 48f, 1040f);
+            var panelWidth = Mathf.Min(Screen.width - 32f, 1060f);
             var panelX = (Screen.width - panelWidth) * 0.5f;
             var topMargin = 18f;
             var panelHeight = Mathf.Min(Screen.height - 28f, 860f);
             var panelRect = new Rect(panelX, topMargin, panelWidth, panelHeight);
-            GUI.Box(panelRect, GUIContent.none);
+            GUI.DrawTexture(panelRect, panelTexture);
+            GUI.DrawTexture(new Rect(panelRect.x, panelRect.y, 5f, panelRect.height), accentTexture);
 
             var innerX = panelRect.x + 18f;
             var innerW = panelRect.width - 36f;
-            GUI.Label(new Rect(innerX, panelRect.y + 10f, innerW, 28f), "THINKINK  |  DRAW AN INVENTION", titleStyle);
-            GUI.Label(new Rect(innerX, panelRect.y + 38f, innerW, 36f),
-                "Sketch in black. Add an optional one-line description so the AI understands what your invention is supposed to do.",
-                subtitleStyle);
+            GUI.Label(new Rect(innerX, panelRect.y + 10f, innerW, 28f), "THINKINK     /     INVENTION STATION", titleStyle);
+            GUI.Label(new Rect(innerX, panelRect.y + 39f, innerW, 28f),
+                "The puzzle is fixed. The solution isn't.  Draw something to get across the gap.", subtitleStyle);
 
             var maxWidth = Mathf.Max(220f, innerW);
             var maxHeight = Mathf.Max(150f, Screen.height - 310f);
@@ -186,7 +202,7 @@ namespace CalHacks
             var area = new Rect(panelRect.x + (panelRect.width - w) * 0.5f, panelRect.y + 78f, w, h);
 
             GUI.color = Color.white;
-            GUI.DrawTexture(new Rect(area.x - 4f, area.y - 4f, area.width + 8f, area.height + 8f), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(area.x - 5f, area.y - 5f, area.width + 10f, area.height + 10f), neutralButton);
             GUI.DrawTexture(area, canvas, ScaleMode.StretchToFill);
 
             var e = Event.current;
@@ -212,10 +228,9 @@ namespace CalHacks
             }
 
             var promptY = area.yMax + 16f;
-            GUI.Label(new Rect(innerX, promptY, innerW, 22f), "Optional prompt", sectionLabelStyle);
+            GUI.Label(new Rect(innerX, promptY, innerW, 22f), "WHAT SHOULD IT DO?    (OPTIONAL)", sectionLabelStyle);
             GUI.Label(new Rect(innerX, promptY + 22f, innerW, 18f),
-                "Examples: \"Carry me across the gap\", \"Swing me over\", \"Launch me up-right\".",
-                helperStyle);
+                "Try: 'A bird that carries me'  or  'A spring that launches me up-right'.", helperStyle);
 
             var promptRect = new Rect(innerX, promptY + 44f, innerW, 54f);
             intentText = GUI.TextArea(promptRect, intentText, 180, promptStyle);
@@ -228,23 +243,20 @@ namespace CalHacks
 
             var footerY = promptRect.yMax + 14f;
             GUI.Label(new Rect(innerX, footerY, innerW * 0.55f, 42f),
-                "Draw with left mouse. Press P to close/reopen. Press Enter or BUILD when ready.",
+                "LEFT-DRAG TO DRAW   ·   P TO CLOSE   ·   ENTER TO BUILD",
                 footerStyle);
 
-            var buttonWidth = 130f;
+            var buttonWidth = 158f;
             var gap = 12f;
             var buildRect = new Rect(panelRect.xMax - 18f - buttonWidth, footerY, buttonWidth, 42f);
-            var clearRect = new Rect(buildRect.x - gap - buttonWidth, footerY, buttonWidth, 42f);
+            var clearRect = new Rect(buildRect.x - gap - 100f, footerY, 100f, 42f);
 
             if (GUI.Button(clearRect, "Clear", secondaryButtonStyle)) Clear();
 
-            var oldBg = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.25f, 0.65f, 0.98f, 1f);
-            if (GUI.Button(buildRect, "BUILD", primaryButtonStyle))
+            if (GUI.Button(buildRect, "BRING TO LIFE", primaryButtonStyle))
             {
                 if (run != null) run.Cast();
             }
-            GUI.backgroundColor = oldBg;
         }
 
         Vector2Int ToPixel(Vector2 mouse, Rect area)
@@ -279,10 +291,18 @@ namespace CalHacks
             }
         }
 
+        static Texture2D MakePixel(Color color)
+        {
+            var t = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            t.SetPixel(0,0,color);
+            t.Apply();
+            return t;
+        }
+
         void OnDestroy()
         {
-            if (canvas == null) return;
-            Destroy(canvas);
+            foreach (var t in new[]{canvas,panelTexture,accentTexture,neutralButton,neutralHover,accentHover})
+                if (t != null) Destroy(t);
             canvas = null;
         }
     }

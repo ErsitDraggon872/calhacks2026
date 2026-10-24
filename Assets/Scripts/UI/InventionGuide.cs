@@ -2,64 +2,97 @@ using UnityEngine;
 
 namespace CalHacks
 {
-    /// <summary>On-screen instructions for the other player after an AI invention spawns.</summary>
+    /// <summary>Readable invention reveal after a successful DeerAI interpretation.</summary>
     public sealed class InventionGuide : MonoBehaviour
     {
         static InventionGuide instance;
-        string title, description, action;
-        float endsAt;
+        string inventionName, description, action, abilities;
+        float shownUntil;
         bool visible;
-        GUIStyle titleStyle, textStyle, actionStyle;
+        GUIStyle kickerStyle, nameStyle, descriptionStyle, actionStyle, buttonStyle;
+        Texture2D background, buttonBackground, buttonHover, rule;
 
         public static void Show(InterpretResponse spec)
         {
             if (instance == null || spec == null) return;
-            instance.title = "YOU MADE: " + (spec.name ?? "invention").ToUpperInvariant();
-            instance.description = spec.message ?? "";
-            bool button = false, bounce = false, flying = false, tethered = false;
+            instance.inventionName=(spec.name ?? "invention").ToUpperInvariant();
+            instance.description=spec.message ?? "";
+            bool powered=false, bounce=false, lift=false;
+            var tags=new System.Collections.Generic.List<string>();
             if (spec.components != null)
-            foreach (var part in spec.components)
-            {
-                if (part == null) continue;
-                if (part.activation == "button" || part.activation == "hold" || part.activation == "toggle") button = true;
-                if (part.type == "bounce") bounce = true;
-                if (part.type == "lift" || part.type == "glide") flying = true;
-                if (part.type == "tether") tethered = true;
-            }
-            instance.action = button ? "GET CLOSE + PRESS E TO USE  |  SPACE TO JUMP OFF" :
-                bounce ? "LAND ON IT TO BOUNCE" : flying ? "RIDE TO FLY OR GLIDE" :
-                tethered ? "GET ON AND SWING" : "JUMP ON OR WALK ACROSS IT";
-            if (spec.attributes != null && flying && spec.attributes.carry_capacity_kg < InventionPhysics.DemoPlayerMassKg)
-                instance.action = "LOW CARRY CAPACITY: IT MAY FALL WITH YOU!";
-            instance.endsAt = Time.unscaledTime + 12f;
-            instance.visible = true;
+                foreach (var part in spec.components)
+                {
+                    if (part == null || part.type == "support") continue;
+                    tags.Add(part.type.ToUpperInvariant());
+                    powered |= part.activation == "button" || part.activation == "hold" || part.activation == "toggle";
+                    bounce |= part.type == "bounce";
+                    lift |= part.type == "lift";
+                }
+            instance.abilities = tags.Count > 0 ? string.Join("  +  ",tags) : "SOLID SHAPE";
+            instance.action = powered ? "EXPLORER  ·  GET CLOSE + PRESS E  /  SPACE TO JUMP OFF" :
+                bounce ? "EXPLORER  ·  LAND ON IT TO BOUNCE" : "EXPLORER  ·  WALK ON OR JUMP ON IT";
+            if (lift && spec.attributes != null &&
+                spec.attributes.carry_capacity_kg < InventionPhysics.DemoPlayerMassKg)
+                instance.action="EXPLORER  ·  SMALL WINGS MAY NOT CARRY YOUR WEIGHT";
+            instance.shownUntil=Time.unscaledTime+10f;
+            instance.visible=true;
         }
 
-        public static void Close() { if (instance != null) instance.visible = false; }
-        void Awake() { instance = this; }
-        void OnDestroy() { if (instance == this) instance = null; }
+        public static void Close() { if (instance != null) instance.visible=false; }
+        void Awake() { instance=this; }
+        void OnDestroy()
+        {
+            if (instance==this) instance=null;
+            foreach (var t in new[]{background,buttonBackground,buttonHover,rule})
+                if (t!=null) Destroy(t);
+        }
+
         void OnGUI()
         {
             if (!visible) return;
-            if (Time.unscaledTime > endsAt) { visible = false; return; }
-            if (titleStyle == null)
-            {
-                titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 19, fontStyle = FontStyle.Bold,
-                    alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-                textStyle = new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.MiddleCenter,
-                    wordWrap = true, normal = { textColor = Color.white } };
-                actionStyle = new GUIStyle(textStyle) { fontSize = 16, fontStyle = FontStyle.Bold,
-                    normal = { textColor = new Color(1f, 0.86f, 0.42f) } };
-            }
-            GUI.depth = -170;
-            float w = Mathf.Min(530f, Screen.width - 32f);
-            var rect = new Rect((Screen.width - w) * 0.5f, Mathf.Max(60f, Screen.height * .12f), w, 172f);
-            GUI.Box(rect, GUIContent.none);
-            GUI.Label(new Rect(rect.x + 12, rect.y + 8, w - 24, 34), title, titleStyle);
-            GUI.Label(new Rect(rect.x + 16, rect.y + 40, w - 32, 51), description, textStyle);
-            GUI.Label(new Rect(rect.x + 12, rect.y + 92, w - 24, 32), action, actionStyle);
-            if (GUI.Button(new Rect(rect.x + w / 2 - 55, rect.y + 131, 110, 32), "GOT IT"))
-                visible = false;
+            if (Time.unscaledTime>shownUntil) {visible=false;return;}
+            EnsureStyle();
+            GUI.depth=-170;
+            float w=Mathf.Min(580f,Screen.width-28f);
+            float h=192f;
+            var box=new Rect((Screen.width-w)*.5f, Mathf.Max(132,Screen.height*.16f),w,h);
+            GUI.DrawTexture(box,background);
+            GUI.Label(new Rect(box.x+22,box.y+11,w-44,21),"✦  INVENTION BROUGHT TO LIFE",kickerStyle);
+            GUI.Label(new Rect(box.x+22,box.y+35,w-44,33),inventionName,nameStyle);
+            GUI.Label(new Rect(box.x+22,box.y+70,w-44,19),abilities,kickerStyle);
+            GUI.Label(new Rect(box.x+22,box.y+93,w-44,40),description,descriptionStyle);
+            GUI.DrawTexture(new Rect(box.x+20,box.y+137,w-40,1),rule);
+            GUI.Label(new Rect(box.x+21,box.y+144,w-155,35),action,actionStyle);
+            if (GUI.Button(new Rect(box.x+w-120,box.y+150,98,29),"LET'S PLAY",buttonStyle))
+                visible=false;
+        }
+        static Texture2D Solid(Color c)
+        {
+            var t=new Texture2D(1,1,TextureFormat.RGBA32,false);
+            t.SetPixel(0,0,c);t.Apply();return t;
+        }
+        void EnsureStyle()
+        {
+            if (nameStyle != null) return;
+            background=Solid(new Color(.07f,.12f,.19f,.97f));
+            buttonBackground=Solid(new Color(.2f,.77f,.63f));
+            buttonHover=Solid(new Color(.33f,.91f,.76f));
+            rule=Solid(new Color(.30f,.40f,.46f));
+            kickerStyle=new GUIStyle(GUI.skin.label) {fontSize=12,fontStyle=FontStyle.Bold,
+                normal={textColor=new Color(.45f,.94f,.78f)}};
+            nameStyle=new GUIStyle(GUI.skin.label){fontSize=25,fontStyle=FontStyle.Bold,
+                normal={textColor=Color.white}};
+            descriptionStyle=new GUIStyle(GUI.skin.label) {fontSize=14,wordWrap=true,
+                normal={textColor=new Color(.90f,.93f,.96f)}};
+            actionStyle=new GUIStyle(GUI.skin.label) {fontSize=12,fontStyle=FontStyle.Bold,
+                wordWrap=true,normal={textColor=new Color(1f,.83f,.46f)}};
+            buttonStyle=new GUIStyle(GUI.skin.button) {fontSize=12,fontStyle=FontStyle.Bold,
+                alignment=TextAnchor.MiddleCenter};
+            buttonStyle.normal.background=buttonBackground;
+            buttonStyle.hover.background=buttonHover;
+            buttonStyle.active.background=buttonHover;
+            buttonStyle.normal.textColor=new Color(.05f,.12f,.17f);
+            buttonStyle.hover.textColor=new Color(.05f,.12f,.17f);
         }
     }
 }

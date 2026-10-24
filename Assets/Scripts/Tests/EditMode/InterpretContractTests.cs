@@ -25,11 +25,30 @@ namespace CalHacks.Tests
         }
 
         [Test]
-        public void RejectedDoesNotSpawn()
+        public void RejectedPowerStillSpawnsAsSupport()
         {
             var result = new InterpretResponse { status = "rejected", message = "Try drawing a spring.", components = new[] {new PhysicsPart{type="support"}}};
-            Assert.That(InterpretContract.Validate(result, out var error), Is.False);
-            Assert.That(error, Does.Contain("spring"));
+            Assert.That(InterpretContract.Validate(result, out var error), Is.True, error);
+            Assert.That(result.status, Is.EqualTo("ok"));
+            Assert.That(result.components.Length, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void InappropriateDrawingIsStillRejected()
+        {
+            var response = new InterpretResponse { status = "rejected", message = "Try drawing a tool.",
+                components = new[] { new PhysicsPart { type = "support" } } };
+            Assert.That(InterpretContract.Validate(response, out _), Is.False);
+        }
+
+        [Test]
+        public void VehiclesMatchWholeWordsOnly()
+        {
+            Assert.IsTrue(InventionPhysics.IsVehicleName("rocket car"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("go-kart"));
+            Assert.IsTrue(InventionPhysics.IsVehicleName("skateboard"));
+            Assert.IsFalse(InventionPhysics.IsVehicleName("cartoon bird"));
+            Assert.IsFalse(InventionPhysics.IsVehicleName("flying carpet"));
         }
 
         [Test]

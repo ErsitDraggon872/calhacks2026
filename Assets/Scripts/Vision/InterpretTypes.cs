@@ -102,11 +102,23 @@ namespace CalHacks
         {
             error = null;
             if (response == null) { error = "Empty AI response"; return false; }
-            if (response.status != "ok")
+            if (string.Equals(response.status, "rejected", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals((response.message ?? "").Trim(), "Try drawing a tool.", StringComparison.OrdinalIgnoreCase) &&
+                response.components != null && response.components.Length > 0 &&
+                response.components[0] != null &&
+                string.Equals(response.components[0].type, "support", StringComparison.OrdinalIgnoreCase))
+            {
+                // Unsupported special power != forbidden cutout. Preserve the
+                // original drawing as a physical shape, without fantasy powers.
+                response.status = "ok";
+                response.components = new[] { response.components[0] };
+            }
+            if (!string.Equals(response.status, "ok", StringComparison.OrdinalIgnoreCase))
             {
                 error = string.IsNullOrWhiteSpace(response.message) ? "AI could not interpret this drawing. Try again." : response.message;
                 return false;
             }
+            response.status = "ok";
             if (response.components == null || response.components.Length == 0)
             {
                 error = "AI response has no physics components";
