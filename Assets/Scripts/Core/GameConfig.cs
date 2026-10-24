@@ -36,6 +36,11 @@ namespace CalHacks
         [Tooltip("Seconds between GET /health polls while the debug overlay is open.")]
         public float healthPollInterval = 3f;
 
+        [Header("Display")]
+        [Tooltip("Frame rate cap (Application.targetFrameRate). Uncapped, a maximized Game view or fullscreen build " +
+                 "pins the machine and starves the webcam, which then stalls and blocks the main thread for seconds.")]
+        public int targetFrameRate = 60;
+
         [Header("Webcam")]
         [Tooltip("WebCamTexture device name. Empty: the first USB webcam (never the integrated or a virtual camera). " +
                  "A build can override with -camera=<name>.")]

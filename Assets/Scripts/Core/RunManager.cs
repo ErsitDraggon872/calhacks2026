@@ -72,6 +72,7 @@ namespace CalHacks
             Instance = this;
             if (config == null) config = Resources.Load<GameConfig>("GameConfig");
             if (config == null) config = ScriptableObject.CreateInstance<GameConfig>();
+            Application.targetFrameRate = config.targetFrameRate;
 
             switch (config.ResolveCaptureSource())
             {
