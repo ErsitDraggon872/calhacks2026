@@ -151,6 +151,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "BuildGhost",
+                    "type": "Button",
+                    "id": "4e0b8f6a-2c1d-4f7e-9a3b-6d5c8e1f2a70",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Jump",
                     "type": "Button",
                     "id": "248acb94-f79f-45f8-8077-04e00dfc376f",
@@ -664,6 +673,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "CameraPreview",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9c2a7e41-5b3f-4d86-8e0a-1f7b3c5d9e24",
+                    "path": "<Keyboard>/g",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "BuildGhost",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

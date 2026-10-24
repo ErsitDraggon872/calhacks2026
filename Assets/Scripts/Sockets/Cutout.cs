@@ -24,18 +24,10 @@ namespace CalHacks
         public static Cutout Create(Texture2D texture, bool ownsTexture, Material baseMaterial, Transform anchor,
             Vector2 span, bool faceCamera, Transform parent)
         {
-            var aspect = texture.height > 0 ? (float)texture.width / texture.height : 1f;
-            var width = span.x;
-            var height = width / aspect;
-            if (height > span.y)
-            {
-                height = span.y;
-                width = height * aspect;
-            }
-
+            var size = InventionPlacement.FitInside(texture.width, texture.height, span);
             var yaw = anchor.eulerAngles.y;
             if (faceCamera && Camera.main != null) yaw = Camera.main.transform.eulerAngles.y;
-            return Create(texture, ownsTexture, baseMaterial, anchor.position, yaw, new Vector2(width, height), parent);
+            return Create(texture, ownsTexture, baseMaterial, anchor.position, yaw, size, parent);
         }
 
         /// <summary>Builds a cutout of exactly <paramref name="size"/> (stretching the drawing if needed) standing on <paramref name="bottomCentre"/>.</summary>
@@ -62,19 +54,6 @@ namespace CalHacks
             go.transform.localScale = Vector3.zero;
             cutout.StartCoroutine(cutout.PopIn());
             return cutout;
-        }
-
-        /// <summary>Adds a second face of the same drawing <paramref name="offset"/> metres along the cutout's forward.</summary>
-        public void AddParallelFace(float offset)
-        {
-            var face = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            face.name = "Face";
-            Destroy(face.GetComponent<Collider>());
-            face.transform.SetParent(transform, false);
-            face.transform.localPosition = new Vector3(0f, 0f, offset);
-            var renderer = face.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         }
 
         IEnumerator PopIn()

@@ -40,6 +40,64 @@ namespace CalHacks.EditorTools
             UnityEngine.Object.DestroyImmediate(tex);
         }
 
+        /// <summary>Player B: a paper explorer facing right (hat, backpack). Black ink on transparent; the caller destroys it.</summary>
+        public static Texture2D Character()
+        {
+            var k = new Ink(512, 512, 42);
+            k.Arc(256, 380, 62, 62, 0, 360);                  // head
+            k.Dot(282, 392, 10);                               // eye, looking right
+            k.Arc(270, 362, 22, 12, 200, 330);                 // smile
+            k.Line(176, 432, 336, 432);                        // hat brim
+            k.Poly(200, 432, 212, 490, 300, 490, 312, 432);    // hat crown
+            k.Line(256, 318, 256, 170);                        // body
+            k.Poly(250, 300, 196, 300, 196, 200, 250, 200);    // backpack
+            k.Line(256, 270, 330, 225);                        // front arm
+            k.Line(256, 270, 214, 222);                        // back arm
+            k.Line(256, 170, 214, 60);                         // legs
+            k.Line(256, 170, 300, 60);
+            k.Line(300, 60, 334, 60);                          // feet point the way B faces
+            k.Line(214, 60, 248, 60);
+            return k.ToCroppedTexture(12);
+        }
+
+        /// <summary>
+        /// Dashed "draw here" outline with a pencil in the middle, in white ink (tint it with the material).
+        /// <paramref name="width"/> x <paramref name="height"/> pixels; the caller destroys it.
+        /// </summary>
+        public static Texture2D DrawHereOutline(int width, int height)
+        {
+            var k = new Ink(width, height, 99);
+            const float inset = 16f;
+            const float dash = 44f;
+            const float gap = 26f;
+            Dashes(k, inset, inset, width - inset, inset, dash, gap);
+            Dashes(k, width - inset, inset, width - inset, height - inset, dash, gap);
+            Dashes(k, width - inset, height - inset, inset, height - inset, dash, gap);
+            Dashes(k, inset, height - inset, inset, inset, dash, gap);
+
+            var cx = width * 0.5f;
+            var cy = height * 0.5f;
+            k.Line(cx - 70, cy - 70, cx + 60, cy + 60);        // pencil body
+            k.Line(cx - 40, cy - 100, cx + 90, cy + 30);
+            k.Line(cx + 60, cy + 60, cx + 90, cy + 30);        // end
+            k.Line(cx - 70, cy - 70, cx - 100, cy - 130);      // tip
+            k.Line(cx - 40, cy - 100, cx - 100, cy - 130);
+            return k.ToCroppedTexture(0, new Color32(255, 255, 255, 255));
+        }
+
+        static void Dashes(Ink k, float x0, float y0, float x1, float y1, float dash, float gap)
+        {
+            var length = Mathf.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+            if (length < 1f) return;
+            var dx = (x1 - x0) / length;
+            var dy = (y1 - y0) / length;
+            for (var d = 0f; d < length; d += dash + gap)
+            {
+                var e = Mathf.Min(length, d + dash);
+                k.Line(x0 + dx * d, y0 + dy * d, x0 + dx * e, y0 + dy * e);
+            }
+        }
+
         static void Bridge(Ink k)
         {
             k.Line(30, 250, 482, 250);
@@ -178,7 +236,9 @@ namespace CalHacks.EditorTools
                 }
             }
 
-            public Texture2D ToCroppedTexture(int pad)
+            public Texture2D ToCroppedTexture(int pad) => ToCroppedTexture(pad, new Color32(22, 22, 28, 255));
+
+            public Texture2D ToCroppedTexture(int pad, Color32 ink)
             {
                 int minX = w, minY = h, maxX = -1, maxY = -1;
                 for (var y = 0; y < h; y++)
@@ -199,7 +259,7 @@ namespace CalHacks.EditorTools
                 var pixels = new Color32[cw * ch];
                 for (var y = 0; y < ch; y++)
                 for (var x = 0; x < cw; x++)
-                    pixels[y * cw + x] = new Color32(22, 22, 28, alpha[(y + minY) * w + x + minX]);
+                    pixels[y * cw + x] = new Color32(ink.r, ink.g, ink.b, alpha[(y + minY) * w + x + minX]);
                 var tex = new Texture2D(cw, ch, TextureFormat.RGBA32, false);
                 tex.SetPixels32(pixels);
                 tex.Apply();

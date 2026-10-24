@@ -9,7 +9,9 @@ using UnityEngine.InputSystem.Controls;
 namespace CalHacks
 {
     /// <summary>
-    /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, checkpoints, reset and win.
+    /// Owns the run: run_id, timer, BUILD cooldown, socket binding, vision requests, free builds, checkpoints, reset and win.
+    /// BUILD next to an unsolved socket hands the drawing to that socket; anywhere else it becomes a free-standing
+    /// <see cref="Invention"/> just in front of the explorer.
     /// </summary>
     public class RunManager : MonoBehaviour
     {
@@ -17,8 +19,13 @@ namespace CalHacks
 
         [SerializeField] GameConfig config;
         [SerializeField] PlayerController player;
-        [SerializeField] IsoCameraFollow cameraFollow;
+        [SerializeField] CameraFollow cameraFollow;
         [SerializeField] Transform startPoint;
+        [Tooltip("Base material for free-built inventions (the Cutout material).")]
+        [SerializeField] Material inventionMaterial;
+
+        /// <summary>socket_id sent with a capture that isn't for any socket.</summary>
+        public const string FreeBuildId = "free";
 
         IVisionClient vision;
         MockVisionClient mock;
@@ -28,6 +35,8 @@ namespace CalHacks
         CancellationTokenSource runCts = new CancellationTokenSource();
         CancellationTokenSource requestCts;
         PuzzleSocket boundSocket;
+        readonly List<Invention> inventions = new List<Invention>();
+        Transform inventionRoot;
         Checkpoint currentCheckpoint;
         Vector3 startPosition;
         Quaternion startRotation;
@@ -41,6 +50,8 @@ namespace CalHacks
         public float FinalTime { get; private set; }
         public bool OverlayVisible { get; private set; }
         public bool PreviewVisible { get; private set; }
+        /// <summary>The build ghost outline in free-build hint zones. On by default; G toggles.</summary>
+        public bool BuildGhostVisible { get; private set; } = true;
         public string VisionName => vision?.Name ?? "-";
         public string LastProvider { get; private set; }
         public float LastLatencyMs { get; private set; } = -1f;
@@ -56,12 +67,14 @@ namespace CalHacks
             ? "-"
             : string.Join(", ", sockets.Select(s => $"{s.SocketId} {(s.Solved ? "✓" : "·")}"));
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
+        public int InventionCount => inventions.Count;
 
         void Awake()
         {
             Instance = this;
             if (config == null) config = Resources.Load<GameConfig>("GameConfig");
             if (config == null) config = ScriptableObject.CreateInstance<GameConfig>();
+            Application.targetFrameRate = config.targetFrameRate;
 
             switch (config.ResolveCaptureSource())
             {
@@ -85,7 +98,8 @@ namespace CalHacks
             checkpoints = FindObjectsByType<Checkpoint>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             hints = FindObjectsByType<HintZone>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (player == null) player = FindFirstObjectByType<PlayerController>();
-            if (cameraFollow == null) cameraFollow = FindFirstObjectByType<IsoCameraFollow>();
+            if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
+            inventionRoot = new GameObject("Inventions").transform;
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
@@ -103,6 +117,7 @@ namespace CalHacks
             Bind(GameInput.ManualReject, _ => ManualReject());
             Bind(GameInput.DebugOverlay, _ => OverlayVisible = !OverlayVisible);
             Bind(GameInput.CameraPreview, _ => PreviewVisible = !PreviewVisible);
+            Bind(GameInput.BuildGhost, _ => BuildGhostVisible = !BuildGhostVisible);
             Bind(GameInput.Recalibrate, _ => Recalibrate());
             Bind(GameInput.MockPick, control => PickMockDrawing(control as KeyControl));
         }
@@ -162,13 +177,8 @@ namespace CalHacks
                     return;
             }
 
+            // An unsolved socket in range gets the drawing (that's how the gap snaps it across itself); otherwise it's a free build.
             var socket = NearestInRange();
-            if (socket == null)
-            {
-                Subtitles.ShowNow("Walk to an obstacle.");
-                return;
-            }
-
             var runId = State.RunId;
             boundSocket = socket;
             State.BeginRequest();
@@ -176,11 +186,11 @@ namespace CalHacks
             var ct = requestCts.Token;
             var request = new CaptureRequest
             {
-                socket_id = socket.SocketId,
+                socket_id = socket != null ? socket.SocketId : FreeBuildId,
                 run_id = runId,
-                accepted_labels = socket.AcceptedLabels ?? Array.Empty<string>(),
+                accepted_labels = socket != null && socket.AcceptedLabels != null ? socket.AcceptedLabels : Array.Empty<string>(),
             };
-            Debug.Log($"[Run] CAST run_id={runId} socket={socket.SocketId}");
+            Debug.Log($"[Run] CAST run_id={runId} socket={request.socket_id}");
 
             try
             {
@@ -207,6 +217,14 @@ namespace CalHacks
                 if (paper == null)
                 {
                     FailRequest("could not decode png_base64");
+                    return;
+                }
+
+                if (socket == null)
+                {
+                    // Free build. Labels are ignored for now: every invention is a Support.
+                    State.EndRequest();
+                    if (PlaceInvention(paper)) State.StartCooldown(config.buildCooldown);
                     return;
                 }
 
@@ -241,6 +259,94 @@ namespace CalHacks
                 Debug.LogException(e);
                 if (State.IsCurrent(runId)) FailRequest(e.Message);
             }
+        }
+
+        /// <summary>
+        /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
+        /// front of them on the side they face, moved out of the level's geometry. False if nothing was built.
+        /// </summary>
+        bool PlaceInvention(Texture2D paper)
+        {
+            if (player == null || inventionMaterial == null)
+            {
+                if (inventionMaterial == null) Debug.LogError("[Run] RunManager has no Invention Material; run Game/Build Assets.");
+                Destroy(paper);
+                return false;
+            }
+            var feet = player.transform.position;
+            var slot = BuildSlot.At(feet);
+            var box = slot != null ? slot.Box : config.inventionSize;
+            var depth = slot != null ? slot.Depth : config.inventionDepth;
+            var size = InventionPlacement.FitInside(paper.width, paper.height, box);
+            Vector3 bottom;
+            if (slot != null)
+            {
+                bottom = slot.BottomCentreFor(size);
+                RemoveInvention(slot.Occupant);
+            }
+            else
+            {
+                bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
+                var build = InventionPlacement.BuildBounds(bottom, size, depth);
+                if (!InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift))
+                {
+                    Destroy(paper);
+                    Subtitles.ShowNow("No room to build here!");
+                    return false;
+                }
+                bottom += shift;
+            }
+
+            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
+            inventions.Add(invention);
+            if (slot != null) slot.Occupant = invention;
+            LiftPlayerOnto(invention);
+            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
+            return true;
+        }
+
+        /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
+        List<Bounds> ObstaclesAround(Bounds build)
+        {
+            var reach = InventionPlacement.MaxShift + 1f;
+            var hits = Physics.OverlapBox(build.center, build.extents + new Vector3(reach, 1f, reach), Quaternion.identity,
+                Physics.AllLayers, QueryTriggerInteraction.Ignore);
+            var obstacles = new List<Bounds>(hits.Length);
+            foreach (var hit in hits)
+            {
+                if (hit.GetComponentInParent<PlayerController>() == null) obstacles.Add(hit.bounds);
+            }
+            return obstacles;
+        }
+
+        /// <summary>If the new build appeared around the explorer (a slot build where they stand), puts them on top of it.</summary>
+        void LiftPlayerOnto(Invention invention)
+        {
+            Physics.SyncTransforms();
+            var body = player.GetComponent<Collider>();
+            if (body == null) return;
+            var top = InventionPlacement.LiftTo(body.bounds,
+                invention.GetComponentsInChildren<BoxCollider>().Select(box => box.bounds));
+            if (top == null) return;
+            var feet = player.transform.position;
+            player.Teleport(new Vector3(feet.x, top.Value + 0.05f, feet.z),
+                Quaternion.LookRotation(Vector3.right * player.FacingSign));
+        }
+
+        void RemoveInvention(Invention invention)
+        {
+            if (invention == null) return;
+            inventions.Remove(invention);
+            Destroy(invention.gameObject);
+        }
+
+        void ClearInventions()
+        {
+            foreach (var invention in inventions)
+            {
+                if (invention != null) Destroy(invention.gameObject);
+            }
+            inventions.Clear();
         }
 
         void ApplyLabel(PuzzleSocket socket, string label)
@@ -373,7 +479,7 @@ namespace CalHacks
 
         // ---- Run flow -----------------------------------------------------------------------------------
 
-        /// <summary>F5: new run_id, cancel pending waits, restore every socket and the explorer.</summary>
+        /// <summary>F5: new run_id, cancel pending waits, restore every socket, remove free builds, reset the explorer and the camera.</summary>
         public void ResetRun()
         {
             runCts.Cancel();
@@ -386,6 +492,7 @@ namespace CalHacks
             FinalTime = 0f;
 
             foreach (var socket in sockets) socket.ResetSocket();
+            ClearInventions();
             foreach (var checkpoint in checkpoints) checkpoint.SetReached(false);
             foreach (var hint in hints) hint.ResetHint();
             if (player != null)
@@ -393,7 +500,11 @@ namespace CalHacks
                 player.InputLocked = false;
                 player.Teleport(startPosition, startRotation);
             }
-            if (cameraFollow != null) cameraFollow.Snap();
+            if (cameraFollow != null)
+            {
+                cameraFollow.SetFraming(CameraFraming.Tight, true);
+                cameraFollow.Snap();
+            }
             Subtitles.Clear();
             Debug.Log($"[Run] Reset. run_id={runId}");
         }
@@ -401,10 +512,13 @@ namespace CalHacks
         public void ReachCheckpoint(Checkpoint checkpoint)
         {
             if (currentCheckpoint == checkpoint) return;
+            var first = currentCheckpoint == null;
             if (currentCheckpoint != null) currentCheckpoint.SetReached(false);
             currentCheckpoint = checkpoint;
             checkpoint.SetReached(true);
             Subtitles.Show("Checkpoint!", 1.5f);
+            // The run's first checkpoint is where the world opens up: zoom out to show it, then back in.
+            if (first && cameraFollow != null) cameraFollow.Reveal();
         }
 
         void Respawn()

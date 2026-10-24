@@ -53,6 +53,7 @@ MonoBehaviour:
   player: {fileID: 0}
   cameraFollow: {fileID: 0}
   startPoint: {fileID: 0}
+  inventionMaterial: {fileID: 2100000, guid: f88dd37e155ed4d47ae5693e7dfd3845, type: 2}
 --- !u!114 &4708445664963245086
 MonoBehaviour:
   m_ObjectHideFlags: 0
