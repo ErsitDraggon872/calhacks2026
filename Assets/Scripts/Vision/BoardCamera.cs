@@ -31,6 +31,8 @@ namespace CalHacks
         public bool PreviewWanted { get; set; }
         /// <summary>The latest upright frame, while <see cref="PreviewWanted"/>. Null until one arrives.</summary>
         public Texture2D Preview => preview;
+        /// <summary>The whiteboard inside each frame (GameConfig.boardCrop), normalized, origin bottom-left.</summary>
+        public Rect Crop => config.boardCrop;
 
         /// <summary>The camera is delivering frames right now, not merely opened.</summary>
         public bool HasFreshFrame => webcam != null && !disconnected && webcam.isPlaying &&
@@ -45,14 +47,22 @@ namespace CalHacks
 
         void Start()
         {
-            // Only the Webcam source uses it. With Service the Python process owns the webcam (Windows usually lets
-            // only one process open it); with Mock there is no hardware at all.
+            // The Webcam source opens it at once; DigitalBoard opens it on the first M (RunManager.SwitchInput). With
+            // Service the Python process owns the webcam (Windows usually lets only one process open it); with Mock
+            // there is no hardware at all.
             var source = config.ResolveCaptureSource();
             if (source != CaptureSource.Webcam)
             {
-                Status = $"disabled (capture source: {source})";
+                Status = $"off (capture source: {source})";
                 return;
             }
+            Activate();
+        }
+
+        /// <summary>Opens the webcam (and keeps looking for it until it's plugged in). It stays open from then on.</summary>
+        public void Activate()
+        {
+            if (wanted) return;
             wanted = true;
             Open();
         }

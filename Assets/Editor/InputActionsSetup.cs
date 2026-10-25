@@ -32,6 +32,7 @@ namespace CalHacks.EditorTools
             Add(map, "ManualReject", "<Keyboard>/f2");
             Add(map, "DebugOverlay", "<Keyboard>/f3");
             Add(map, "Recalibrate", "<Keyboard>/f9");
+            Add(map, "SwitchInput", "<Keyboard>/m");
             Add(map, "MockPick", "<Keyboard>/1", "<Keyboard>/2", "<Keyboard>/3", "<Keyboard>/4", "<Keyboard>/5", "<Keyboard>/0");
 
             File.WriteAllText(AssetPath, asset.ToJson());

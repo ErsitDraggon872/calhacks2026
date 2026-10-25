@@ -9,7 +9,7 @@ namespace CalHacks
         const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
         const string Reading = "AI is reading your drawing...";
 
-        GUIStyle small, big, sign, keyLabel;
+        GUIStyle small, big, sign, keyLabel, inputLabel;
         Texture2D panel, barBack, barFill, barReady, keyCap;
 
         public static string FormatTime(float seconds)
@@ -28,6 +28,7 @@ namespace CalHacks
             var width = Screen.width / scale;
 
             GUI.Label(new Rect(30f, 20f, 400f, 60f), FormatTime(run.State.Elapsed), small);
+            if (run.InputName != null) GUI.Label(new Rect(30f, 74f, 400f, 36f), $"Input: {run.InputName}  ·  M", inputLabel);
 
             var signRect = new Rect((width - 1100f) * 0.5f, 18f, 1100f, 54f);
             GUI.DrawTexture(signRect, panel);
@@ -111,6 +112,7 @@ namespace CalHacks
             barReady = Solid(new Color(0.3f, 0.85f, 0.4f, 0.95f));
             keyCap = Solid(new Color(1f, 0.62f, 0.15f, 0.95f));
             keyLabel = new GUIStyle(sign) { fontSize = 38, fontStyle = FontStyle.Bold };
+            inputLabel = new GUIStyle(small) { fontSize = 24, fontStyle = FontStyle.Normal };
         }
 
         void OnDestroy()

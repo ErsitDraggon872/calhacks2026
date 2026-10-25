@@ -39,7 +39,7 @@ namespace CalHacks
                     : $"Health: camera {(h.camera ? "ok" : "DOWN")}, calibrated {(h.calibrated ? "yes" : "NO")}, provider {h.provider} {(h.provider_reachable ? "reachable" : "UNREACHABLE")}");
             if (run.MockNext != null) sb.AppendLine($"Mock next: {run.MockNext}   (keys 1-5 pick, 0 = empty board)");
             if (!string.IsNullOrEmpty(run.LastError)) sb.AppendLine($"Last error: {run.LastError}");
-            sb.Append("F1 accept · F2 reject · F3 overlay · F5 reset · F9 recalibrate");
+            sb.Append("F1 accept · F2 reject · F3 overlay · F5 reset · F9 recalibrate" + (run.CanSwitchInput ? " · M switch input" : ""));
 
             var content = new GUIContent(sb.ToString());
             var rect = new Rect(20f, 90f, 980f, style.CalcHeight(content, 940f) + 30f);
