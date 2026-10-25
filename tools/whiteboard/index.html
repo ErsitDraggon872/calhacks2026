@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ThinkInk test whiteboard (Creator)</title>
 <!--
   A second "device" for testing co-op: plays the Creator from a browser tab. Click and drag to draw; strokes go to
@@ -14,15 +15,36 @@
   Talks to SpacetimeDB over its HTTP API only, so it's one file with no build step.
 -->
 <style>
-  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #2b2520; color: #f4efe8; }
+  /* --chrome: the height of everything but the canvas, so the whole page fits the screen on a tablet or phone. */
+  :root { --chrome: 170px; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #2b2520; color: #f4efe8;
+         overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   header { display: flex; gap: 24px; align-items: center; padding: 12px 20px; flex-wrap: wrap; }
   #code { font-size: 32px; font-weight: 700; letter-spacing: 4px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d55; margin-right: 6px; }
   .dot.on { background: #5d5; }
   main { padding: 0 20px 20px; }
-  canvas { background: #fff; border-radius: 6px; cursor: crosshair; touch-action: none; display: block; max-width: 100%; }
+  /* Drawing maps touches through the canvas's on-screen size (norm()), so it can be shown smaller than 960×540. */
+  canvas { background: #fff; border-radius: 6px; cursor: crosshair; touch-action: none; display: block; height: auto;
+           -webkit-touch-callout: none;
+           width: min(960px, 100%, calc((100vh - var(--chrome)) * 16 / 9));
+           width: min(960px, 100%, calc((100dvh - var(--chrome)) * 16 / 9)); }
   .bar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
-  button { font: inherit; font-weight: 600; padding: 8px 18px; border: 0; border-radius: 6px; cursor: pointer; }
+  /* Without a color, iOS Safari draws button text in its blue tint. */
+  button { font: inherit; font-weight: 600; padding: 8px 18px; border: 0; border-radius: 6px; cursor: pointer;
+           color: #1d1a17; -webkit-appearance: none; appearance: none; touch-action: manipulation; }
+  /* Fingers on a tablet: as big as the screen allows, not capped at 960 like a desktop window. */
+  @media (pointer: coarse) {
+    canvas { width: min(100%, calc((100vh - var(--chrome)) * 16 / 9));
+             width: min(100%, calc((100dvh - var(--chrome)) * 16 / 9)); }
+  }
+  @media (max-height: 820px) {
+    :root { --chrome: 132px; }
+    header { gap: 16px; padding: 6px 16px; }
+    #code { font-size: 24px; letter-spacing: 3px; }
+    main { padding: 0 16px 6px; }
+    .bar { margin: 8px 0 4px; }
+  }
   #build { background: #f0a030; } #clear { background: #ddd; }
   button:disabled { opacity: .5; cursor: default; }
   input { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; width: 140px; }

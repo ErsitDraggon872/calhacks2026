@@ -16,7 +16,7 @@ namespace CalHacks
 
         GUIStyle small, text, title, link, button, cta, keyCap, placeholder, field, error;
         string code = "";
-        bool hidden;
+        static bool hidden;
         float cardHeight;
         float previewHeight = (PanelWidth - Pad * 2f - 20f) * 9f / 16f + 12f;
 
@@ -63,7 +63,7 @@ namespace CalHacks
                 y += 60f;
             }
             cardHeight = y + 4f - card.y;
-            if (session.Room != null && session.Role == CoopRole.Explorer) BringToLife(x, card.y + cardHeight + 16f, w);
+            if (ShowsBringToLife) BringToLife(x, card.y + cardHeight + 16f, w);
             GUI.matrix = Matrix4x4.identity;
         }
 
@@ -126,12 +126,25 @@ namespace CalHacks
             return Preview(x, y, w, UsingWebcam ? "webcam, live" : "drawing pad, live");
         }
 
+        /// <summary>
+        /// Whether the Explorer's "bring to life" button is up. It shows the recharge, so the HUD's build bar steps aside.
+        /// Without the digital board a co-op Explorer's Cast does nothing (the Creator builds), so there's no button.
+        /// </summary>
+        public static bool ShowsBringToLife
+        {
+            get
+            {
+                var session = ThinkInkSession.Instance;
+                var run = RunManager.Instance;
+                return !hidden && session != null && session.Room != null && session.Role == CoopRole.Explorer
+                    && run != null && run.UsesDigitalBoard && !run.State.Finished;
+            }
+        }
+
         /// <summary>The Explorer's BUILD, hanging under the card: what Enter does, as a button.</summary>
         void BringToLife(float x, float y, float w)
         {
             var run = RunManager.Instance;
-            // Without the digital board a co-op Explorer's Cast does nothing (the Creator builds), so there's no button.
-            if (run == null || !run.UsesDigitalBoard || run.State.Finished) return;
             var state = run.State;
             var ready = !state.InFlight && state.CooldownRemaining <= 0f;
             var label = state.InFlight ? "bringing to life..." : ready ? "bring to life!" : $"ready in {state.CooldownRemaining:0.0}s";
@@ -208,9 +221,12 @@ namespace CalHacks
             error = Sketch.Text(18, new Color(0.75f, 0.22f, 0.15f));
             error.wordWrap = true;
             error.clipping = TextClipping.Clip;
-            field = new GUIStyle(GUI.skin.textField)
+            // A blank style, not a copy of GUI.skin.textField: the skin's scaledBackgrounds still paint its dark box
+            // even with background nulled, hiding the white Sketch.Box underneath.
+            field = new GUIStyle
             {
                 font = Sketch.Hand, fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
+                clipping = TextClipping.Clip,
                 normal = { background = null, textColor = Sketch.Ink }, hover = { background = null, textColor = Sketch.Ink },
                 focused = { background = null, textColor = Sketch.Ink }, active = { background = null, textColor = Sketch.Ink },
             };

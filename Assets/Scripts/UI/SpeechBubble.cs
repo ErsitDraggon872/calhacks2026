@@ -67,8 +67,9 @@ namespace CalHacks
             var tip = new Vector2(screen.x / scale, ReferenceHeight - screen.y / scale);
 
             var content = new GUIContent(text);
-            var boxWidth = Mathf.Min(MaxWidth, style.CalcSize(content).x + 40f);
-            var boxHeight = style.CalcHeight(content, boxWidth - 40f) + 28f;
+            // Measured as drawn, plus 2 px for rounding, so a line that fits on one row stays on one row.
+            var boxWidth = Mathf.Min(MaxWidth, Mathf.Ceil(Sketch.Measure(style, content).x) + 42f);
+            var boxHeight = Sketch.Measure(style, content, boxWidth - 40f).y + 28f;
             const float tail = 26f;
             var rect = new Rect(tip.x - boxWidth * 0.5f, tip.y - tail - boxHeight, boxWidth, boxHeight);
             rect.x = Mathf.Clamp(rect.x, 10f, width - boxWidth - 10f);

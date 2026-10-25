@@ -209,7 +209,9 @@ def demo_normalize(spec):
         spec['attributes'].update(carry_capacity_kg=1.0 if w < 1.8 else (3.5 if w < 3.5 else 9.0),
                                   force=0.8, speed=0.7, energy_capacity=1.0, mass_kg=max(2.0, min(5.0, w)))
     if len(result) == 1 and len(spec['components']) > 1:
-        spec['message'] = 'A solid cutout for now. Try a spring, rocket or flying creature.'
+        # The AI's own message may promise the abilities just stripped, so just name it with its first adjective.
+        phrase = ' '.join(spec['adjectives'][:1] + [spec['name'] or 'drawing'])
+        spec['message'] = ('An ' if phrase[0].lower() in 'aeiou' else 'A ') + phrase + '!'
     spec['components'] = result
     return spec
 

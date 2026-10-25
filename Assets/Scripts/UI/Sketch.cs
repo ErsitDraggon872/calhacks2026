@@ -79,6 +79,25 @@ namespace CalHacks
         /// </summary>
         public static void Label(Rect rect, string text, GUIStyle style) => Crisp(rect, style, r => GUI.Label(r, text, style));
 
+        /// <summary>
+        /// Text's size as <see cref="Label"/> draws it, in the current matrix's units: measured at the on-screen font size,
+        /// which runs a little wider than the 1080p size, so a box fitted to a 1080p measure can wrap its last word.
+        /// Height is wrapped to <paramref name="wrapWidth"/> when given.
+        /// </summary>
+        public static Vector2 Measure(GUIStyle style, GUIContent content, float wrapWidth = 0f)
+        {
+            var scale = GUI.matrix.GetColumn(0).magnitude;
+            var size = style.fontSize;
+            style.fontSize = Mathf.Max(1, Mathf.RoundToInt(size * scale));
+            try
+            {
+                var natural = style.CalcSize(content);
+                var height = wrapWidth > 0f ? style.CalcHeight(content, wrapWidth * scale) : natural.y;
+                return new Vector2(natural.x, height) / scale;
+            }
+            finally { style.fontSize = size; }
+        }
+
         /// <summary>Runs <paramref name="draw"/> with the matrix scale moved into the rect and the style's font size.</summary>
         public static void Crisp(Rect rect, GUIStyle style, Action<Rect> draw)
         {

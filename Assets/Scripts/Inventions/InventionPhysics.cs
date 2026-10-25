@@ -13,8 +13,7 @@ namespace CalHacks
         Rigidbody body;
         PlayerController rider;
         float poweredUntil, nextUseAt, nextBounceAt;
-        float poweredStartedAt;
-        bool active, held, warnedWeakLift, highlighted;
+        bool active, held, highlighted;
         MaterialPropertyBlock highlightBlock;
         Vector3 spawnPosition;
         Quaternion spawnRotation;
@@ -149,8 +148,6 @@ namespace CalHacks
         {
             if (body == null || (active && Time.time < poweredUntil && !ToggleMode && !HoldMode)) return;
             active = true;
-            poweredStartedAt = Time.time;
-            warnedWeakLift = false;
             body.isKinematic = false;
             body.useGravity = thrust == null || lift != null;
             body.WakeUp();
@@ -207,19 +204,15 @@ namespace CalHacks
             }
             if (lift != null && (powered || lift.Activation == Activation.Always))
             {
-                var force = (body.mass + attributes.carry_capacity_kg) * 9.81f +
+                // Anything that flies carries the rider, however small the AI judged its capacity.
+                var carried = rider != null ? Mathf.Max(attributes.carry_capacity_kg, DemoPlayerMassKg) : attributes.carry_capacity_kg;
+                var force = (body.mass + carried) * 9.81f +
                     body.mass * lift.Acceleration * .08f * attributes.force;
                 body.AddForce(Vector3.up * force, ForceMode.Force);
                 if (powered)
                 {
                     var direction = Mathf.Cos(attributes.direction_deg * Mathf.Deg2Rad) < -.2f ? -1f : 1f;
                     body.AddForce(Vector3.right * direction * Mathf.Lerp(1.5f, 3.2f, attributes.speed), ForceMode.Acceleration);
-                    if (rider != null && !warnedWeakLift && attributes.carry_capacity_kg < DemoPlayerMassKg &&
-                        Time.time - poweredStartedAt > .75f)
-                    {
-                        warnedWeakLift = true;
-                        Subtitles.ShowNow("The wings can't carry you! Try drawing a bigger bird.", 4f);
-                    }
                 }
             }
             if (roll != null && (powered || roll.Activation == Activation.Always))

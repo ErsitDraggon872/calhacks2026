@@ -6,7 +6,6 @@ namespace CalHacks
     public class Hud : MonoBehaviour
     {
         const float ReferenceHeight = 1080f;
-        const string StationSign = "1. draw  ·  2. press enter to build";
         const string Reading = "reading your drawing...";
         static readonly Color ReadyFill = new Color(0.45f, 0.78f, 0.42f);
 
@@ -34,8 +33,6 @@ namespace CalHacks
                 Sketch.Label(new Rect(tag.x + 16f, tag.y + 52f, tag.width - 32f, 28f), $"{run.InputName.ToLowerInvariant()}  ·  M", small);
 
             var state = run.State;
-            // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
-            var banner = run.NearestSocket?.Banner;
             var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer && !run.UsesDigitalBoard;
             // E and SPACE only show when they'd do something: E near a usable invention, SPACE on a ride boarded with E.
             // On that ride, E is only the ride's own function (go / stop / hold), and the sign stays on the ride.
@@ -47,24 +44,25 @@ namespace CalHacks
                 : "draw → bring to life"
                     + (usable == null ? "" : usable.Rideable ? "  ·  E ride" : "  ·  E activate");
             var status = explorer ? "your partner draws  ·  you bring it to life"
-                : state.Finished ? StationSign
                 : run.PlacementStatus != null ? run.PlacementStatus
                 : state.InFlight ? Reading
-                : riding ? controls
-                : !string.IsNullOrEmpty(banner) ? banner
                 : controls;
-            // The note fits its words (in 40 px steps, so a few sizes cover every sign).
-            var signWidth = Mathf.Min(1100f, Mathf.Ceil((sign.CalcSize(new GUIContent(status)).x + 70f) / 40f) * 40f);
-            var signRect = new Rect((width - signWidth) * 0.5f, 22f, signWidth, 54f);
-            Sketch.Tilted(signRect.center, -0.6f, () =>
+            // The note fits its words (in 40 px steps, so a few sizes cover every sign). After the finish the win banner
+            // says it all.
+            if (!state.Finished)
             {
-                Sketch.Box(signRect, Sketch.Paper, 12, shadow: true);
-                Sketch.Label(signRect, status, sign);
-            });
+                var signWidth = Mathf.Min(1100f, Mathf.Ceil((sign.CalcSize(new GUIContent(status)).x + 70f) / 40f) * 40f);
+                var signRect = new Rect((width - signWidth) * 0.5f, 22f, signWidth, 54f);
+                Sketch.Tilted(signRect.center, -0.6f, () =>
+                {
+                    Sketch.Box(signRect, Sketch.Paper, 12, shadow: true);
+                    Sketch.Label(signRect, status, sign);
+                });
+            }
             if (usable != null && !riding && !state.Finished) DrawKeyBadge(usable, scale);
             if (!explorer && !riding && !state.Finished && !InventionCard.Visible) DrawDestinationTag(run, scale);
 
-            DrawBuildBar(state, width);
+            if (!state.Finished && !CoopHud.ShowsBringToLife) DrawBuildBar(state, width);
 
             if (state.Finished)
             {
@@ -96,8 +94,9 @@ namespace CalHacks
         }
 
         /// <summary>
-        /// A note over where the next drawing goes: the obstacle in range (the gap, the guard), or the build ghost in
-        /// front of B. While the AI reads a free build it says so over the drawing's ghost.
+        /// A note over where the next drawing goes: the obstacle in range says what to draw (none over a villager with a
+        /// speech bubble: their line is the hint), or the build ghost in front of B. While the AI reads a free build it
+        /// says so over the drawing's ghost. The top sign keeps the controls.
         /// </summary>
         void DrawDestinationTag(RunManager run, float scale)
         {
@@ -108,10 +107,9 @@ namespace CalHacks
             string text;
             if (socket != null)
             {
+                if (string.IsNullOrEmpty(socket.Banner)) return;
                 point = socket.CastPoint + Vector3.up * 2.5f;
-                text = socket.Type == SocketType.Gap ? "drawing goes here ↓  ·  a bridge?"
-                    : socket.Type == SocketType.Villager ? "drawing goes here ↓  ·  food?"
-                    : "drawing goes here ↓";
+                text = socket.Banner + " ↓";
             }
             else if (BuildGhost.Showing is Bounds ghost)
             {

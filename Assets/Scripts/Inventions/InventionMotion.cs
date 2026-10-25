@@ -28,8 +28,6 @@ namespace CalHacks
         float direction = 1f;
         float phase;
         float createdAt;
-        float carryCapacity;
-        bool warnedCarry;
         bool squashed;
         float nextSquishAt;
         const float SquishCooldownSeconds = .4f;
@@ -218,7 +216,6 @@ namespace CalHacks
             if (visual != null) originalVisualRotation = visual.localRotation;
 
             var attrs = created.Spec.Attributes;
-            carryCapacity = attrs.carry_capacity_kg;
             speed = Mathf.Lerp(.65f, 1.65f, attrs.speed);
             patrolRange = Mathf.Clamp(attrs.range_m, 1.2f, 2.8f);
             phase = Mathf.Abs(home.x * 1.37f) % (2f * Mathf.PI);
@@ -379,17 +376,8 @@ namespace CalHacks
                 x = Mathf.Clamp(x, home.x - patrolRange, home.x + patrolRange);
             }
             FaceDirection(direction); // Birds turn visually at the end of each patrol.
-            // A small bird can fly alone but should not magically lift a rider.
-            bool carrying = player != null && physicsBehavior != null && player.IsRiding(physicsBehavior);
-            bool overloaded = carrying && carryCapacity < InventionPhysics.DemoPlayerMassKg;
-            if (overloaded && !warnedCarry)
-            {
-                warnedCarry = true;
-                Subtitles.ShowNow("Too heavy for these wings! Draw a bigger bird.", 3f);
-            }
-            // Stable cruise near takeoff altitude; weak lift gradually loses height.
-            float targetY = overloaded ? home.y - 1.5f :
-                home.y + .75f + Mathf.Sin(Time.fixedTime * 2.2f + phase) * .16f;
+            // Anything that flies carries the rider: stable cruise near takeoff altitude.
+            float targetY = home.y + .75f + Mathf.Sin(Time.fixedTime * 2.2f + phase) * .16f;
             var desired = new Vector3(x, Mathf.MoveTowards(p.y, targetY,
                 1.8f * Time.fixedDeltaTime), home.z);
             var safe = ConstrainMotion(desired);
