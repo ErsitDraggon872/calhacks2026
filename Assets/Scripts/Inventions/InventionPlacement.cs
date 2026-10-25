@@ -135,6 +135,31 @@ namespace CalHacks
         }
 
         /// <summary>
+        /// Depth (Z) centre for <paramref name="build"/> on a path between a wall in front and one behind (the start path
+        /// is exactly a build deep): B's depth (<paramref name="feetZ"/>) when it fits there, else moved just enough to sit
+        /// between the nearest boxes in front of and behind B that it would overlap. Boxes spanning B's depth (walls
+        /// along X) are left to <see cref="ClearSpot"/>.
+        /// </summary>
+        public static float FitLane(Bounds build, float feetZ, IList<Bounds> obstacles)
+        {
+            var front = float.NegativeInfinity;
+            var back = float.PositiveInfinity;
+            foreach (var obstacle in obstacles)
+            {
+                if (!OverlapsOn(build, obstacle, 0) || !OverlapsOn(build, obstacle, 1)) continue;
+                if (obstacle.max.z <= feetZ) front = Mathf.Max(front, obstacle.max.z);
+                else if (obstacle.min.z >= feetZ) back = Mathf.Min(back, obstacle.min.z);
+            }
+            var half = build.extents.z;
+            // Too narrow: centred is the least overlap, and ClearSpot reports it blocked.
+            if (back - front < half * 2f) return (front + back) * 0.5f;
+            return Mathf.Clamp(build.center.z, front + half, back - half);
+        }
+
+        static bool OverlapsOn(Bounds a, Bounds b, int axis) =>
+            Mathf.Min(a.max[axis], b.max[axis]) - Mathf.Max(a.min[axis], b.min[axis]) > Touch;
+
+        /// <summary>
         /// Height to lift a player with bounds <paramref name="player"/> to when a build appears around them: the top of
         /// the highest build box they overlap, or null if they overlap none.
         /// </summary>

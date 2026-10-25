@@ -3,9 +3,9 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Dashed outline of the next free build's size envelope, using the actual placement resolver. Once a drawing is in
-    /// (being read, or waiting for room) a pale copy of the drawing itself stands in the outline, exactly where and as big
-    /// as it will be built. Red means terrain leaves no clear spot. G toggles the ghost.
+    /// Dashed outline of where a free build will stand, using the actual placement resolver, shown from BUILD until it's
+    /// built. Once the drawing is in (being read, or waiting for room) a pale copy of it stands in the outline, exactly
+    /// where and as big as it will be built. Red means terrain leaves no clear spot. G toggles the ghost.
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public class BuildGhost : MonoBehaviour
@@ -45,8 +45,9 @@ namespace CalHacks
         {
             if (outline == null) return;
             var run = RunManager.Instance;
+            // Only between BUILD and the build: while a free build is captured and read, or waits for room.
             var show = run != null && run.BuildGhostVisible && !run.State.Finished && !run.Player.IsRidingAnything &&
-                (run.PendingBuildCount > 0 || run.NearestSocket == null);
+                (run.PendingBuildCount > 0 || run.Thinking || (run.State.InFlight && run.BoundSocketId == null));
             if (outline.gameObject.activeSelf != show) outline.gameObject.SetActive(show);
             if (!show)
             {

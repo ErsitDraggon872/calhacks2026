@@ -482,9 +482,9 @@ namespace CalHacks
 
             var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
             invention.Apply(spec);
-            // Free inventions come alive immediately: no placement confirmation or paused result card.
-            Subtitles.ShowNow($"{spec.Name}: {TraitWords.FreeBuildAction(spec)}"
-                + (acceptance.Verdict == Verdict.Downgraded ? "\n" + acceptance.Message : ""), 4f);
+            // Placement needs no confirming; once it stands, the card says what it is and pauses until LET'S PLAY.
+            InventionCard.Show(spec, TraitWords.FreeBuildAction(spec), null,
+                acceptance.Verdict == Verdict.Downgraded ? acceptance.Message : null);
             inventions.Add(invention);
             if (slot != null) slot.Occupant = invention;
             LiftPlayerOnto(invention);
@@ -527,7 +527,14 @@ namespace CalHacks
                     if (edge != null) bottom.x = edge.Value - (away < 0f ? -1f : 1f) * size.x * 0.5f;
                 }
                 var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), away, out var shift,
+                var obstacles = ObstaclesAround(build);
+                if (gap == null)
+                {
+                    // On a path no deeper than the build, B a little off its middle mustn't push it into the walls.
+                    bottom.z = InventionPlacement.FitLane(build, feet.z, obstacles);
+                    build = InventionPlacement.BuildBounds(bottom, size, depth);
+                }
+                spotClear = InventionPlacement.ClearSpot(build, obstacles, away, out var shift,
                     moved => Standable(moved, feet.y));
                 bottom += shift;
             }

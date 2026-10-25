@@ -85,7 +85,8 @@ namespace CalHacks
         IEnumerator PopIn()
         {
             const float duration = 0.35f;
-            for (var t = 0f; t < duration; t += Time.deltaTime)
+            // Unscaled: the drawing card pauses the game, and the drawing must pop in behind it, not after it.
+            for (var t = 0f; t < duration; t += Time.unscaledDeltaTime)
             {
                 var k = t / duration;
                 // Ease-out-back for a little paper "pop".
