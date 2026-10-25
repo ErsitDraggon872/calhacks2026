@@ -119,6 +119,12 @@ time).
    itself.
 3. **Drawing pad:** press **F4**, then **Create room + open drawing pad**. A browser tab opens and the game joins its
    room. Draw, then press BUILD on the page.
+4. **Drawing pad on an iPad or phone (optional):** with Play mode running, run
+   `powershell -NoProfile -ExecutionPolicy Bypass -File tools/start-ipad-tunnel.ps1`. It needs
+   [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+   (`winget install --id Cloudflare.cloudflared`). It puts the local server and the pad behind two Cloudflare quick
+   tunnels, so it works even on networks that block devices from reaching each other, and opens a QR code for the
+   iPad. Then join the iPad's room code from F4 in Unity.
 
 More detail: [`docs/README.md`](docs/README.md) (start here), [`docs/coop-spacetimedb.md`](docs/coop-spacetimedb.md)
 (rooms, two-machine co-op, tablets) and [`docs/DEERAI-SETUP.md`](docs/DEERAI-SETUP.md) (backend).
