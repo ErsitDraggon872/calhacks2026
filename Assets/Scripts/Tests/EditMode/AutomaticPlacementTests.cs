@@ -114,6 +114,31 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void BuildLocksItsSpotSoTheGhostAndBuildStayPutWhileTheExplorerWalksOff()
+        {
+            Assert.IsTrue(run.PlacementPreview(out var before));
+            var spot = Call("LockSpot");
+            Assert.IsNotNull(spot);
+            Set("lockedSpot", spot);
+            player.transform.position += Vector3.right * 5f;
+            Physics.SyncTransforms();
+            Assert.IsTrue(run.PlacementPreview(out var after));
+            Assert.AreEqual(before.center, after.center, "The ghost must not follow the explorer once BUILD is pressed");
+            var place = typeof(RunManager).GetMethod("PlaceInvention", Private);
+            var placed = (Invention)place.Invoke(run,
+                new object[] { Drawing(), InventionSpec.Plain(), null, true, null, null, spot });
+            Assert.IsNotNull(placed);
+            Assert.AreEqual(before.center, placed.transform.position + Vector3.up * placed.Size.y * .5f);
+        }
+
+        [Test]
+        public void BuildFindsNoSpotWhereTerrainLeavesNoRoom()
+        {
+            Blocker();
+            Assert.IsNull(Call("LockSpot"));
+        }
+
+        [Test]
         public void DeferredRemoteBuildCompletesOnceAndCanBeCancelledBeforeSpawning()
         {
             var wall = Blocker();

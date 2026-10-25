@@ -52,6 +52,21 @@ namespace CalHacks
             : inFlightPaper != null ? inFlightPaper : null;
         /// <summary>A free build's drawing is in, and the AI hasn't said what it is yet.</summary>
         public bool Thinking => inFlightPaper != null;
+
+        /// <summary>Where a free build stands, worked out when BUILD was pressed; any drawing fits inside it.</summary>
+        sealed class Spot
+        {
+            public Vector3 Bottom;
+            public Vector2 Box;
+            public float Depth;
+            public BuildSlot Slot;
+        }
+
+        // A free BUILD only starts on a clear spot and keeps it, so B can walk off while the drawing is read.
+        Spot lockedSpot;
+        float noRoomUntil;
+        /// <summary>BUILD was just refused for want of room: the ghost flashes red where it would have gone.</summary>
+        public bool NoRoomFlash => Time.unscaledTime < noRoomUntil;
         public Material InventionMaterial => inventionMaterial;
         Transform inventionRoot;
         Checkpoint currentCheckpoint;
@@ -300,6 +315,14 @@ namespace CalHacks
 
             // An unsolved socket in range gets the drawing (that's how the gap snaps it across itself); otherwise it's a free build.
             var socket = NearestInRange();
+            Spot spot = null;
+            if (socket == null && (spot = LockSpot()) == null)
+            {
+                noRoomUntil = Time.unscaledTime + 1.5f;
+                Subtitles.ShowNow("No room to build here. Find a clear spot!");
+                return;
+            }
+            lockedSpot = spot;
             var runId = State.RunId;
             boundSocket = socket;
             State.BeginRequest();
@@ -378,7 +401,7 @@ namespace CalHacks
 
                 if (socket == null)
                 {
-                    if (PlaceInvention(paper, spec) != null) State.StartCooldown(config.buildCooldown);
+                    if (PlaceInvention(paper, spec, spot: spot) != null) State.StartCooldown(config.buildCooldown);
                     return;
                 }
                 if (gap != null)
@@ -401,6 +424,7 @@ namespace CalHacks
             {
                 // A reset may already have moved on to a newer drawing; only clear this one.
                 if (shown != null && ReferenceEquals(inFlightPaper, shown)) inFlightPaper = null;
+                if (spot != null && ReferenceEquals(lockedSpot, spot)) lockedSpot = null;
             }
         }
 
@@ -441,9 +465,10 @@ namespace CalHacks
         /// front of them on the side they face (at <paramref name="gap"/>, on their ledge against the drop, to ride across),
         /// moved out of the level's geometry, once <see cref="InventionFeasibility"/> agrees. A blocked drawing retains
         /// its texture and attributes for automatic retry when B moves. Null means it was rejected or is waiting.
+        /// A <paramref name="spot"/> locked at BUILD is used as is, wherever B has gone since.
         /// </summary>
         Invention PlaceInvention(Texture2D paper, InventionSpec spec, GapSocket gap = null, bool retainBlocked = true,
-            Action<Invention> completed = null, Func<bool> valid = null)
+            Action<Invention> completed = null, Func<bool> valid = null, Spot spot = null)
         {
             if (player == null || inventionMaterial == null)
             {
@@ -466,8 +491,22 @@ namespace CalHacks
                 pendingPlacements.Enqueue((paper, spec, completed, valid));
                 return null;
             }
-            var spotClear = FindPlacement(paper.width, paper.height, gap,
-                out var bottom, out var box, out _, out var depth, out var slot);
+            Vector3 bottom;
+            Vector2 box;
+            float depth;
+            BuildSlot slot;
+            var spotClear = true;
+            if (spot != null)
+            {
+                box = spot.Box;
+                depth = spot.Depth;
+                slot = spot.Slot;
+                bottom = BottomIn(spot, InventionPlacement.FitInside(paper.width, paper.height, box));
+            }
+            else
+            {
+                spotClear = FindPlacement(paper.width, paper.height, gap, out bottom, out box, out _, out depth, out slot);
+            }
 
             if (!spotClear)
             {
@@ -542,25 +581,48 @@ namespace CalHacks
             return spotClear;
         }
 
-        /// <summary>Before recognition, show the size envelope; a waiting drawing previews its exact fitted bounds.</summary>
+        /// <summary>
+        /// Before recognition, show the size envelope; a waiting drawing previews its exact fitted bounds. After a free
+        /// BUILD, both stay at the spot it locked.
+        /// </summary>
         public bool PlacementPreview(out Bounds bounds)
         {
             bounds = default;
             if (player == null || config == null) return false;
-            var slot = BuildSlot.At(player.transform.position);
-            var envelope = slot != null ? slot.Box : config.inventionSize;
-            var width = Mathf.RoundToInt(envelope.x * 100f);
-            var height = Mathf.RoundToInt(envelope.y * 100f);
+            var box = lockedSpot != null ? lockedSpot.Box
+                : BuildSlot.At(player.transform.position) is BuildSlot slot ? slot.Box : config.inventionSize;
+            var width = Mathf.RoundToInt(box.x * 100f);
+            var height = Mathf.RoundToInt(box.y * 100f);
             var drawing = PreviewDrawing;
             if (drawing != null)
             {
                 width = drawing.width;
                 height = drawing.height;
             }
+            if (lockedSpot != null)
+            {
+                var fitted = InventionPlacement.FitInside(width, height, box);
+                bounds = InventionPlacement.BuildBounds(BottomIn(lockedSpot, fitted), fitted, lockedSpot.Depth);
+                return true;
+            }
             var clear = FindPlacement(width, height, null, out var bottom, out _, out var size, out var depth, out _);
             bounds = InventionPlacement.BuildBounds(bottom, size, depth);
             return clear;
         }
+
+        /// <summary>The clear spot for a free build of the full envelope from where B stands, or null if there's no room.</summary>
+        Spot LockSpot()
+        {
+            if (player == null || config == null) return null;
+            var envelope = BuildSlot.At(player.transform.position) is BuildSlot here ? here.Box : config.inventionSize;
+            if (!FindPlacement(Mathf.RoundToInt(envelope.x * 100f), Mathf.RoundToInt(envelope.y * 100f), null,
+                    out var bottom, out var box, out _, out var depth, out var slot)) return null;
+            return new Spot { Bottom = bottom, Box = box, Depth = depth, Slot = slot };
+        }
+
+        // A drawing fits inside the envelope the spot was cleared for, so standing on the same bottom centre (or the
+        // slot's own alignment) keeps it inside that clear space.
+        static Vector3 BottomIn(Spot spot, Vector2 size) => spot.Slot != null ? spot.Slot.BottomCentreFor(size) : spot.Bottom;
 
         void TryPendingPlacement()
         {
@@ -852,6 +914,8 @@ namespace CalHacks
         {
             ClearPendingPlacements();
             inFlightPaper = null;
+            lockedSpot = null;
+            noRoomUntil = 0f;
             runCts.Cancel();
             runCts.Dispose();
             runCts = new CancellationTokenSource();

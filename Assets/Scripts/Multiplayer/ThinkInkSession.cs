@@ -122,15 +122,8 @@ namespace CalHacks
 
         void SendSyncKey()
         {
-            if (string.IsNullOrEmpty(syncKey) && !IsLocal)
-            {
-                KeyState = SyncKeyState.Missing;
-                Fail("No sync key: add thinkink.key, or start with -thinkink-key=...");
-                return;
-            }
             KeyState = SyncKeyState.Sent;
-            // A fresh local module has no shared-password requirement. Still call authorize so readiness
-            // follows the normal server acknowledgement. The cloud's shared-key check is unchanged.
+            // Always ask: a server with no sync_key row accepts "", and one with a key rejects it with a reason.
             conn.Reducers.Authorize(syncKey ?? "");
         }
 

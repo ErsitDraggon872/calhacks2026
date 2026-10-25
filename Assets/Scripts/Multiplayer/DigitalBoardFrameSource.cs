@@ -30,7 +30,7 @@ namespace CalHacks
                 if (s == null) return "no co-op session (the Coop prefab is missing from the scene)";
                 if (s.Link != CoopLink.Online)
                     return "SpacetimeDB " + s.Link.ToString().ToLowerInvariant() + (s.LastError != null ? ": " + s.LastError : "");
-                if (s.KeyState != SyncKeyState.Accepted) return "sync key " + s.KeyState.ToString().ToLowerInvariant();
+                if (s.KeyState == SyncKeyState.Rejected) return "sync key rejected: " + s.LastError;
                 if (s.Room == null) return "not in a room: open the whiteboard from the co-op panel (F4)";
                 return s.RoomReady ? "ready" : "loading room " + s.Room.RoomCode;
             }

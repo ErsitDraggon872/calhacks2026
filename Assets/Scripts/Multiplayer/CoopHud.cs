@@ -41,8 +41,8 @@ namespace CalHacks
             var y = card.y + 12f;
             var w = PanelWidth - Pad * 2f;
 
-            var connection = session.IsLocal ? "local server" : "key " + KeyText(session.KeyState);
-            Sketch.Label(new Rect(x, y, w, 26f), $"<color={LinkColor(session.Link)}>●</color> {session.Link.ToString().ToLowerInvariant()}  ·  {connection}", small);
+            var connection = session.IsLocal ? "  ·  local server" : "";
+            Sketch.Label(new Rect(x, y, w, 26f), $"<color={LinkColor(session.Link)}>●</color> {session.Link.ToString().ToLowerInvariant()}{connection}", small);
             y += 30f;
 
             if (session.Room == null)
@@ -185,14 +185,6 @@ namespace CalHacks
         }
 
         static float Aspect(Texture texture, Rect uv) => texture.height * uv.height / (texture.width * uv.width);
-
-        static string KeyText(SyncKeyState state) => state switch
-        {
-            SyncKeyState.Accepted => "<color=#3a9a4f>ok</color>",
-            SyncKeyState.Sent => "<color=#b8901c>checking</color>",
-            SyncKeyState.Rejected => "<color=#c0453a>wrong</color>",
-            _ => "<color=#c0453a>missing</color>",
-        };
 
         static string LinkColor(CoopLink link) => link switch
         {

@@ -4,8 +4,9 @@ namespace CalHacks
 {
     /// <summary>
     /// Dashed outline of where a free build will stand, using the actual placement resolver, shown from BUILD until it's
-    /// built. Once the drawing is in (being read, or waiting for room) a pale copy of it stands in the outline, exactly
-    /// where and as big as it will be built. Red means terrain leaves no clear spot. G toggles the ghost.
+    /// built. BUILD locks the spot, so the outline stays put while B walks off. Once the drawing is in (being read, or
+    /// waiting for room) a pale copy of it stands in the outline, exactly where and as big as it will be built. A BUILD
+    /// refused for want of room flashes it red where B is. G toggles the ghost.
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public class BuildGhost : MonoBehaviour
@@ -47,7 +48,8 @@ namespace CalHacks
             var run = RunManager.Instance;
             // Only between BUILD and the build: while a free build is captured and read, or waits for room.
             var show = run != null && run.BuildGhostVisible && !run.State.Finished && !run.Player.IsRidingAnything &&
-                (run.PendingBuildCount > 0 || run.Thinking || (run.State.InFlight && run.BoundSocketId == null));
+                (run.PendingBuildCount > 0 || run.Thinking || run.NoRoomFlash ||
+                 (run.State.InFlight && run.BoundSocketId == null));
             if (outline.gameObject.activeSelf != show) outline.gameObject.SetActive(show);
             if (!show)
             {
@@ -59,9 +61,10 @@ namespace CalHacks
             {
                 nextPreview = Time.unscaledTime + .15f;
                 clear = run.PlacementPreview(out bounds);
-                outline.SetPositionAndRotation(bounds.center - Vector3.forward * FrontNudge, Quaternion.identity);
-                outline.localScale = new Vector3(bounds.size.x, bounds.size.y, 1f);
             }
+            // Every frame: the outline rides under B, so it would drift off a locked spot between previews.
+            outline.SetPositionAndRotation(bounds.center - Vector3.forward * FrontNudge, Quaternion.identity);
+            outline.localScale = new Vector3(bounds.size.x, bounds.size.y, 1f);
             Showing = bounds;
             var color = clear ? new Color(1f, .62f, .15f) : new Color(1f, .2f, .15f);
             outlineRenderer ??= outline.GetComponent<Renderer>();
