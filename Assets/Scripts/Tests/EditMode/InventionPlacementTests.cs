@@ -45,6 +45,24 @@ namespace CalHacks.Tests
             }
         }
 
+        // The level's gap: ledges at y 0, the bridge span 4.9 m centred on x 12.3.
+        [Test]
+        public void LedgeBuildStandsOnBsLedgeAgainstTheDrop()
+        {
+            foreach (var width in new[] { 0.5f, 2f, 3f })
+            {
+                var left = InventionPlacement.LedgeBottomCentre(new Vector3(9.5f, 0f, 0.3f), 12.3f, 4.9f, 0f, width, out var away);
+                Assert.AreEqual(-1f, away);
+                Assert.AreEqual(12.3f - 2.45f, left.x + width * 0.5f, 1e-4f, $"width {width}");
+                Assert.AreEqual(0f, left.y, 1e-4f);
+                Assert.AreEqual(0.3f, left.z, 1e-4f);
+
+                var right = InventionPlacement.LedgeBottomCentre(new Vector3(15f, 0f, 0f), 12.3f, 4.9f, 0f, width, out away);
+                Assert.AreEqual(1f, away);
+                Assert.AreEqual(12.3f + 2.45f, right.x - width * 0.5f, 1e-4f, $"width {width}");
+            }
+        }
+
         // The level's high-ledge slot: 3 x 1.2 m against the ledge's left face (x 24), at the ledge's depth.
         static readonly Vector3 SlotBottom = new Vector3(22.5f, 0f, 1.75f);
         static readonly Vector2 SlotBox = BuildSlot.DefaultBox;

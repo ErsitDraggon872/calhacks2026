@@ -46,6 +46,20 @@ namespace CalHacks
         }
 
         /// <summary>
+        /// Bottom-centre of an invention <paramref name="width"/> wide standing on the ledge B is on, beside a drop
+        /// <paramref name="dropWidth"/> wide centred on <paramref name="dropCentreX"/> with ledges at <paramref name="ledgeY"/>:
+        /// its far edge at the drop's edge, at B's depth, so B can ride it across instead of it falling in.
+        /// <paramref name="away"/> is the way from the drop onto that ledge (+1 right, -1 left).
+        /// </summary>
+        public static Vector3 LedgeBottomCentre(Vector3 feet, float dropCentreX, float dropWidth, float ledgeY, float width,
+            out float away)
+        {
+            away = feet.x < dropCentreX ? -1f : 1f;
+            var edge = dropCentreX + away * Mathf.Max(0f, dropWidth) * 0.5f;
+            return new Vector3(edge + away * Mathf.Max(0f, width) * 0.5f, ledgeY, feet.z);
+        }
+
+        /// <summary>
         /// Largest size with the drawing's aspect (<paramref name="width"/> / <paramref name="height"/> pixels) that fits
         /// inside <paramref name="box"/>. How big it was drawn doesn't matter, only its shape.
         /// </summary>

@@ -309,15 +309,17 @@ namespace CalHacks
                     return;
                 }
 
-                // A socket shows the drawing right away (the gap never waits); a free build waits for what it is, so
-                // it can be checked before it's placed.
-                if (socket != null && socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
-                if (socket == null) Subtitles.ShowNow("Hmm, what is it...", 3f);
+                // A socket shows the drawing right away; a free build and the gap wait for what it is, so it can be
+                // checked before it's placed (only a bridge goes in the gap).
+                var gap = socket as GapSocket;
+                var waits = socket == null || gap != null;
+                if (!waits && socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
+                if (waits) Subtitles.ShowNow("Hmm, what is it...", 3f);
 
                 var label = await vision.GetLabelAsync(capture.Data.id, ct);
                 if (!State.IsCurrent(runId) || ct.IsCancellationRequested)
                 {
-                    if (socket == null) Destroy(paper);
+                    if (waits) Destroy(paper);
                     return;
                 }
                 State.EndRequest();
@@ -334,13 +336,18 @@ namespace CalHacks
                 var spec = SpecFor(label, runId, out var stale);
                 if (stale)
                 {
-                    if (socket == null) Destroy(paper);
+                    if (waits) Destroy(paper);
                     return;
                 }
 
                 if (socket == null)
                 {
                     if (PlaceInvention(paper, spec) != null) State.StartCooldown(config.buildCooldown);
+                    return;
+                }
+                if (gap != null)
+                {
+                    BuildAtGap(gap, capture.Data, paper, spec);
                     return;
                 }
                 ApplySpec(socket, spec);
@@ -390,10 +397,11 @@ namespace CalHacks
 
         /// <summary>
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
-        /// front of them on the side they face, moved out of the level's geometry, once <see cref="InventionFeasibility"/>
-        /// agrees. Null if nothing was built (nothing is spent then).
+        /// front of them on the side they face (at <paramref name="gap"/>, on their ledge against the drop, to ride across),
+        /// moved out of the level's geometry, once <see cref="InventionFeasibility"/> agrees. Null if nothing was built
+        /// (nothing is spent then).
         /// </summary>
-        Invention PlaceInvention(Texture2D paper, InventionSpec spec)
+        Invention PlaceInvention(Texture2D paper, InventionSpec spec, GapSocket gap = null)
         {
             if (player == null || inventionMaterial == null)
             {
@@ -414,9 +422,12 @@ namespace CalHacks
             }
             else
             {
-                bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
+                var away = player.FacingSign;
+                bottom = gap != null
+                    ? gap.LaunchSpot(feet, size.x, out away)
+                    : InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
                 var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), player.FacingSign, out var shift);
+                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), away, out var shift);
                 bottom += shift;
             }
 
@@ -445,7 +456,8 @@ namespace CalHacks
         /// A drawing that arrived from elsewhere (the co-op Creator), with its /interpret attributes: placed and checked
         /// like a free build. Takes ownership of <paramref name="paper"/>. Null if it couldn't be built.
         /// </summary>
-        public Invention SpawnInvention(Texture2D paper, InventionSpec spec) => PlaceInvention(paper, spec);
+        public Invention SpawnInvention(Texture2D paper, InventionSpec spec) =>
+            PlaceInvention(paper, spec, NearestInRange() as GapSocket);
 
         /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
         List<Bounds> ObstaclesAround(Bounds build)
@@ -491,18 +503,27 @@ namespace CalHacks
             inventions.Clear();
         }
 
+        /// <summary>
+        /// The gap's drawing, once its label is back: a bridge goes in the gap; anything else stands on B's ledge as
+        /// itself (a rocket to ride across). Takes ownership of <paramref name="paper"/>.
+        /// </summary>
+        void BuildAtGap(GapSocket gap, CaptureResponse capture, Texture2D paper, InventionSpec spec)
+        {
+            if (!SocketLogic.IsBridge(spec.Name))
+            {
+                Debug.Log($"[Run] {spec.Describe()} -> not a bridge, built on B's ledge");
+                if (PlaceInvention(paper, spec, gap) != null) State.StartCooldown(config.buildCooldown);
+                return;
+            }
+            if (!gap.ApplyCapture(capture, paper)) return;
+            State.StartCooldown(config.buildCooldown);
+            ApplySpec(gap, spec);
+        }
+
         void ApplySpec(PuzzleSocket socket, InventionSpec spec)
         {
             LastLabel = spec.Name;
             LastAttributes = spec.Describe();
-            if (socket is GapSocket gap && !SocketLogic.IsBridge(spec.Name))
-            {
-                // Not a bridge: it leaves the gap and is built like anywhere else (a rocket to ride across).
-                Debug.Log($"[Run] {spec.Describe()} -> not a bridge, built in front of B");
-                var paper = gap.TakeBackDrawing();
-                if (paper != null) PlaceInvention(paper, spec);
-                return;
-            }
             Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
             var outcome = socket.ApplySpec(spec);
             // Only a socket that judges meaning gets a green or red verdict; the gap just turns lines into a bridge.

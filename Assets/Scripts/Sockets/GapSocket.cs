@@ -3,9 +3,9 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Tutorial gap: every drawing stands in the gap as a bridge on /capture, without waiting for the label. Once the label
-    /// is back, only a bridge or a mystery shape (<see cref="SocketLogic.IsBridge"/>) stays; anything else is handed back
-    /// (<see cref="TakeBackDrawing"/>) and built as itself, so a rocket can carry B across. The drawing is stretched to span the gap (Span.x), its top edge <see cref="railHeight"/> above the
+    /// Tutorial gap: a drawing waits for its label. Only a bridge or a mystery shape (<see cref="SocketLogic.IsBridge"/>)
+    /// goes in the gap; anything else is built as itself on B's ledge (<see cref="LaunchSpot"/>), so a rocket can carry B
+    /// across. The bridge is stretched to span the gap (Span.x), its top edge <see cref="railHeight"/> above the
     /// ledges, and built as an <see cref="Invention"/>: B walks on the ink, so a drawing with a break, or one that
     /// doesn't reach a ledge, drops B into the gap. The gap stays unsolved, so the next BUILD in range replaces the
     /// bridge, until B gets past the far ledge (the gap is crossed along +X).
@@ -63,16 +63,12 @@ namespace CalHacks
 
         protected override void OnCaptured(CaptureResponse capture) => Refresh();
 
-        /// <summary>Takes the drawing out of the gap (it isn't a bridge): a copy of its paper, or null if none stands.</summary>
-        public Texture2D TakeBackDrawing()
-        {
-            if (bridge == null || bridge.Cutout == null || bridge.Cutout.Texture == null) return null;
-            var paper = Instantiate(bridge.Cutout.Texture);
-            DetachCutout();
-            RemoveBridge();
-            Refresh();
-            return paper;
-        }
+        /// <summary>
+        /// Where a drawing that isn't a bridge stands: on B's ledge against the gap, <paramref name="width"/> wide.
+        /// <paramref name="away"/> is the way from the gap onto that ledge.
+        /// </summary>
+        public Vector3 LaunchSpot(Vector3 feet, float width, out float away) =>
+            InventionPlacement.LedgeBottomCentre(feet, anchor.position.x, span.x, anchor.position.y, width, out away);
 
         // The bridge stands before its attributes are known; they arrive with the label.
         protected override void OnSpec(InventionSpec spec)
