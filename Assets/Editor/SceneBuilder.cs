@@ -126,11 +126,19 @@ namespace CalHacks.EditorTools
             // z -2..0.5). Anything edible opens it. Their 2.5 m BUILD range keeps the high ledge's builds out of it.
             Place("GatekeeperSocket", puzzles, new Vector3(29.6f, 0f, -1f));
             // The launch deck: a checkpoint at the top of the stairs (a missed hop off the rocket lands back here), and
-            // the hint by the pad. The pad itself is only looks; the drawn rocket flies on its own.
+            // the hint by the pad. The pad itself is only looks; the drawn rocket flies on its own. F1 anywhere on the
+            // deck builds a fallback rocket.
             Place("Checkpoint", puzzles, new Vector3(35.5f, 4f, 0.5f)).name = "Checkpoint 2";
             AddHint(puzzles, "Hint Launchpad", new Vector3(38f, 4f, -1.5f), new Vector3(43f, 7f, 3f),
                 "Way too high! Draw something to ride up.");
             Launchpad();
+            var deck = new GameObject("Launch Deck");
+            deck.transform.SetParent(puzzles, false);
+            deck.transform.position = new Vector3(38.5f, 5.5f, 0.75f);
+            var deckArea = deck.AddComponent<BoxCollider>();
+            deckArea.isTrigger = true;
+            deckArea.size = new Vector3(9f, 3f, 4.5f); // x 34..43, y 4..7: the deck, not the ledge above
+            deck.AddComponent<LaunchPad>();
             // Centred on the finish ledge's depth (z -1.5..3), so B touches the 3.2 m-deep trigger wherever B crosses it.
             Place("Exit", puzzles, new Vector3(49f, 8.5f, 0.75f));
             GoalFlag(puzzles, new Vector3(51.3f, 8.5f, 1.8f));

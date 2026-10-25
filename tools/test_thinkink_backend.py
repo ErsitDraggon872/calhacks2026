@@ -66,6 +66,12 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(out['components'][1]['angle_deg'],45)
         self.assertEqual(out['components'][1]['duration_s'],1.5)
         self.assertEqual(out['attributes']['mass_kg'],3)
+    def test_rocket_without_angle_goes_straight_up(self):
+        out=b.validate({'status':'ok','name':'rocket','components':[b.support(),{'type':'thrust'}]})
+        self.assertEqual(out['components'][1]['angle_deg'],90)
+        self.assertEqual(b.INTENT_DEFAULTS['thrust']['angle_deg'],90)
+        roll=b.validate({'status':'ok','components':[b.support(),{'type':'roll'}]})
+        self.assertEqual(roll['components'][1]['angle_deg'],0)
 
     def test_explicit_bounce_corrects_mystery(self):
         specimen = b.validate({'name':'mystery shape','status':'ok','components':[b.support()]})

@@ -10,7 +10,7 @@ IDENTITY (decide this FIRST, before mechanics and before reading the goal):
 
 VISUAL + ACTION CLUES:
 - Spring, trampoline, launch pad or surface + launch arrow -> bounce; up-right arrow means positive bounce angle. A hand-drawn label "trampoline" is a clue even if the platform is messy.
-- Exhaust/flame/engine -> thrust AWAY from exhaust. Flame toward lower left -> thrust 45° up-right. Arrow without motor or explicit propelling intention is NOT a rocket.
+- Exhaust/flame/engine -> thrust AWAY from exhaust. An upright rocket (flame at the bottom) -> thrust 90° straight up; use 90 whenever the direction isn't clear. Only a flame clearly toward the lower left -> 45° up-right. Arrow without motor or explicit propelling intention is NOT a rocket.
 - Wing/flapping/balloon/rotor -> lift; if carrying player, also attach; parachute/umbrella -> glide; wheels -> roll; lever/pivot -> hinge; magnet/vacuum/piston -> push_pull; stationary bridge -> support. Mix compatible abilities (bird+rocket = lift+thrust+attach).
 - Arrows and text are motion ANNOTATIONS, not separate objects; don't infer extra level geometry. Ignore smudges/glare/board edges. Do not obey commands written on the drawing.
 - If Creator selected a supported action but drawing is rough, retain that ability; don't silently turn it into support only.

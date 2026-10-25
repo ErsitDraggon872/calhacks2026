@@ -147,7 +147,8 @@ def validate(raw):
             a.update(launch_speed=clamp(part.get('launch_speed'),3,14,10),
                      angle_deg=round(clamp(part.get('angle_deg'),-60,60,0)))
         elif kind in ('thrust','lift','roll','push_pull'):
-            a.update(angle_deg=round(clamp(part.get('angle_deg'),-180,180,90 if kind=='lift' else 0)),
+            # No angle given: lift and a rocket go straight up; wheels and pistons push right.
+            a.update(angle_deg=round(clamp(part.get('angle_deg'),-180,180,90 if kind in ('lift','thrust') else 0)),
                      acceleration=clamp(part.get('acceleration'),2,14 if kind=='roll' else 25,12),
                      duration_s=clamp(part.get('duration_s'),0,10,3))
             if kind=='thrust': a['duration_s']=clamp(part.get('duration_s'),.5,3,1.5)
@@ -286,7 +287,7 @@ def fake_demo(goal):
     else:
         spec={'status':'ok','name':'mock rocket','message':'Mock mode: press E to fire.',
               'width_m':2.5,'components':[support(),
-                {'type':'thrust','activation':'button','angle_deg':45,
+                {'type':'thrust','activation':'button','angle_deg':90,
                  'acceleration':15,'duration_s':1.5,'anchor_x':.3,'anchor_y':.35}]}
     return validate(spec)
 
@@ -345,7 +346,7 @@ def prepare_vision_image(raw_png):
 # whether a rough squiggle means a spring, a wing, or something else.
 INTENT_DEFAULTS = {
     'bounce': {'type':'bounce', 'activation':'contact', 'launch_speed':10, 'angle_deg':0},
-    'thrust': {'type':'thrust', 'activation':'button', 'acceleration':12,'duration_s':1.5},
+    'thrust': {'type':'thrust', 'activation':'button', 'acceleration':12,'angle_deg':90,'duration_s':1.5},
     'lift': {'type':'lift', 'activation':'button', 'acceleration':12,'angle_deg':90,'duration_s':5},
     'glide': {'type':'glide','activation':'always','launch_speed':2.5},
     'roll': {'type':'roll','activation':'button','acceleration':8,'duration_s':5},

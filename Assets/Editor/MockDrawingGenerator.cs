@@ -6,7 +6,7 @@ using UnityEngine;
 namespace CalHacks.EditorTools
 {
     /// <summary>
-    /// Draws the mock whiteboard drawings (bridge, sun, fish, cat, scribble) as black marker strokes on a transparent
+    /// Draws the mock whiteboard drawings (bridge, sun, fish, cat, scribble, rocket) as black marker strokes on a transparent
     /// background, cropped to the ink like the vision service's crop. Replace the PNGs with photos of real drawings
     /// whenever you like; the file names are what GameConfig.mockDrawings refers to.
     /// </summary>
@@ -23,12 +23,18 @@ namespace CalHacks.EditorTools
             Save("fish", Fish);
             Save("cat", Cat);
             Save("scribble", Scribble);
+            Save("rocket", Rocket);
             AssetDatabase.Refresh();
         }
 
         public static void GenerateIfMissing()
         {
             if (!File.Exists(Path.Combine(Folder, "bridge.png"))) Generate();
+            else if (!File.Exists(Path.Combine(Folder, "rocket.png")))
+            {
+                Save("rocket", Rocket);
+                AssetDatabase.Refresh();
+            }
         }
 
         static void Save(string name, Action<Ink> draw)
@@ -183,6 +189,23 @@ namespace CalHacks.EditorTools
             k.Line(200, 195, 92, 180);
             k.Line(312, 205, 422, 225);
             k.Line(312, 195, 420, 180);
+        }
+
+        /// <summary>An upright rocket (red nose and fins, orange flame): F1's fallback rocket on the launch deck.</summary>
+        static void Rocket(Ink k)
+        {
+            var red = new Color32(214, 77, 69, 255);     // the Flag material
+            var orange = new Color32(255, 170, 60, 255);
+            k.Fill(red, 196, 380, 256, 480, 316, 380);
+            k.Fill(red, 196, 220, 136, 110, 196, 140);
+            k.Fill(red, 316, 220, 376, 110, 316, 140);
+            k.Fill(orange, 214, 130, 256, 34, 298, 130);
+            k.Poly(196, 140, 196, 380, 316, 380, 316, 140, 196, 140); // body
+            k.Poly(196, 380, 256, 480, 316, 380);                     // nose
+            k.Poly(196, 220, 136, 110, 196, 140);                     // fins
+            k.Poly(316, 220, 376, 110, 316, 140);
+            k.Arc(256, 300, 32, 32, 0, 360);                          // window
+            k.Poly(214, 130, 256, 34, 298, 130);                      // flame
         }
 
         static void Scribble(Ink k)

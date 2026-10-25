@@ -785,6 +785,12 @@ namespace CalHacks
 
         public void ManualAccept()
         {
+            // On the launch deck F1 builds the rocket, as it lays the bridge or feeds the gatekeeper at theirs.
+            if (player != null && LaunchPad.At(player.transform.position) != null)
+            {
+                BuildFallbackRocket();
+                return;
+            }
             var socket = OperatorTarget();
             if (socket == null) return;
             if (boundSocket == socket) CancelRequest();
@@ -799,6 +805,18 @@ namespace CalHacks
             if (boundSocket == socket) CancelRequest();
             Debug.Log("[Run] Manual reject -> " + socket.SocketId);
             ApplySpec(socket, InventionSpec.Plain());
+        }
+
+        void BuildFallbackRocket()
+        {
+            var drawing = Resources.Load<Texture2D>(LaunchPad.RocketDrawing);
+            if (drawing == null)
+            {
+                Debug.LogError("[Run] No fallback rocket drawing; run Game/Generate Mock Drawings.");
+                return;
+            }
+            Debug.Log("[Run] Manual accept -> fallback rocket");
+            PlaceInvention(PaperTexture.MakePaper(drawing), LaunchPad.FallbackRocket());
         }
 
         /// <summary>The bound socket while unsolved, else the nearest unsolved socket in range, else the nearest unsolved.</summary>
