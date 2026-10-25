@@ -6,7 +6,7 @@ namespace CalHacks
 {
     /// <summary>
     /// A villager blocks the path. Anything edible (a fish, an apple, a pizza) is taken, a line is said, and the villager
-    /// steps aside; anything hostile scares them aside instead. If there's a <see cref="gate"/>, it rises once the
+    /// steps aside; anything hostile scares them aside instead, and anything else gets cut into confetti. If there's a <see cref="gate"/>, it rises once the
     /// villager is out of the way (the gatekeeper). With a <see cref="bubble"/>, the villager speaks in it instead of
     /// the subtitles, and the top sign is left alone.
     /// </summary>
@@ -92,7 +92,33 @@ namespace CalHacks
             gate.position = gateHome + Vector3.up * gateRise;
         }
 
-        protected override void OnWrongLabel(string label) => Say(rejectLine);
+        protected override void OnWrongLabel(string label)
+        {
+            Say(rejectLine);
+            StartCoroutine(Slash(DetachCutout()));
+        }
+
+        /// <summary>Not food: the villager lunges at the drawing and it bursts into paper confetti.</summary>
+        IEnumerator Slash(Cutout drawing)
+        {
+            if (drawing == null) yield break;
+            yield return new WaitForSeconds(0.6f);
+            if (villager != null)
+            {
+                var start = villager.position;
+                var toward = Mathf.Sign(drawing.transform.position.x - start.x);
+                const float lunge = 0.25f;
+                for (var t = 0f; t < lunge; t += Time.deltaTime)
+                {
+                    villager.position = start + Vector3.right * toward * 0.4f * Mathf.Sin(t / lunge * Mathf.PI);
+                    yield return null;
+                }
+                villager.position = start;
+            }
+            if (drawing == null) yield break;
+            InventionMotion.SpawnPaperPoof(drawing.transform.position);
+            Destroy(drawing.gameObject);
+        }
 
         void Say(string line)
         {

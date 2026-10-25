@@ -81,7 +81,8 @@ namespace CalHacks
             return true;
         }
 
-        static void SpawnPaperPoof(Vector3 position)
+        /// <summary>The paper-confetti burst a drawing dies in (a stomp, the gatekeeper's sword). Survives the drawing.</summary>
+        public static void SpawnPaperPoof(Vector3 position)
         {
             var effect = new GameObject("ThinkInk paper confetti poof");
             effect.transform.position = position;

@@ -60,18 +60,17 @@ namespace CalHacks
     }
 
     /// <summary>
-    /// "Your drawing came to life!": what the AI says the drawing is and what it did, shown after every BUILD. It goes
-    /// away by itself or with LET'S PLAY, and the next BUILD replaces it.
+    /// "Your drawing came to life!": what the AI says the drawing is and what it did, shown after every BUILD. The game
+    /// is paused (time scale 0) until LET'S PLAY or Space (Enter too: RunManager turns that BUILD into a dismiss), so what
+    /// the drawing does (the gatekeeper eating it or cutting it up) plays after the card, not behind it.
     /// </summary>
     public sealed class InventionCard : MonoBehaviour
     {
         const float ReferenceHeight = 1080f;
-        const float ShowSeconds = 7f;
 
         static InventionCard instance;
 
         CardText card;
-        float until;
         bool visible;
         GUIStyle header, title, body, traits, action, button;
         Texture2D panel;
@@ -84,13 +83,19 @@ namespace CalHacks
             Debug.Log($"[Card] {text.Title} | {text.Body} | {text.Traits} | {text.Action}");
             if (instance == null) return;
             instance.card = text;
-            instance.until = Time.unscaledTime + ShowSeconds;
             instance.visible = true;
+            Time.timeScale = 0f;
         }
 
         public static void Hide()
         {
-            if (instance != null) instance.visible = false;
+            if (instance != null) instance.Dismiss();
+        }
+
+        void Dismiss()
+        {
+            visible = false;
+            Time.timeScale = 1f;
         }
 
         void Awake() => instance = this;
@@ -98,15 +103,18 @@ namespace CalHacks
         void OnDestroy()
         {
             if (instance == this) instance = null;
+            if (visible) Time.timeScale = 1f;
             if (panel != null) Destroy(panel);
         }
 
         void OnGUI()
         {
             if (!visible) return;
-            if (Time.unscaledTime > until)
+            var e = Event.current;
+            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
             {
-                visible = false;
+                e.Use();
+                Dismiss();
                 return;
             }
             EnsureStyles();
@@ -150,7 +158,7 @@ namespace CalHacks
                 y += actionHeight;
             }
             y += 20f;
-            if (GUI.Button(new Rect(x + (w - 300f) * 0.5f, y, 300f, 70f), "LET'S PLAY", button)) visible = false;
+            if (GUI.Button(new Rect(x + (w - 300f) * 0.5f, y, 300f, 70f), "LET'S PLAY", button)) Dismiss();
             GUI.matrix = Matrix4x4.identity;
         }
 

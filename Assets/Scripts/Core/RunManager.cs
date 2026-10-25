@@ -160,7 +160,12 @@ namespace CalHacks
         // so a press is never lost when events are processed outside the player update (e.g. unfocused Game view).
         void OnEnable()
         {
-            Bind(GameInput.Cast, _ => Cast());
+            // Enter on the paused drawing card means LET'S PLAY, not another BUILD.
+            Bind(GameInput.Cast, _ =>
+            {
+                if (InventionCard.Visible) InventionCard.Hide();
+                else Cast();
+            });
             Bind(GameInput.ResetLevel, _ => ResetRun());
             Bind(GameInput.ManualAccept, _ => ManualAccept());
             Bind(GameInput.ManualReject, _ => ManualReject());

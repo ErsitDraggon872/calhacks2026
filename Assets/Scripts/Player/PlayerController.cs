@@ -75,7 +75,11 @@ namespace CalHacks
         // The press is latched from the `performed` callback (like RunManager.Bind) so it's never lost between updates.
         void OnEnable()
         {
-            onJump = _ => jumpPressedAt = Time.time;
+            // Space on the paused drawing card dismisses it; it mustn't also jump the moment time resumes.
+            onJump = _ =>
+            {
+                if (!InventionCard.Visible) jumpPressedAt = Time.time;
+            };
             GameInput.Jump.performed += onJump;
         }
 
