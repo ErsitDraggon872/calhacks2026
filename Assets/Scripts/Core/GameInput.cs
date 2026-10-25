@@ -25,7 +25,27 @@ namespace CalHacks
         public static InputAction MockPick => mockPick ??= Find("MockPick");
         public static InputAction SwitchInput => switchInput ??= Find("SwitchInput");
 
+        static bool typing;
+
         public static void Enable() => InputSystem.actions?.Enable();
+
+        /// <summary>
+        /// True while a HUD text field has the keyboard (the room code). The Player map is off meanwhile, so letters
+        /// typed into the field don't also walk, build or reset.
+        /// </summary>
+        public static bool Typing
+        {
+            get => typing;
+            set
+            {
+                if (typing == value) return;
+                typing = value;
+                var map = InputSystem.actions?.FindActionMap("Player");
+                if (map == null) return;
+                if (value) map.Disable();
+                else map.Enable();
+            }
+        }
 
         static InputAction Find(string name) => InputSystem.actions.FindAction("Player/" + name, throwIfNotFound: true);
     }

@@ -114,13 +114,17 @@ namespace CalHacks.EditorTools
             Dashes(k, width - inset, height - inset, inset, height - inset, dash, gap);
             Dashes(k, inset, height - inset, inset, inset, dash, gap);
 
-            var cx = width * 0.5f;
-            var cy = height * 0.5f;
-            k.Line(cx - 70, cy - 70, cx + 60, cy + 60);        // pencil body
-            k.Line(cx - 40, cy - 100, cx + 90, cy + 30);
-            k.Line(cx + 60, cy + 60, cx + 90, cy + 30);        // end
-            k.Line(cx - 70, cy - 70, cx - 100, cy - 130);      // tip
-            k.Line(cx - 40, cy - 100, cx - 100, cy - 130);
+            // The pencil is 190 px square, centred and shrunk to stay well inside the dashes even in a short box
+            // (the build ghost's is 273 px tall), so stretching the outline never pushes its tip past the border.
+            var s = Mathf.Min(1f, (Mathf.Min(width, height) - inset * 2f - 100f) / 190f);
+            var cx = width * 0.5f + 5f * s;
+            var cy = height * 0.5f + 35f * s;
+            void Pencil(float x0, float y0, float x1, float y1) => k.Line(cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s);
+            Pencil(-70, -70, 60, 60);        // pencil body
+            Pencil(-40, -100, 90, 30);
+            Pencil(60, 60, 90, 30);          // end
+            Pencil(-70, -70, -100, -130);    // tip
+            Pencil(-40, -100, -100, -130);
             return k.ToCroppedTexture(0, new Color32(255, 255, 255, 255));
         }
 

@@ -260,7 +260,8 @@ namespace CalHacks
         void UpdateInventionInput()
         {
             var key = Keyboard.current?.eKey;
-            var held = player != null && !player.InputLocked && key != null && key.isPressed && !State.InFlight;
+            var held = player != null && !player.InputLocked && key != null && key.isPressed && !State.InFlight &&
+                !GameInput.Typing;
             InventionPhysics closest = null;
             var best = 2.5f * 2.5f;
             foreach (var invention in inventions)

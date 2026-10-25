@@ -13,10 +13,12 @@ namespace CalHacks
         const float PanelWidth = 420f;
         const float Pad = 20f;
         const float PopupSeconds = 5f;
+        const string CodeField = "RoomCode";
 
         GUIStyle small, text, title, link, button, cta, keyCap, placeholder, field, error;
         string code = "";
         static bool hidden;
+        bool codeFocused;
         float cardHeight;
         float previewHeight = (PanelWidth - Pad * 2f - 20f) * 9f / 16f + 12f;
 
@@ -28,6 +30,15 @@ namespace CalHacks
         void OnGUI()
         {
             var session = ThinkInkSession.Instance;
+            codeFocused = false;
+            try { DrawPanel(session); }
+            finally { GameInput.Typing = codeFocused; }
+        }
+
+        void OnDisable() => GameInput.Typing = false;
+
+        void DrawPanel(ThinkInkSession session)
+        {
             if (session == null || hidden) return;
             EnsureStyles();
             var scale = Screen.height / ReferenceHeight;
@@ -51,6 +62,8 @@ namespace CalHacks
             }
             else
             {
+                // The lobby's code field is gone; don't let its focus come back with the lobby after leaving.
+                if (GUIUtility.keyboardControl != 0) ReleaseCodeField();
                 Sketch.Label(new Rect(x, y, w, 44f), $"Room <b>{session.Room.RoomCode}</b>", title);
                 if (Sketch.Link(new Rect(x + w - 90f, y, 90f, 44f), "leave", link)) session.LeaveRoom();
                 y += 50f;
@@ -73,6 +86,8 @@ namespace CalHacks
         float Lobby(ThinkInkSession session, float x, float y, float w)
         {
             var digital = RunManager.Instance != null && RunManager.Instance.UsesDigitalBoard;
+            // Any click hands the keyboard back to the game; a click on the code field takes it straight back.
+            if (Event.current.type == EventType.MouseDown) ReleaseCodeField();
             GUI.enabled = session.Link == CoopLink.Online;
             y += 6f;
             var createLabel = digital ? "create room + open drawing pad" : "create room (creator draws)";
@@ -86,9 +101,23 @@ namespace CalHacks
             Sketch.Box(codeRect, Color.white, 6);
             var cursor = GUI.skin.settings.cursorColor;
             GUI.skin.settings.cursorColor = Sketch.Ink;
-            Sketch.Crisp(codeRect, field, r => code = GUI.TextField(r, code, 4, field).ToUpperInvariant());
+            Sketch.Crisp(codeRect, field, r =>
+            {
+                GUI.SetNextControlName(CodeField);
+                code = GUI.TextField(r, code, 4, field).ToUpperInvariant();
+            });
             GUI.skin.settings.cursorColor = cursor;
-            if (Sketch.Button(new Rect(x + 136f, y, w - 136f, 46f), "join (explorer plays)", Sketch.Paper, 7, button)) session.JoinRoom(code);
+            codeFocused = GUI.GetNameOfFocusedControl() == CodeField;
+            var e = Event.current;
+            var enter = codeFocused && e.type == EventType.KeyDown &&
+                (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
+            if (enter) e.Use();
+            if (Sketch.Button(new Rect(x + 136f, y, w - 136f, 46f), "join (explorer plays)", Sketch.Paper, 7, button) || enter)
+            {
+                ReleaseCodeField();
+                session.JoinRoom(code);
+            }
+            if (codeFocused && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape) ReleaseCodeField();
             y += 62f;
             if (!digital && ThinkInkSession.TestWhiteboardPath != null)
             {
@@ -98,6 +127,12 @@ namespace CalHacks
             }
             GUI.enabled = true;
             return y;
+        }
+
+        void ReleaseCodeField()
+        {
+            GUIUtility.keyboardControl = 0;
+            codeFocused = false;
         }
 
         float Creator(float x, float y, float w)
