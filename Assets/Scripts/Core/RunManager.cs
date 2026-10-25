@@ -30,6 +30,10 @@ namespace CalHacks
 
         IVisionClient vision;
         MockVisionClient mock;
+        // DigitalBoard launches only: M swaps between these (the drawing pad and the whiteboard webcam).
+        IVisionClient padVision, webcamVision;
+        DigitalBoardFrameSource digitalBoard;
+        BoardCamera boardCamera;
         PuzzleSocket[] sockets = Array.Empty<PuzzleSocket>();
         Checkpoint[] checkpoints = Array.Empty<Checkpoint>();
         HintZone[] hints = Array.Empty<HintZone>();
@@ -78,6 +82,12 @@ namespace CalHacks
         public int InventionCount => inventions.Count;
         /// <summary>Drawings come from the SpacetimeDB browser whiteboard (CaptureSource.DigitalBoard).</summary>
         public bool UsesDigitalBoard { get; private set; }
+        /// <summary>M can switch the drawings' source between the drawing pad and the whiteboard webcam.</summary>
+        public bool CanSwitchInput => webcamVision != null;
+        /// <summary>A DigitalBoard launch is reading the whiteboard webcam right now instead of the drawing pad (M).</summary>
+        public bool UsingWebcam { get; private set; }
+        /// <summary>The switchable input in use, for the HUD; null when M does nothing.</summary>
+        public string InputName => !CanSwitchInput ? null : UsingWebcam ? "Webcam" : "Drawing pad";
 
         /// <summary>After every reset (F5, start, or a co-op partner's reset).</summary>
         public static event Action RunReset;
@@ -96,18 +106,21 @@ namespace CalHacks
                     vision = new HttpVisionClient(config);
                     break;
                 case CaptureSource.Webcam:
-                    var boardCamera = GetComponent<BoardCamera>();
-                    if (boardCamera == null) boardCamera = FindFirstObjectByType<BoardCamera>();
-                    vision = new WebcamVisionClient(config, boardCamera, CreateInterpreter(), config.boardCrop);
+                    vision = new WebcamVisionClient(config, FindBoardCamera(), CreateInterpreter(), config.boardCrop);
                     break;
                 case CaptureSource.Replay:
                     vision = new WebcamVisionClient(config, new ReplayFrameSource(config.ResolveReplayFolder()), CreateInterpreter(), config.boardCrop);
                     break;
                 case CaptureSource.DigitalBoard:
                     // The browser whiteboard's strokes, drawn onto a clean board: the frame is the whole board.
+                    // M switches to the whiteboard webcam and back; only the frame source changes.
                     UsesDigitalBoard = true;
-                    var digitalBoard = gameObject.AddComponent<DigitalBoardFrameSource>();
-                    vision = new WebcamVisionClient(config, digitalBoard, CreateInterpreter(), new Rect(0f, 0f, 1f, 1f));
+                    digitalBoard = gameObject.AddComponent<DigitalBoardFrameSource>();
+                    boardCamera = FindBoardCamera();
+                    var interpreter = CreateInterpreter();
+                    padVision = new WebcamVisionClient(config, digitalBoard, interpreter, new Rect(0f, 0f, 1f, 1f));
+                    webcamVision = new WebcamVisionClient(config, boardCamera, interpreter, config.boardCrop);
+                    vision = padVision;
                     break;
                 default:
                     mock = new MockVisionClient(config);
@@ -137,6 +150,12 @@ namespace CalHacks
             return string.IsNullOrEmpty(url) ? new NoInterpreter() : new HttpInterpreter(url, config.interpretTimeout);
         }
 
+        BoardCamera FindBoardCamera()
+        {
+            var found = GetComponent<BoardCamera>();
+            return found != null ? found : FindFirstObjectByType<BoardCamera>();
+        }
+
         // Button presses are latched from `performed` callbacks rather than polled with WasPressedThisFrame,
         // so a press is never lost when events are processed outside the player update (e.g. unfocused Game view).
         void OnEnable()
@@ -150,6 +169,7 @@ namespace CalHacks
             Bind(GameInput.BuildGhost, _ => BuildGhostVisible = !BuildGhostVisible);
             Bind(GameInput.Recalibrate, _ => Recalibrate());
             Bind(GameInput.MockPick, control => PickMockDrawing(control as KeyControl));
+            Bind(GameInput.SwitchInput, _ => SwitchInput());
         }
 
         void OnDisable()
@@ -580,6 +600,30 @@ namespace CalHacks
             if (digit != MockVisionClient.EmptyBoard && (digit < 0 || digit >= config.mockDrawings.Length)) return;
             mock.ForceNext(digit);
             Subtitles.ShowNow("[mock] next drawing: " + mock.DescribeNext(), 1.5f);
+        }
+
+        /// <summary>
+        /// M: the drawings come from the whiteboard webcam instead of the drawing pad, or back. Only the frame source
+        /// changes; the cut-out, /interpret and the build are the same. Pad BUILDs are ignored while on the webcam.
+        /// </summary>
+        public void SwitchInput()
+        {
+            if (!CanSwitchInput) return;
+            // A capture mustn't mix sources, and the pad's frame source can't be turned off while its BUILD is running.
+            if (State.InFlight)
+            {
+                Subtitles.ShowNow("Wait for this build to finish.", 2f);
+                return;
+            }
+            UsingWebcam = !UsingWebcam;
+            vision = UsingWebcam ? webcamVision : padVision;
+            digitalBoard.enabled = !UsingWebcam;
+            if (UsingWebcam && boardCamera != null) boardCamera.Activate();
+            Subtitles.ShowNow(UsingWebcam
+                ? "Webcam: draw on the whiteboard, press Enter to BUILD  (M: drawing pad)"
+                : "Drawing pad: draw in the browser, press BUILD  (M: webcam)", 3f);
+            Debug.Log($"[Run] Input switched to {InputName}: {vision.Name}");
+            PollHealth();
         }
 
         async void Recalibrate()

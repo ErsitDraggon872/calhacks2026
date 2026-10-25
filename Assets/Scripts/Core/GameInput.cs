@@ -6,11 +6,11 @@ namespace CalHacks
     /// Actions from the project-wide Input Actions asset (Assets/InputSystem_Actions.inputactions, map "Player").
     /// The button station is a USB keyboard, so these keys are the station's contract:
     /// Enter BUILD (Cast), Space jump (Player B), P camera preview, G build ghost, F5 reset, F1 accept, F2 reject,
-    /// F3 overlay, F9 recalibrate.
+    /// F3 overlay, F9 recalibrate, M switch input (drawing pad / webcam).
     /// </summary>
     public static class GameInput
     {
-        static InputAction move, jump, cast, cameraPreview, buildGhost, resetLevel, manualAccept, manualReject, debugOverlay, recalibrate, mockPick;
+        static InputAction move, jump, cast, cameraPreview, buildGhost, resetLevel, manualAccept, manualReject, debugOverlay, recalibrate, mockPick, switchInput;
 
         public static InputAction Move => move ??= Find("Move");
         public static InputAction Jump => jump ??= Find("Jump");
@@ -23,6 +23,7 @@ namespace CalHacks
         public static InputAction DebugOverlay => debugOverlay ??= Find("DebugOverlay");
         public static InputAction Recalibrate => recalibrate ??= Find("Recalibrate");
         public static InputAction MockPick => mockPick ??= Find("MockPick");
+        public static InputAction SwitchInput => switchInput ??= Find("SwitchInput");
 
         public static void Enable() => InputSystem.actions?.Enable();
 
