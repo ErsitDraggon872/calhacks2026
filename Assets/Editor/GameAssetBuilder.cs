@@ -191,7 +191,6 @@ namespace CalHacks.EditorTools
             Save(BuildGame(config), "Game");
             Save(BuildGapSocket(), "GapSocket");
             Save(BuildCaveSocket(), "CaveSocket");
-            Save(BuildVillagerSocket(), "VillagerSocket");
             Save(BuildGatekeeperSocket(), "GatekeeperSocket");
             Save(BuildCheckpoint(), "Checkpoint");
             Save(BuildExit(), "Exit");
@@ -345,34 +344,14 @@ namespace CalHacks.EditorTools
         static GameObject Villager(Transform parent, Vector3 localPosition)
         {
             var villager = Empty("Villager", parent, localPosition);
+            // Taller than they look (gate height and more), so B can't jump up onto them or over them.
             var capsule = villager.AddComponent<CapsuleCollider>();
-            capsule.center = new Vector3(0f, 1f, 0f);
+            capsule.center = new Vector3(0f, 1.75f, 0f);
             capsule.radius = 0.6f;
-            capsule.height = 2f;
+            capsule.height = 3.5f;
             Visual(PrimitiveType.Capsule, "Body", villager.transform, new Vector3(0f, 1f, 0f), new Vector3(1.1f, 1f, 1.1f), "Villager");
             Visual(PrimitiveType.Cylinder, "Hat", villager.transform, new Vector3(0f, 2.1f, 0f), new Vector3(1.3f, 0.08f, 1.3f), "Wall");
             return villager;
-        }
-
-        static GameObject BuildVillagerSocket()
-        {
-            var root = new GameObject("VillagerSocket");
-            var socket = root.AddComponent<VillagerSocket>();
-            var villager = Villager(root.transform, Vector3.zero);
-            var aside = Empty("StepAside", root.transform, new Vector3(2.2f, 0f, 0.95f));
-            var anchor = Empty("Anchor", root.transform, new Vector3(-1.4f, 0.3f, 1.1f));
-            Hint(root.transform, new Vector3(-3f, 1f, 0f), new Vector3(2.5f, 2f, 2.4f),
-                "Villager: I'm sooo hungry... I'd love something fresh from the river.", socket);
-            Fields(socket,
-                ("socketId", "villager"),
-                ("acceptedLabels", new[] { "fish" }),
-                ("anchor", anchor.transform),
-                ("span", new Vector2(2.2f, 1.6f)),
-                ("fallbackDrawing", Drawing("fish")),
-                ("cutoutMaterial", Mat("Cutout")),
-                ("villager", villager.transform),
-                ("stepAsidePoint", aside.transform));
-            return root;
         }
 
         /// <summary>
@@ -392,8 +371,10 @@ namespace CalHacks.EditorTools
             gate.transform.SetParent(root.transform, false);
             gate.transform.localPosition = new Vector3(1.2f, 1.5f, 0.25f);
             gate.transform.localScale = new Vector3(0.4f, 3f, 2.5f);
-            Hint(root.transform, new Vector3(-2.2f, 1f, 0f), new Vector3(2.4f, 2f, 2.5f),
-                "Gatekeeper: Nobody climbs my stairs! ...Unless they bring me a snack.", socket);
+            // They speak in a bubble over their head while B is near, not in the subtitles or the top sign.
+            var bubble = villager.AddComponent<SpeechBubble>();
+            Fields(bubble, ("idleLine", "Nobody climbs my stairs! ...Unless they bring me a snack."), ("range", 4.5f),
+                ("socket", socket));
             Fields(socket,
                 ("socketId", "gatekeeper"),
                 ("castRange", 2.5f),
@@ -408,6 +389,7 @@ namespace CalHacks.EditorTools
                 ("stepAsidePoint", aside.transform),
                 ("gate", gate.transform),
                 ("gateRise", 3.5f),
+                ("bubble", bubble),
                 ("acceptLine", "Food! Thanks, friend. Up you go!"),
                 ("scaredLine", "Yikes! Fine, fine, go on up! Just keep that thing away!"),
                 ("rejectLine", "I can't eat that! I'm hungry, not desperate."));

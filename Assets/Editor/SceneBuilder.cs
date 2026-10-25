@@ -29,7 +29,6 @@ namespace CalHacks.EditorTools
             var puzzles = new GameObject("Puzzles").transform;
             Place("GapSocket", puzzles, new Vector3(8.3f, 0f, 0f));
             Place("CaveSocket", puzzles, new Vector3(4f, 0f, 8f));
-            Place("VillagerSocket", puzzles, new Vector3(4f, 0f, -8f));
             Place("Checkpoint", puzzles, new Vector3(14f, 0f, 0f));
             Place("Exit", puzzles, new Vector3(18f, 0f, -8f));
 
@@ -65,8 +64,9 @@ namespace CalHacks.EditorTools
             // The gap is x 10..14.6 (GapSocket's 4.9 m bridge overlaps both ledges). Hub floor, x 14.6..40, z -2..3.
             Walkable("Block", geo, "Hub Floor", new Vector3(14.6f, -1f, -2f), new Vector3(40f, 0f, 3f));
 
-            // High ledge on the back layer, 2.3 m: out of jump reach (1.2 m), one invention plus a jump gets up.
-            Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(30f, 2.3f, 3f));
+            // High ledge on the back layer, 2.3 m: out of jump reach (1.2 m), one invention plus a jump gets up. It runs
+            // right up to the stairs (x 31), so there's no pocket between them to fall into behind the gate.
+            Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(31f, 2.3f, 3f));
 
             // Floating island, top at 4 m, with the exit and the goal flag. Reached by the stairs below.
             Walkable("Rock", geo, "Floating Island", new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 3f))
@@ -74,7 +74,7 @@ namespace CalHacks.EditorTools
 
             // Island stairs, x 31..34: five 0.8 m steps climbing toward the back (z -2..3), the top one level with the
             // island. Only the two lowest steps are in reach from the floor (B rides edges up to ~1.65 m), and the
-            // gatekeeper's gate closes their side. The other ways up: from the high ledge (step 3 is 1 m away and 0.1 m
+            // gatekeeper's gate closes their side. The other ways up: from the high ledge (step 3 is right beside it and 0.1 m
             // higher), or builds.
             for (var i = 0; i < 5; i++)
             {
@@ -82,15 +82,15 @@ namespace CalHacks.EditorTools
                     .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
             }
 
-            // Low backdrop wall behind everything, so the sky and hills show above it, and end walls. Nothing in
-            // front, so the side camera sees in.
-            // It runs well past both ends so the Wide framing never sees round it.
-            Box("Wall", geo, new Vector3(-30f, -16f, 3f), new Vector3(70f, 1.6f, 3.6f)).name = "Back Wall";
-            Box("Wall", geo, new Vector3(-7f, -1f, -2f), new Vector3(-6f, 2f, 3f)).name = "Left End";
+            // Backdrop wall behind everything, low enough that the sky and hills show above it, and end walls. Nothing in
+            // front, so the side camera sees in. Both stand well above a jump from the terrace (~2 m) so they read as
+            // solid. It runs well past both ends so the Wide framing never sees round it.
+            Box("Wall", geo, new Vector3(-30f, -16f, 3f), new Vector3(70f, 2.8f, 3.6f)).name = "Back Wall";
+            Box("Wall", geo, new Vector3(-7f, -1f, -2f), new Vector3(-6f, 3.5f, 3f)).name = "Left End";
             Box("Wall", geo, new Vector3(40f, -1f, -2f), new Vector3(41f, 6f, 3f)).name = "Right End";
 
-            // Invisible back edge above the low wall: B can't step off the back of the high ledge or the island.
-            Invisible("Back Edge", geo, new Vector3(-7f, 1.6f, 3f), new Vector3(41f, 10f, 3.6f));
+            // Invisible back edge above the wall: B can't step off the back of the high ledge or the island.
+            Invisible("Back Edge", geo, new Vector3(-7f, 2.8f, 3f), new Vector3(41f, 10f, 3.6f));
             Hills();
 
             // Invisible front edges: B can't walk off toward the camera. The gap's own rails cover the bridge.
@@ -117,8 +117,8 @@ namespace CalHacks.EditorTools
             Place("Exit", puzzles, new Vector3(38f, 4f, 0.75f));
             GoalFlag(puzzles, new Vector3(39.3f, 4f, 1.8f));
 
-            // Start within CAST range (5 m) of the gap, so the opening shot is B at the gap and the first build bridges it.
-            Rig(new Vector3(7.5f, 0f, 0f));
+            // Start back from the gap, near the left end, so B walks up to it (BUILD reaches the gap from x 7.3).
+            Rig(new Vector3(0.5f, 0f, 0f));
             Save(scene, LevelPath);
         }
 

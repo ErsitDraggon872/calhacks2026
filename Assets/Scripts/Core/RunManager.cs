@@ -72,6 +72,9 @@ namespace CalHacks
             ? "-"
             : string.Join(", ", sockets.Select(s => $"{s.SocketId} {(s.Solved ? "✓" : "·")}"));
         public IReadOnlyList<PuzzleSocket> Sockets => sockets;
+        public PlayerController Player => player;
+        /// <summary>The invention E would use right now (nearest one with a button, within 2.5 m), or null. It's highlighted.</summary>
+        public InventionPhysics Usable { get; private set; }
         public int InventionCount => inventions.Count;
         /// <summary>Drawings come from the SpacetimeDB browser whiteboard (CaptureSource.DigitalBoard).</summary>
         public bool UsesDigitalBoard { get; private set; }
@@ -216,6 +219,12 @@ namespace CalHacks
                 }
             }
             if (held && key.wasPressedThisFrame) closest?.TryInteract(player);
+            if (Usable != closest)
+            {
+                if (Usable != null) Usable.SetHighlighted(false);
+                if (closest != null) closest.SetHighlighted(true);
+                Usable = closest;
+            }
         }
 
         // ---- CAST ----------------------------------------------------------------------------------------
@@ -466,6 +475,14 @@ namespace CalHacks
         {
             LastLabel = spec.Name;
             LastAttributes = spec.Describe();
+            if (socket is GapSocket gap && !SocketLogic.IsBridge(spec.Name))
+            {
+                // Not a bridge: it leaves the gap and is built like anywhere else (a rocket to ride across).
+                Debug.Log($"[Run] {spec.Describe()} -> not a bridge, built in front of B");
+                var paper = gap.TakeBackDrawing();
+                if (paper != null) PlaceInvention(paper, spec);
+                return;
+            }
             Debug.Log($"[Run] {spec.Describe()} -> socket {socket.SocketId}");
             var outcome = socket.ApplySpec(spec);
             // Only a socket that judges meaning gets a green or red verdict; the gap just turns lines into a bridge.

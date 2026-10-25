@@ -15,6 +15,19 @@ namespace CalHacks.Tests
             Assert.AreEqual(LabelOutcome.Solve, SocketLogic.Resolve(torch, Cave, new[] { "light" }));
         }
 
+        [TestCase("bridge", true)]
+        [TestCase("Rope Bridge", true)]
+        [TestCase("wooden plank", true)]
+        [TestCase("mystery shape", true)]
+        [TestCase("", true)]
+        [TestCase("rocket", false)]
+        [TestCase("skateboard", false)]
+        [TestCase("cat", false)]
+        public void OnlyBridgesAndMysteryShapesSpanTheGap(string label, bool spans)
+        {
+            Assert.AreEqual(spans, SocketLogic.IsBridge(label));
+        }
+
         [Test]
         public void AnyFoodFeedsTheGatekeeper()
         {

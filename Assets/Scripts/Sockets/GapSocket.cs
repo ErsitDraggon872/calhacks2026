@@ -3,8 +3,9 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Tutorial gap: every drawing becomes the bridge on /capture, without waiting for the label, so no build is ever
-    /// rejected. The drawing is stretched to span the gap (Span.x), its top edge <see cref="railHeight"/> above the
+    /// Tutorial gap: every drawing stands in the gap as a bridge on /capture, without waiting for the label. Once the label
+    /// is back, only a bridge or a mystery shape (<see cref="SocketLogic.IsBridge"/>) stays; anything else is handed back
+    /// (<see cref="TakeBackDrawing"/>) and built as itself, so a rocket can carry B across. The drawing is stretched to span the gap (Span.x), its top edge <see cref="railHeight"/> above the
     /// ledges, and built as an <see cref="Invention"/>: B walks on the ink, so a drawing with a break, or one that
     /// doesn't reach a ledge, drops B into the gap. The gap stays unsolved, so the next BUILD in range replaces the
     /// bridge, until B gets past the far ledge (the gap is crossed along +X).
@@ -43,7 +44,8 @@ namespace CalHacks
 
         void Update()
         {
-            if (Solved || bridge == null || player == null) return;
+            // However B got across (bridge, rocket, bird), the gap is done.
+            if (Solved || player == null) return;
             if (player.transform.position.x > FarLedgeX) Solve();
         }
 
@@ -60,6 +62,17 @@ namespace CalHacks
         }
 
         protected override void OnCaptured(CaptureResponse capture) => Refresh();
+
+        /// <summary>Takes the drawing out of the gap (it isn't a bridge): a copy of its paper, or null if none stands.</summary>
+        public Texture2D TakeBackDrawing()
+        {
+            if (bridge == null || bridge.Cutout == null || bridge.Cutout.Texture == null) return null;
+            var paper = Instantiate(bridge.Cutout.Texture);
+            DetachCutout();
+            RemoveBridge();
+            Refresh();
+            return paper;
+        }
 
         // The bridge stands before its attributes are known; they arrive with the label.
         protected override void OnSpec(InventionSpec spec)

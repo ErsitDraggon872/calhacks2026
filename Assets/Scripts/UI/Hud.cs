@@ -9,8 +9,8 @@ namespace CalHacks
         const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
         const string Reading = "AI is reading your drawing...";
 
-        GUIStyle small, big, sign;
-        Texture2D panel, barBack, barFill, barReady;
+        GUIStyle small, big, sign, keyLabel;
+        Texture2D panel, barBack, barFill, barReady, keyCap;
 
         public static string FormatTime(float seconds)
         {
@@ -35,12 +35,19 @@ namespace CalHacks
             // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
             var banner = run.NearestSocket?.Banner;
             var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer && !run.UsesDigitalBoard;
+            // E and SPACE only show when they'd do something: E near a usable invention, SPACE while riding one.
+            var usable = run.Usable;
+            var riding = run.Player != null && run.Player.IsRidingAnything;
+            var controls = "DRAW → BUILD"
+                + (usable == null ? "" : usable.Rideable && !run.Player.IsRiding(usable) ? "  ·  E RIDE" : "  ·  E ACTIVATE")
+                + (riding ? "  ·  SPACE JUMP OFF" : "");
             var status = explorer ? "Your partner draws  ·  you bring it to life"
                 : state.Finished ? StationSign
                 : state.InFlight ? Reading
                 : !string.IsNullOrEmpty(banner) ? banner
-                : "DRAW → BUILD  ·  E ACTIVATE / RIDE  ·  SPACE JUMP OFF";
+                : controls;
             GUI.Label(signRect, status, sign);
+            if (usable != null && !riding && !state.Finished) DrawKeyBadge(usable, scale);
 
             DrawBuildBar(state, width);
 
@@ -52,6 +59,21 @@ namespace CalHacks
                 GUI.Label(new Rect(rect.x, rect.y + 180f, rect.width, 60f), "Press F5 to play again", sign);
             }
             GUI.matrix = Matrix4x4.identity;
+        }
+
+        /// <summary>An "E" key cap floating over the invention E would use.</summary>
+        void DrawKeyBadge(InventionPhysics usable, float scale)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            var bounds = usable.VisualBounds();
+            var screen = cam.WorldToScreenPoint(new Vector3(bounds.center.x, bounds.max.y + 0.3f, bounds.center.z));
+            if (screen.z <= 0f) return;
+            var bob = Mathf.Sin(Time.time * 4f) * 6f;
+            var centre = new Vector2(screen.x / scale, ReferenceHeight - screen.y / scale - 30f + bob);
+            var rect = new Rect(centre.x - 30f, centre.y - 30f, 60f, 60f);
+            GUI.DrawTexture(rect, keyCap);
+            GUI.Label(rect, "E", keyLabel);
         }
 
         void DrawBuildBar(RunState state, float width)
@@ -87,11 +109,13 @@ namespace CalHacks
             barBack = Solid(new Color(1f, 1f, 1f, 0.15f));
             barFill = Solid(new Color(1f, 0.6f, 0.1f, 0.9f));
             barReady = Solid(new Color(0.3f, 0.85f, 0.4f, 0.95f));
+            keyCap = Solid(new Color(1f, 0.62f, 0.15f, 0.95f));
+            keyLabel = new GUIStyle(sign) { fontSize = 38, fontStyle = FontStyle.Bold };
         }
 
         void OnDestroy()
         {
-            foreach (var texture in new[] { panel, barBack, barFill, barReady })
+            foreach (var texture in new[] { panel, barBack, barFill, barReady, keyCap })
             {
                 if (texture != null) Destroy(texture);
             }

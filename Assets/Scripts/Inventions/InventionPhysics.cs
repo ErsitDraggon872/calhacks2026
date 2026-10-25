@@ -14,7 +14,8 @@ namespace CalHacks
         PlayerController rider;
         float poweredUntil, nextUseAt, nextBounceAt;
         float poweredStartedAt;
-        bool active, held, warnedWeakLift;
+        bool active, held, warnedWeakLift, highlighted;
+        MaterialPropertyBlock highlightBlock;
         Vector3 spawnPosition;
         Quaternion spawnRotation;
 
@@ -31,6 +32,8 @@ namespace CalHacks
 
         public bool MovingPlatform => body != null || (GetComponent<InventionMotion>()?.CarriesPlayer ?? false);        public bool HasButton => thrust != null || lift != null || glide != null || roll != null ||
             attach != null || (bounce != null && bounce.Activation != Activation.Contact);
+        /// <summary>E boards it (a vehicle, flyer, roller or something to hold on to), rather than just setting it off.</summary>
+        public bool Rideable => body != null || attach != null;
         bool HoldMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Hold);
         bool ToggleMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Toggle);
 
@@ -59,6 +62,37 @@ namespace CalHacks
         }
 
         public void SetHeld(bool value) => held = value;
+
+        /// <summary>Pulses a warm tint over the drawing while it's what E would use.</summary>
+        public void SetHighlighted(bool value)
+        {
+            if (highlighted == value) return;
+            highlighted = value;
+            if (!value)
+            {
+                foreach (var r in GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(null);
+            }
+        }
+
+        /// <summary>World-space bounds of what's drawn (for the E badge over it).</summary>
+        public Bounds VisualBounds()
+        {
+            var renderers = GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) return new Bounds(transform.position, Vector3.zero);
+            var bounds = renderers[0].bounds;
+            foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+            return bounds;
+        }
+
+        void Update()
+        {
+            if (!highlighted) return;
+            highlightBlock ??= new MaterialPropertyBlock();
+            var pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 6f);
+            // Orange is the "you can use this" colour (the draw-here outline, the build ghost).
+            highlightBlock.SetColor("_BaseColor", Color.Lerp(new Color(1f, 0.85f, 0.6f), new Color(1f, 0.62f, 0.15f), pulse));
+            foreach (var r in GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(highlightBlock);
+        }
 
         public bool TryInteract(PlayerController player)
         {

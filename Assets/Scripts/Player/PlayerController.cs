@@ -188,6 +188,7 @@ namespace CalHacks
         }
 
         public bool IsRiding(InventionPhysics platform) => riding == platform;
+        public bool IsRidingAnything => riding != null;
 
         public void Disembark(InventionPhysics platform)
         {

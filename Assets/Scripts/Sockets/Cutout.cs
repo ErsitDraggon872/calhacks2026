@@ -37,6 +37,7 @@ namespace CalHacks
                 fullScale.y * multiplier, fullScale.z * multiplier);
 
         public Vector2 Size { get; private set; }
+        public Texture2D Texture => texture;
 
         /// <summary>
         /// Builds a cutout standing on <paramref name="anchor"/>, fitted inside <paramref name="span"/> (width, height)

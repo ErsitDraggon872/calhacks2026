@@ -16,6 +16,9 @@ namespace CalHacks
     {
         public const string Unknown = "unknown";
         public const string Cat = "cat";
+        /// <summary>The backend's name for a drawing it couldn't read.</summary>
+        public const string MysteryShape = "mystery shape";
+        static readonly string[] BridgeWords = { "bridge", "plank", "board", "log" };
 
         public static string Normalize(string label) =>
             string.IsNullOrWhiteSpace(label) ? Unknown : label.Trim().ToLowerInvariant();
@@ -31,6 +34,18 @@ namespace CalHacks
                 }
             }
             return normalized == Cat ? LabelOutcome.CatReaction : LabelOutcome.Decor;
+        }
+
+        /// <summary>
+        /// Whether a drawing called <paramref name="label"/> spans the gap: a bridge (or plank, board, log), or something
+        /// nobody could name. Anything else (a rocket, a cat) is built as itself instead.
+        /// </summary>
+        public static bool IsBridge(string label)
+        {
+            var name = Normalize(label);
+            if (name == Unknown || name == MysteryShape) return true;
+            var words = System.Text.RegularExpressions.Regex.Split(name, @"[^a-z0-9]+");
+            return words.Any(word => BridgeWords.Contains(word));
         }
 
         /// <summary>
