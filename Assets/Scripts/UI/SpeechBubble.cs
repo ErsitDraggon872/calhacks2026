@@ -30,14 +30,15 @@ namespace CalHacks
             if (string.IsNullOrEmpty(text)) return;
             Debug.Log("[Bubble] " + text);
             line = text;
-            lineUntil = Time.unscaledTime + seconds;
+            // The recognition card pauses the gatekeeper's animation; keep its reaction for after LET'S PLAY too.
+            lineUntil = Time.time + seconds;
         }
 
         public void Clear() => line = null;
 
         string Current()
         {
-            if (line != null && Time.unscaledTime < lineUntil) return line;
+            if (line != null && Time.time < lineUntil) return line;
             if (string.IsNullOrEmpty(idleLine) || (socket != null && socket.Solved)) return null;
             if (player == null)
             {

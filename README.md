@@ -19,7 +19,8 @@ properties: food feeds the gatekeeper, a rocket really flies, and a trampoline b
   all work. That's how a few attributes add up to endless solutions, the way Scribblenauts works.
 
 ### The demo route (`Assets/Scenes/Level.unity`)
-1. **The gap:** whatever you draw is stretched across it as a bridge, solid only where it's inked.
+1. **The gap:** draw a bridge; it stretches across the gap, solid only where it's inked. Other recognized objects
+   appear on the near ledge with their own abilities.
 2. **The gatekeeper:** give them something they can't eat and they cut it up. Give them food and the gate opens.
 3. **The launch deck:** the finish ledge is too high for any step plus a jump. Draw a rocket, press E to ride it up,
    and hop off at the flag.
@@ -133,13 +134,23 @@ More detail: [`docs/README.md`](docs/README.md) (start here), [`docs/coop-spacet
 | Key | Action |
 |---|---|
 | A / D, W / S | Walk left/right, and away from/toward the camera |
-| Space | Jump (or jump off a ride) |
+| Space | Jump (or jump off a ride); dismisses the drawing card |
 | E | Use or board the nearest drawing (fire a rocket, start a car) |
 | Enter | BUILD from the game's side; dismisses the drawing card |
 | M | Switch between the drawing pad and the whiteboard webcam |
 | G | Toggle the build-placement outline |
+| P | Toggle the webcam preview |
 | F5 | Reset the level (also clears the drawing pad) |
 | F3 / F4 | Debug overlay (shows the AI provider and latency) / co-op panel |
+
+Operator fallbacks for the demo:
+
+| Key | Action |
+|---|---|
+| F1 | Force-solve the nearest puzzle: lay the bridge, feed the gatekeeper, or build a rocket on the launch deck |
+| F2 | Reject the current drawing by hand |
+| F9 | Recalibrate the whiteboard camera |
+| 1–5, 0 | Mock capture only: choose the next mock drawing (0 is an empty board) |
 
 ### Tests
 - Backend: `python -m unittest discover -s tools -p 'test_thinkink_backend.py'` (no network calls).

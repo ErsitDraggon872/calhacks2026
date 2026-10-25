@@ -8,9 +8,9 @@ Paper Mario-style **side view**. Player B walks left and right, steps toward or 
 **The pitch the demo has to earn:** *Draw on a real whiteboard. Your drawing becomes a solid object, and AI gives it properties that help your partner solve the game.*
 
 ## The demo route (`Assets/Scenes/Level.unity`)
-1. **The gap** (shape). Any drawing is stretched across it as a bridge. Shape alone solves it; the AI's reading is shown but doesn't gate it.
+1. **The gap** (shape). Draw a bridge: it stretches across the gap, solid only where it's inked. Other recognized objects appear on the near ledge with their own abilities; an unrecognized shape falls back to a bridge.
 2. **The gatekeeper** (meaning). Only something the AI calls `edible` opens the gate; something `hostile` scares the gatekeeper off. We draw a bridge first so it is visibly refused, then an apple so it is accepted. A different food after F5 proves it's the property, not the picture.
-3. **Stairs → island → flag.**
+3. **Stairs → island launch deck → flag.** Draw a rocket on the launch deck, press E to ride it up beside the finish cliff, then Space to hop off toward the flag. F1 on the deck builds a fallback rocket if needed.
 
 The high-ledge build slot is still in the level, but it's off the rehearsed route.
 
@@ -25,10 +25,10 @@ The high-ledge build slot is still in the level, but it's off the rehearsed rout
 | | Grappling rope (`tether`): cut |
 | Browser whiteboard + main free-invention physics | Andy's in-Unity drawing pad; Henry's SpacetimeDB browser whiteboard supplies drawing input |
 
-The backend runs in demo mode by default: every answer is cut to support plus at most two of bounce, thrust and lift, with power snapped to three tested strengths, and a flyer's carrying power comes from its drawn width (a tiny bird can't lift the player; a giant one can). `THINKINK_DEMO=0` restores the full set: Unity's free inventions also run glide, roll and attach (E activates/rides, Space jumps off). A ride that falls off the level returns to where it was built. Free builds named like creatures come alive: a cat or dog wanders, a frog hops, a bird flies, a fan wiggles. B can ride them, and landing on one from a jump squashes it into paper confetti. Unity still parses other deferred parts. Anything it cannot run yet keeps the drawn solid shape without the unsupported power. Recognized support-only vehicles gain a basic drive ability; puzzle solutions still depend on traits.
+The backend runs in demo mode by default: every answer is cut to support plus at most two of bounce, thrust and lift, with power snapped to three tested strengths. Flying inventions can carry the player even when the AI estimates a small carrying capacity. `THINKINK_DEMO=0` restores the full set: Unity's free inventions also run glide, roll and attach (E activates/rides, Space jumps off). A ride that falls off the level returns to where it was built. Free builds named like creatures come alive: a cat or dog wanders, a frog hops, a bird flies, a fan wiggles. B can ride them, and landing on one from a jump squashes it into paper confetti. Unity still parses other deferred parts. Anything it cannot run yet keeps the drawn solid shape without the unsupported power. Recognized support-only vehicles gain a basic drive ability; puzzle solutions still depend on traits.
 
 ## Running it
-- **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple python tools/thinkink_backend.py` answers each BUILD in turn.
+- **The backend:** `BITDEER_API_KEY=... python tools/thinkink_backend.py` serves `/interpret` on `http://127.0.0.1:8000`. Without a key, `THINKINK_FAKE=1 THINKINK_FAKE_SEQUENCE=bridge,bridge,apple,rocket python tools/thinkink_backend.py` answers each BUILD in turn.
 - **Unity:** defaults to Henry's browser whiteboard (`DigitalBoard`), opened from F4 > **Create room + open drawing pad**. It syncs drawings through a local SpacetimeDB server, started automatically with Play mode; one Unity Editor is sufficient and no ThinkInk key is needed. See [`coop-spacetimedb.md`](coop-spacetimedb.md). The Webcam capture source calls the backend at `GameConfig.interpretUrl`. `-capture=replay` uses saved board photos instead of the camera (`GameConfig.replayFolder`, default `StreamingAssets/Replay`).
 - **Digital board instead of the whiteboard:** `-capture=digital` (`CaptureSource.DigitalBoard`). The judge draws in Henry's browser whiteboard (`tools/whiteboard/index.html`) and taps BUILD there; Unity joins its SpacetimeDB room and runs the same BUILD on the drawing. The default same-PC mode needs no ThinkInk key or cloud database. The AI backend still needs internet for real recognition. See [`coop-spacetimedb.md`](coop-spacetimedb.md#the-digital-board-one-game-machine).
 - **Checking the backend:** `python tools/interpret_check.py --dir <photos>` checks a running backend against the demo expectations.
@@ -51,6 +51,8 @@ The backend runs in demo mode by default: every answer is cut to support plus at
 | [`handoff-side-view-world.md`](handoff-side-view-world.md) | Verify the step 2 side-view world (PR #1) |
 | [`handoff-build-placement.md`](handoff-build-placement.md) | Redesign free-build placement and the build ghost |
 | [`handoff-gap-bridge-verify.md`](handoff-gap-bridge-verify.md) | Verify the ink-only gap bridge (PR #2) |
+| [`handoff-card-subtitle-style.md`](handoff-card-subtitle-style.md) | Restyle the "came to life" card and subtitles as paper notes |
+| [`merge-execution-ledger.md`](merge-execution-ledger.md) | Log of the browser-board and invention-physics merge, with its verification runs |
 
 ## Superseded
 | Doc | Why |

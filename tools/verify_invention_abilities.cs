@@ -54,14 +54,14 @@ foreach(var kind in new[]{"thrust","lift","roll","car","bounce"}) {
 var weak=Make("lift",1f); weak.Abilities.TryInteract(player);
 var weakStart=weak.transform.position.y;
 yield return new UnityEngine.WaitForSeconds(.6f);
-results.Add("weak lift sinks="+(weak.transform.position.y<weakStart));
+results.Add("small lift carries rider="+(weak.transform.position.y>weakStart));
 UnityEngine.Object.Destroy(weak.gameObject);
 yield return new UnityEngine.WaitForSeconds(.1f);
 var contactLift=Make("lift",1f,"contact");
 player.Teleport(new UnityEngine.Vector3(80,11.2f,0),UnityEngine.Quaternion.identity);
 var contactStart=contactLift.transform.position.y;
 yield return new UnityEngine.WaitForSeconds(.8f);
-results.Add("weak contact lift sinks="+(contactLift.transform.position.y<contactStart));
+results.Add("small contact lift carries rider="+(contactLift.transform.position.y>contactStart));
 UnityEngine.Object.Destroy(contactLift.gameObject);
 player.Teleport(new UnityEngine.Vector3(7.5f,.05f,0),UnityEngine.Quaternion.identity);
 UnityEngine.Object.Destroy(root);

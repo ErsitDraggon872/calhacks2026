@@ -52,12 +52,14 @@ System.Collections.IEnumerator VerifyCreatureCollisions() {
   var paper = Paper();
   run.SpawnInvention(paper, CalHacks.InventionSpec.Plain());
   checks.Add("blocked drawing retained=" + (run.PendingBuildCount == 1 && paper != null));
-  UnityEngine.Object.Destroy(block); yield return new UnityEngine.WaitForSeconds(.6f);
+  // Successful placement opens the recognition card and pauses gameplay.
+  UnityEngine.Object.Destroy(block); yield return new UnityEngine.WaitForSecondsRealtime(.6f);
   checks.Add("blocked drawing auto-spawns=" + (run.PendingBuildCount == 0 && run.InventionCount == count + 1));
   var placed = UnityEngine.Object.FindObjectsByType<CalHacks.Invention>(UnityEngine.FindObjectsSortMode.None).FirstOrDefault(i => i.Cutout.Texture == paper);
   if (placed != null) run.RemoveInvention(placed);
-  checks.Add("free build does not pause=" + (!CalHacks.InventionCard.Visible && UnityEngine.Time.timeScale > 0f));
+  checks.Add("free build presents paused card=" + (CalHacks.InventionCard.Visible && UnityEngine.Time.timeScale == 0f));
  } finally {
+  CalHacks.InventionCard.Hide();
   player.Teleport(start, rotation); player.InputLocked = locked; UnityEngine.Object.Destroy(root);
   System.IO.File.WriteAllText("Temp/creature-collision-results.txt", string.Join("; ", checks));
  }
