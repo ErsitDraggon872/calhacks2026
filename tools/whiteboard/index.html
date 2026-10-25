@@ -152,6 +152,8 @@ function enqueue(reducer, args) {
 
 // ---- Drawing -------------------------------------------------------------------------------------------------
 let drawing = false, batch = [], last = null, flushTimer = null;
+// Every batch sent for the drawing on screen, so BUILD can keep it: see keepDrawing().
+let strokeLog = [];
 
 function norm(e) {
   const r = canvas.getBoundingClientRect();
@@ -168,7 +170,10 @@ function segment(a, b) {
 
 function flush(continuing) {
   clearTimeout(flushTimer); flushTimer = null;
-  if (batch.length >= 4 && roomId != null) enqueue('add_stroke', [roomId, captureId(), sequence++, batch]);
+  if (batch.length >= 4 && roomId != null) {
+    strokeLog.push(batch);
+    enqueue('add_stroke', [roomId, captureId(), sequence++, batch]);
+  }
   batch = continuing && last ? [...last] : [];
 }
 
@@ -203,6 +208,19 @@ function clearLocal() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   inkCtx.clearRect(0, 0, ink.width, ink.height);
   drawingNumber++; sequence = 0;
+  strokeLog = [];
+}
+
+/**
+ * After a BUILD the drawing stays on screen; only CLEAR erases it. The game builds each BUILD from the strokes of
+ * its capture and ignores later strokes for it, so the strokes on screen are sent again under a new capture: the
+ * next BUILD is everything visible, including what's drawn on top. The built capture's rows aren't cleared: the
+ * game raises a clear a frame late, which could wipe the strokes sent here; it ignores a built capture's strokes
+ * anyway, and CLEAR or a reset removes them all.
+ */
+function keepDrawing() {
+  drawingNumber++; sequence = 0;
+  for (const points of strokeLog) enqueue('add_stroke', [roomId, captureId(), sequence++, points]);
 }
 
 $('clear').onclick = () => {
@@ -241,8 +259,8 @@ $('build').onclick = async () => {
     await enqueue('publish_invention', [roomId, capture, image, '', 0, 0]);
     if (BOARD_MODE) {
       // The pending row is the game's cue: it builds from the strokes it already has.
-      clearLocal();
-      await enqueue('clear_drawing', [roomId]);
+      keepDrawing();
+      await queue;
       $('buildStatus').textContent = 'sent to the game';
       return;
     }
@@ -255,8 +273,8 @@ $('build').onclick = async () => {
       provider: 'browser-test', latency_ms: 600,
     });
     await enqueue('publish_invention', [roomId, capture, image, physics, 0, 0]);
-    clearLocal();
-    await enqueue('clear_drawing', [roomId]);
+    keepDrawing();
+    await queue;
   } catch (e) {
     showError(e.message);
   } finally {

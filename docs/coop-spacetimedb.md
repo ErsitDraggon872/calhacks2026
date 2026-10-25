@@ -58,8 +58,9 @@ readings. Only one machine runs Unity.
   board's frame), then `WebcamVisionClient` cuts the ink out with the whole frame as the crop, `/interpret` says
   what it is, and the socket in range (or a free build) gets it. If BUILD is cooling down or a reading is in
   flight, browser BUILDs wait in order (up to 8 waiting), each with its own immutable frame until CAST completes. Unity's own BUILD key also works, on the latest strokes.
-- **Clearing:** the page clears itself right after its BUILD (the game keeps its own copy of that capture's strokes
-  until that BUILD has completed). CLEAR clears both. The game's F5 resets the room (`reset_level`) and the page notices
+- **Clearing:** only CLEAR erases the drawing; it clears both. After a BUILD the drawing stays on the page, which
+  sends its strokes again under a new capture, so the next BUILD is everything on screen, including what's drawn on
+  top (the game keeps its own copy of each BUILD's strokes until that BUILD has completed). The game's F5 resets the room (`reset_level`) and the page notices
   `game_state.reset_count` change and empties its canvas.
 - **Not used in this mode:** `ExplorerInventions` ignores the room's inventions (the `pending` rows only trigger
   BUILD and stay `pending` until a reset), and Ink isn't spent.
