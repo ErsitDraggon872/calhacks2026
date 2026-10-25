@@ -2,15 +2,15 @@ using UnityEngine;
 
 namespace CalHacks
 {
-    /// <summary>Run timer, station instructions, BUILD cooldown bar and the win banner.</summary>
+    /// <summary>Run timer, station instructions, BUILD cooldown bar and the win banner, as paper notes (<see cref="Sketch"/>).</summary>
     public class Hud : MonoBehaviour
     {
         const float ReferenceHeight = 1080f;
-        const string StationSign = "1. Draw  ·  2. Press Enter to BUILD";
-        const string Reading = "AI is reading your drawing...";
+        const string StationSign = "1. draw  ·  2. press enter to build";
+        const string Reading = "reading your drawing...";
+        static readonly Color ReadyFill = new Color(0.45f, 0.78f, 0.42f);
 
-        GUIStyle small, big, sign, keyLabel, inputLabel;
-        Texture2D panel, barBack, barFill, barReady, keyCap;
+        GUIStyle timer, small, big, sign, keyLabel;
 
         public static string FormatTime(float seconds)
         {
@@ -27,11 +27,12 @@ namespace CalHacks
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             var width = Screen.width / scale;
 
-            GUI.Label(new Rect(30f, 20f, 400f, 60f), FormatTime(run.State.Elapsed), small);
-            if (run.InputName != null) GUI.Label(new Rect(30f, 74f, 400f, 36f), $"Input: {run.InputName}  ·  M", inputLabel);
+            var tag = new Rect(30f, 22f, 210f, run.InputName != null ? 88f : 58f);
+            Sketch.Box(tag, Sketch.Paper, 11, shadow: true);
+            GUI.Label(new Rect(tag.x + 16f, tag.y + 4f, tag.width - 32f, 50f), FormatTime(run.State.Elapsed), timer);
+            if (run.InputName != null)
+                GUI.Label(new Rect(tag.x + 16f, tag.y + 52f, tag.width - 32f, 28f), $"{run.InputName.ToLowerInvariant()}  ·  M", small);
 
-            var signRect = new Rect((width - 1100f) * 0.5f, 18f, 1100f, 54f);
-            GUI.DrawTexture(signRect, panel);
             var state = run.State;
             // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
             var banner = run.NearestSocket?.Banner;
@@ -39,25 +40,36 @@ namespace CalHacks
             // E and SPACE only show when they'd do something: E near a usable invention, SPACE while riding one.
             var usable = run.Usable;
             var riding = run.Player != null && run.Player.IsRidingAnything;
-            var controls = "DRAW → BUILD"
-                + (usable == null ? "" : usable.Rideable && !run.Player.IsRiding(usable) ? "  ·  E RIDE" : "  ·  E ACTIVATE")
-                + (riding ? "  ·  SPACE JUMP OFF" : "");
-            var status = explorer ? "Your partner draws  ·  you bring it to life"
+            var controls = "draw → bring to life"
+                + (usable == null ? "" : usable.Rideable && !run.Player.IsRiding(usable) ? "  ·  E ride" : "  ·  E activate")
+                + (riding ? "  ·  space jump off" : "");
+            var status = explorer ? "your partner draws  ·  you bring it to life"
                 : state.Finished ? StationSign
                 : state.InFlight ? Reading
                 : !string.IsNullOrEmpty(banner) ? banner
                 : controls;
-            GUI.Label(signRect, status, sign);
+            // The note fits its words (in 40 px steps, so a few sizes cover every sign).
+            var signWidth = Mathf.Min(1100f, Mathf.Ceil((sign.CalcSize(new GUIContent(status)).x + 70f) / 40f) * 40f);
+            var signRect = new Rect((width - signWidth) * 0.5f, 22f, signWidth, 54f);
+            Sketch.Tilted(signRect.center, -0.6f, () =>
+            {
+                Sketch.Box(signRect, Sketch.Paper, 12, shadow: true);
+                GUI.Label(signRect, status, sign);
+            });
             if (usable != null && !riding && !state.Finished) DrawKeyBadge(usable, scale);
 
             DrawBuildBar(state, width);
 
             if (state.Finished)
             {
-                var rect = new Rect((width - 1000f) * 0.5f, ReferenceHeight * 0.3f, 1000f, 260f);
-                GUI.DrawTexture(rect, panel);
-                GUI.Label(new Rect(rect.x, rect.y + 20f, rect.width, 130f), "You made it!\n" + FormatTime(run.FinalTime), big);
-                GUI.Label(new Rect(rect.x, rect.y + 180f, rect.width, 60f), "Press F5 to play again", sign);
+                var rect = new Rect((width - 760f) * 0.5f, ReferenceHeight * 0.3f, 760f, 260f);
+                Sketch.Tilted(rect.center, -1.5f, () =>
+                {
+                    Sketch.Box(rect, Sketch.Paper, 16, shadow: true);
+                    Sketch.Tape(new Vector2(rect.center.x, rect.y + 2f), 3f, 120f, 26f);
+                    GUI.Label(new Rect(rect.x, rect.y + 24f, rect.width, 130f), "You made it!\n" + FormatTime(run.FinalTime), big);
+                    GUI.Label(new Rect(rect.x, rect.y + 178f, rect.width, 56f), "press F5 to play again", sign);
+                });
             }
             GUI.matrix = Matrix4x4.identity;
         }
@@ -72,55 +84,37 @@ namespace CalHacks
             if (screen.z <= 0f) return;
             var bob = Mathf.Sin(Time.time * 4f) * 6f;
             var centre = new Vector2(screen.x / scale, ReferenceHeight - screen.y / scale - 30f + bob);
-            var rect = new Rect(centre.x - 30f, centre.y - 30f, 60f, 60f);
-            GUI.DrawTexture(rect, keyCap);
+            var rect = new Rect(centre.x - 28f, centre.y - 28f, 56f, 56f);
+            Sketch.Box(rect, Sketch.Marker, 15, shadow: true);
             GUI.Label(rect, "E", keyLabel);
         }
 
         void DrawBuildBar(RunState state, float width)
         {
-            var rect = new Rect(width - 420f, ReferenceHeight - 100f, 390f, 70f);
-            GUI.DrawTexture(rect, panel);
-            var bar = new Rect(rect.x + 15f, rect.y + 44f, rect.width - 30f, 14f);
-            GUI.DrawTexture(bar, barBack);
+            var rect = new Rect(width - 420f, ReferenceHeight - 104f, 390f, 76f);
+            Sketch.Box(rect, Sketch.Paper, 13, shadow: true);
             var ready = state.CooldownRemaining <= 0f && !state.InFlight;
-            var fill = state.InFlight ? 0f : state.CooldownFraction;
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * fill, bar.height), ready ? barReady : barFill);
             var text = state.InFlight ? Reading
-                : ready ? "READY TO INVENT"
-                : $"Recharging {state.CooldownRemaining:0.0}s";
+                : ready ? "ready to invent"
+                : $"recharging {state.CooldownRemaining:0.0}s";
             GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 40f), text, sign);
-        }
-
-        static Texture2D Solid(Color color)
-        {
-            var texture = new Texture2D(1, 1);
-            texture.SetPixel(0, 0, color);
-            texture.Apply();
-            return texture;
+            var bar = new Rect(rect.x + 22f, rect.y + 48f, rect.width - 44f, 14f);
+            Sketch.Box(bar, Color.white, 14);
+            var fill = state.InFlight ? 0f : state.CooldownFraction;
+            var old = GUI.color;
+            GUI.color = ready ? ReadyFill : Sketch.Marker;
+            GUI.DrawTexture(new Rect(bar.x + 2f, bar.y + 2f, (bar.width - 4f) * fill, bar.height - 4f), Texture2D.whiteTexture);
+            GUI.color = old;
         }
 
         void EnsureStyles()
         {
-            if (small != null) return;
-            small = new GUIStyle(GUI.skin.label) { fontSize = 40, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
-            sign = new GUIStyle(GUI.skin.label) { fontSize = 30, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-            big = new GUIStyle(GUI.skin.label) { fontSize = 64, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-            panel = Solid(new Color(0.1f, 0.08f, 0.06f, 0.65f));
-            barBack = Solid(new Color(1f, 1f, 1f, 0.15f));
-            barFill = Solid(new Color(1f, 0.6f, 0.1f, 0.9f));
-            barReady = Solid(new Color(0.3f, 0.85f, 0.4f, 0.95f));
-            keyCap = Solid(new Color(1f, 0.62f, 0.15f, 0.95f));
-            keyLabel = new GUIStyle(sign) { fontSize = 38, fontStyle = FontStyle.Bold };
-            inputLabel = new GUIStyle(small) { fontSize = 24, fontStyle = FontStyle.Normal };
-        }
-
-        void OnDestroy()
-        {
-            foreach (var texture in new[] { panel, barBack, barFill, barReady, keyCap })
-            {
-                if (texture != null) Destroy(texture);
-            }
+            if (timer != null) return;
+            timer = Sketch.Text(38, Sketch.Ink, bold: true);
+            small = Sketch.Text(20, Sketch.Muted);
+            sign = Sketch.Text(28, Sketch.Ink, TextAnchor.MiddleCenter);
+            big = Sketch.Text(60, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
+            keyLabel = Sketch.Text(34, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
         }
     }
 }
