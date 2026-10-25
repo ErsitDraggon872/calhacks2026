@@ -58,6 +58,8 @@ namespace CalHacks
             var screen = cam.WorldToScreenPoint(transform.position + Vector3.up * headHeight);
             if (screen.z <= 0f) return;
             EnsureStyles();
+            // Behind the HUD (the co-op panel draws over it rather than the bubble dodging around the panel).
+            GUI.depth = 10;
             var scale = Screen.height / ReferenceHeight;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             var width = Screen.width / scale;
@@ -71,13 +73,10 @@ namespace CalHacks
             var rect = new Rect(tip.x - boxWidth * 0.5f, tip.y - tail - boxHeight, boxWidth, boxHeight);
             rect.x = Mathf.Clamp(rect.x, 10f, width - boxWidth - 10f);
             rect.y = Mathf.Max(rect.y, 90f);
-            // Stay left of the co-op panel instead of sliding under it; the tail still finds the head below.
-            if (rect.Overlaps(CoopHud.Occupied)) rect.x = Mathf.Max(10f, CoopHud.Occupied.x - 10f - boxWidth);
-            var tailX = Mathf.Clamp(tip.x - tail * 0.5f, rect.x + 14f, rect.xMax - 14f - tail);
 
             // Paper note like the top sign; the tail is drawn over the note's bottom outline so the two read as one shape.
             Sketch.Box(rect, Sketch.Paper, 21, shadow: true);
-            GUI.DrawTexture(new Rect(tailX, rect.yMax - 4f, tail, tail + 4f), tailTexture);
+            GUI.DrawTexture(new Rect(tip.x - tail * 0.5f, rect.yMax - 4f, tail, tail + 4f), tailTexture);
             Sketch.Label(new Rect(rect.x + 20f, rect.y + 14f, rect.width - 40f, rect.height - 28f), text, style);
             GUI.matrix = Matrix4x4.identity;
         }
