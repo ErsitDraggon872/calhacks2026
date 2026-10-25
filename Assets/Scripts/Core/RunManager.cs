@@ -262,8 +262,8 @@ namespace CalHacks
                     closest = ability;
                 }
             }
-            // Riding locks E onto the ride's own function (if it has one); nearby drawings are ignored.
-            var ride = player != null ? player.Riding : null;
+            // A ride boarded with E locks E onto its own function (if it has one); nearby drawings are ignored.
+            var ride = player != null && player.RideLocked ? player.Riding : null;
             if (ride != null) closest = ride.RideAction != null ? ride : null;
             if (held && key.wasPressedThisFrame) closest?.TryInteract(player);
             if (Usable != closest)

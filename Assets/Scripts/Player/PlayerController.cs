@@ -46,7 +46,10 @@ namespace CalHacks
         Vector3 walkVelocity;
         float horizontalImpulse, forcedAirborneUntil;
         InventionPhysics riding;
+        // True when B boarded `riding` with E rather than just landing on it.
+        bool rideLocked;
         Vector3 lastPlatformPosition;
+        float rideContactTime;
         Action<InputAction.CallbackContext> onJump;
 
         public bool IsGrounded { get; private set; }
@@ -90,7 +93,8 @@ namespace CalHacks
 
         void Update()
         {
-            // A ride locks B on: B moves with it and can't walk off; only Space (or the ride failing) ends it.
+            // Standing on a moving drawing carries B while they keep touching it. A ride boarded with E locks B on:
+            // B can't walk off, and only Space (or the ride failing) ends it.
             if (riding != null)
             {
                 var platform = riding;
@@ -100,11 +104,11 @@ namespace CalHacks
                 if (riding == platform)
                 {
                     lastPlatformPosition = position;
-                    // Pinned by a wall while the ride carried on: don't float along beside it.
-                    if (DistanceTo(platform) > 1.2f) riding = null;
+                    // Pinned by a wall while a locked ride carried on: don't float along beside it.
+                    if (rideLocked ? DistanceTo(platform) > 1.2f : Time.time - rideContactTime > .15f) riding = null;
                 }
             }
-            var input = InputLocked || riding != null ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
+            var input = InputLocked || RideLocked ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
             var move = CameraRelative(input);
 
             const float rayStart = 0.3f;
@@ -172,12 +176,14 @@ namespace CalHacks
             if (ability != null)
             {
                 ability.PlayerContact(this, hit);
-                // Landing on a vehicle or creature mounts B, like pressing E; brushing another doesn't swap rides.
-                if (riding == null && ability.MovingPlatform && hit.normal.y > .45f && verticalVelocity <= 0f &&
+                // Standing on a moving drawing carries B (unlocked); a ride B boarded with E isn't swapped for it.
+                if (!RideLocked && ability.MovingPlatform && hit.normal.y > .45f && verticalVelocity <= 0f &&
                     Time.time >= forcedAirborneUntil)
                 {
-                    lastPlatformPosition = ability.transform.position;
+                    if (riding != ability) lastPlatformPosition = ability.transform.position;
                     riding = ability;
+                    rideLocked = false;
+                    rideContactTime = Time.time;
                 }
             }
             if (hit.normal.y < 0.1f) return;
@@ -196,6 +202,8 @@ namespace CalHacks
         public bool IsRiding(InventionPhysics platform) => riding == platform;
         public bool IsRidingAnything => riding != null;
         public InventionPhysics Riding => riding;
+        /// <summary>On a ride boarded with E: WASD is ignored and only Space gets B off.</summary>
+        public bool RideLocked => riding != null && rideLocked;
 
         float DistanceTo(InventionPhysics platform)
         {
@@ -225,6 +233,7 @@ namespace CalHacks
             Teleport(new Vector3(x, bounds.max.y + .07f, platform.transform.position.z),
                 Quaternion.LookRotation(Vector3.right * FacingSign));
             riding = platform;
+            rideLocked = true;
             lastPlatformPosition = platform.transform.position;
         }
 

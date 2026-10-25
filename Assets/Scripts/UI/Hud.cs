@@ -37,10 +37,10 @@ namespace CalHacks
             // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
             var banner = run.NearestSocket?.Banner;
             var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer && !run.UsesDigitalBoard;
-            // E and SPACE only show when they'd do something: E near a usable invention, SPACE while riding one.
-            // On a ride, E is only the ride's own function (go / stop / hold), and the sign stays on the ride.
+            // E and SPACE only show when they'd do something: E near a usable invention, SPACE on a ride boarded with E.
+            // On that ride, E is only the ride's own function (go / stop / hold), and the sign stays on the ride.
             var usable = run.Usable;
-            var ride = run.Player != null ? run.Player.Riding : null;
+            var ride = run.Player != null && run.Player.RideLocked ? run.Player.Riding : null;
             var riding = ride != null;
             var controls = riding
                 ? (ride.RideAction != null ? ride.RideAction + "  ·  " : "") + "space jump off"

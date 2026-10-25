@@ -103,10 +103,10 @@ namespace CalHacks
         public bool TryInteract(PlayerController player)
         {
             if (player == null || player.InputLocked || !HasButton) return false;
-            if (player.IsRiding(this))
+            // On a ride boarded with E, E never gets B off; only Space does. A ride with nothing left to do ignores E.
+            // Merely standing on it (support contact) isn't boarding: E below boards and locks B on.
+            if (player.IsRiding(this) && player.RideLocked)
             {
-                // E never gets B off a ride; only Space does. A ride with nothing left to do ignores E.
-                // Standing on a parked shape is support contact, not an earlier E activation.
                 if (body != null && body.isKinematic)
                 {
                     rider = player;
