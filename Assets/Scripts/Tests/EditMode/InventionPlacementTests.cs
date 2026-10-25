@@ -81,6 +81,43 @@ namespace CalHacks.Tests
 
         static readonly Vector3 GapAnchor = new Vector3(12.3f, 0f, 0f);
 
+        [Test]
+        public void DropEdgeFindsWhereTheLedgeEnds()
+        {
+            // Ground from x 10 to 40; B at 15.
+            bool Ground(float x) => x >= 10f && x <= 40f;
+            Assert.AreEqual(10f, InventionPlacement.DropEdge(15f, -1f, 8f, Ground).Value, InventionPlacement.EdgeStep);
+            Assert.GreaterOrEqual(InventionPlacement.DropEdge(15f, -1f, 8f, Ground).Value, 10f, "never past the edge");
+            Assert.IsNull(InventionPlacement.DropEdge(15f, 1f, 8f, Ground), "ground all the way");
+            Assert.IsNull(InventionPlacement.DropEdge(15f, -1f, 5f, Ground), "reach ends exactly on the edge");
+        }
+
+        [Test]
+        public void ClearSpotSkipsSpotsWithNothingToStandOn()
+        {
+            // Poking into the ledge: the nearest clear spot is toward the camera, but the floor ends at z -2 (the front
+            // edge), so a spot in front of that is no spot at all.
+            var build = InventionPlacement.BuildBounds(new Vector3(26f, 0f, -0.3f), new Vector2(2f, 1f), 2f);
+            bool OnFloor(Bounds b) => b.center.z >= -2f;
+            Assert.IsTrue(InventionPlacement.ClearSpot(build, new[] { Floor, Ledge }, 1f, out var shift, OnFloor));
+            Assert.GreaterOrEqual(build.center.z + shift.z, -2f);
+            Assert.IsFalse(InventionPlacement.ClearSpot(build, new[] { Floor, Ledge }, 1f, out shift, b => false));
+        }
+
+        [Test]
+        public void BuildPulledBackToTheEdgeStandsOnTheLedge()
+        {
+            // B at 11 facing the drop at x 10: the usual spot hangs out over it.
+            bool Ground(float x) => x >= 10f;
+            var feet = new Vector3(11f, 0f, 0f);
+            var width = 3f;
+            var bottom = InventionPlacement.BottomCentre(feet, -1f, Radius, width);
+            var edge = InventionPlacement.DropEdge(feet.x, -1f, Mathf.Abs(bottom.x - feet.x) + width * 0.5f, Ground);
+            Assert.IsNotNull(edge);
+            var x = edge.Value + width * 0.5f;
+            Assert.IsTrue(Ground(x - width * 0.5f) && Ground(x + width * 0.5f), "whole build over ground");
+        }
+
         // The level's high-ledge slot: 3 x 1.2 m against the ledge's left face (x 24), at the ledge's depth.
         static readonly Vector3 SlotBottom = new Vector3(22.5f, 0f, 1.75f);
         static readonly Vector2 SlotBox = BuildSlot.DefaultBox;

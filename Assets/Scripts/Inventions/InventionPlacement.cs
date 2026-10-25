@@ -59,6 +59,25 @@ namespace CalHacks
             return new Vector3(edge + away * Mathf.Max(0f, width) * 0.5f, drop.y, drop.z);
         }
 
+        /// <summary>Step between the ground probes <see cref="DropEdge"/> makes, in metres.</summary>
+        public const float EdgeStep = 0.1f;
+
+        /// <summary>
+        /// The last X with ground under it going from <paramref name="fromX"/> (B's feet) toward <paramref name="sign"/>
+        /// for up to <paramref name="reach"/> metres: where the ledge B stands on ends, or null if the ground runs the whole
+        /// way. A build standing in front of B is pulled back to it so it never hangs out over a drop.
+        /// </summary>
+        public static float? DropEdge(float fromX, float sign, float reach, System.Func<float, bool> hasGround)
+        {
+            sign = sign < 0f ? -1f : 1f;
+            var steps = Mathf.CeilToInt(Mathf.Max(0f, reach) / EdgeStep);
+            for (var i = 0; i <= steps; i++)
+            {
+                if (!hasGround(fromX + sign * Mathf.Min(i * EdgeStep, reach))) return fromX + sign * Mathf.Max(0, i - 1) * EdgeStep;
+            }
+            return null;
+        }
+
         /// <summary>
         /// Largest size with the drawing's aspect (<paramref name="width"/> / <paramref name="height"/> pixels) that fits
         /// inside <paramref name="box"/>. How big it was drawn doesn't matter, only its shape.
@@ -93,10 +112,12 @@ namespace CalHacks
         /// <summary>
         /// The smallest move of <paramref name="build"/> that clears every box in <paramref name="obstacles"/>: toward the
         /// camera (−Z, the open front of the level) or further from B (along <paramref name="facingSign"/>), never back
-        /// toward B or up. Tries the nearest spots first, preferring depth on a tie. False if nothing within
-        /// <see cref="MaxShift"/> is clear.
+        /// toward B or up. Tries the nearest spots first, preferring depth on a tie. With <paramref name="standable"/>, a
+        /// spot it rejects (nothing to stand on: out over a drop, or past the level's front edge) doesn't count either.
+        /// False if nothing within <see cref="MaxShift"/> is clear.
         /// </summary>
-        public static bool ClearSpot(Bounds build, IList<Bounds> obstacles, float facingSign, out Vector3 shift)
+        public static bool ClearSpot(Bounds build, IList<Bounds> obstacles, float facingSign, out Vector3 shift,
+            System.Func<Bounds, bool> standable = null)
         {
             var sign = facingSign < 0f ? -1f : 1f;
             var steps = Mathf.RoundToInt(MaxShift / ShiftStep);
@@ -106,7 +127,7 @@ namespace CalHacks
                 {
                     shift = new Vector3(sign * x * ShiftStep, 0f, -(total - x) * ShiftStep);
                     var moved = new Bounds(build.center + shift, build.size);
-                    if (!AnyOverlap(moved, obstacles)) return true;
+                    if (!AnyOverlap(moved, obstacles) && (standable == null || standable(moved))) return true;
                 }
             }
             shift = Vector3.zero;

@@ -428,11 +428,22 @@ namespace CalHacks
             else
             {
                 var away = player.FacingSign;
-                bottom = gap != null
-                    ? gap.LaunchSpot(feet, size.x, out away)
-                    : InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
+                if (gap != null)
+                {
+                    bottom = gap.LaunchSpot(feet, size.x, out away);
+                }
+                else
+                {
+                    bottom = InventionPlacement.BottomCentre(feet, player.FacingSign, player.Radius, size.x);
+                    // Never out over a drop, where B can't reach it: its far edge goes at the ledge's edge instead (a
+                    // build that ends up around B lifts B onto it).
+                    var reach = Mathf.Abs(bottom.x - feet.x) + size.x * 0.5f;
+                    var edge = InventionPlacement.DropEdge(feet.x, away, reach, x => HasGround(x, feet.y, feet.z));
+                    if (edge != null) bottom.x = edge.Value - (away < 0f ? -1f : 1f) * size.x * 0.5f;
+                }
                 var build = InventionPlacement.BuildBounds(bottom, size, depth);
-                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), away, out var shift);
+                spotClear = InventionPlacement.ClearSpot(build, ObstaclesAround(build), away, out var shift,
+                    moved => Standable(moved, feet.y));
                 bottom += shift;
             }
 
@@ -476,6 +487,25 @@ namespace CalHacks
                 if (hit.GetComponentInParent<PlayerController>() == null) obstacles.Add(hit.bounds);
             }
             return obstacles;
+        }
+
+        /// <summary>Whether a build with bounds <paramref name="build"/> has ground under both ends and its middle.</summary>
+        bool Standable(Bounds build, float feetY)
+        {
+            var inset = Mathf.Min(0.1f, build.extents.x);
+            return HasGround(build.min.x + inset, feetY, build.center.z) && HasGround(build.center.x, feetY, build.center.z) &&
+                HasGround(build.max.x - inset, feetY, build.center.z);
+        }
+
+        /// <summary>Whether there's something to stand on at <paramref name="x"/>, within a step of <paramref name="y"/> (B's feet).</summary>
+        bool HasGround(float x, float y, float z)
+        {
+            foreach (var hit in Physics.RaycastAll(new Vector3(x, y + 0.5f, z), Vector3.down, 1.1f, Physics.AllLayers,
+                         QueryTriggerInteraction.Ignore))
+            {
+                if (hit.normal.y > 0.5f && hit.collider.GetComponentInParent<PlayerController>() == null) return true;
+            }
+            return false;
         }
 
         /// <summary>If the new build appeared around the explorer (a slot build where they stand), puts them on top of it.</summary>
