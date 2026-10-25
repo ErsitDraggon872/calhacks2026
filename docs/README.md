@@ -43,6 +43,7 @@ The backend runs in demo mode by default: every answer is cut to support plus at
 | [`handoff-digital-board.md`](handoff-digital-board.md) | State of the browser board, the local room server and Andy's invention physics: how to run them, what's verified, what's left |
 | [`handoff-interpret-backend.md`](handoff-interpret-backend.md) | **Andy:** what to build for `/interpret`, in priority order, with acceptance tests |
 | [`DEERAI-SETUP.md`](DEERAI-SETUP.md) | Running the `/interpret` backend (`tools/thinkink_backend.py`): key, fake mode, health check. Its "apply patch" step and DRAW mode come from Andy's branch and don't apply on `main` |
+| [`handoff-juice.md`](handoff-juice.md) | **Next agent:** where to add sound and effects without disturbing the demo route |
 | [`unity-implementation-notes.md`](unity-implementation-notes.md) | How the Unity half is put together: station keys, free builds, the demo level |
 
 ## Finished handoffs (history; the work has landed)
