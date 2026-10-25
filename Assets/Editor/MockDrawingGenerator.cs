@@ -61,6 +61,39 @@ namespace CalHacks.EditorTools
         }
 
         /// <summary>
+        /// The gatekeeper: a stick-figure guard facing left (toward B) with a shield and a sword, drawn like B but with
+        /// the old capsule villager's colours filled in, a teal hat and an orange shield. Transparent; the caller
+        /// destroys it.
+        /// </summary>
+        public static Texture2D Guard()
+        {
+            var teal = new Color32(92, 140, 148, 255);   // the Wall material, the villager's hat
+            var orange = new Color32(235, 140, 64, 255); // the Villager material
+            var k = new Ink(512, 512, 17);
+            k.Arc(256, 380, 62, 62, 0, 360);                   // head
+            k.Dot(230, 392, 10);                               // eye, looking left
+            k.Arc(242, 362, 22, 12, 210, 340);                 // smile
+            k.Fill(teal, 200, 432, 212, 490, 300, 490, 312, 432);
+            k.Line(176, 432, 336, 432);                        // hat brim
+            k.Poly(200, 432, 212, 490, 300, 490, 312, 432);    // hat crown
+            k.Line(256, 318, 256, 170);                        // body
+            k.Line(256, 270, 196, 236);                        // front arm, holding the shield
+            k.Fill(orange, 118, 296, 198, 296, 198, 196, 158, 136, 118, 196);
+            k.Poly(118, 296, 198, 296, 198, 196, 158, 136, 118, 196, 118, 296); // shield
+            k.Line(158, 288, 158, 150);                        // cross on the shield
+            k.Line(124, 252, 192, 252);
+            k.Line(256, 270, 312, 212);                        // back arm, holding the sword
+            k.Line(312, 212, 322, 234);                        // grip
+            k.Line(295, 246, 349, 220);                        // crossguard
+            k.Poly(318, 244, 384, 386, 398, 404, 400, 378, 334, 236); // blade
+            k.Line(256, 170, 220, 60);                         // legs
+            k.Line(256, 170, 292, 60);
+            k.Line(220, 60, 186, 60);                          // feet point the way the guard faces
+            k.Line(292, 60, 258, 60);
+            return k.ToCroppedTexture(12);
+        }
+
+        /// <summary>
         /// Dashed "draw here" outline with a pencil in the middle, in white ink (tint it with the material).
         /// <paramref name="width"/> x <paramref name="height"/> pixels; the caller destroys it.
         /// </summary>
@@ -173,6 +206,7 @@ namespace CalHacks.EditorTools
             const float Radius = 8.5f;
             readonly int w, h;
             readonly byte[] alpha;
+            readonly Color32[] fill; // flat colour under the ink; clear where nothing is filled
             readonly float seed;
 
             public Ink(int w, int h, int seed)
@@ -180,7 +214,31 @@ namespace CalHacks.EditorTools
                 this.w = w;
                 this.h = h;
                 alpha = new byte[w * h];
+                fill = new Color32[w * h];
                 this.seed = Mathf.Abs(seed % 1000) * 0.37f;
+            }
+
+            /// <summary>Paints the closed polygon <paramref name="xy"/> in <paramref name="color"/> under the ink (scanline, even-odd).</summary>
+            public void Fill(Color32 color, params float[] xy)
+            {
+                var n = xy.Length / 2;
+                var xs = new System.Collections.Generic.List<float>();
+                for (var y = 0; y < h; y++)
+                {
+                    var sy = y + 0.5f;
+                    xs.Clear();
+                    for (var i = 0; i < n; i++)
+                    {
+                        float x0 = xy[i * 2], y0 = xy[i * 2 + 1];
+                        float x1 = xy[(i + 1) % n * 2], y1 = xy[(i + 1) % n * 2 + 1];
+                        if ((y0 <= sy) == (y1 <= sy)) continue;
+                        xs.Add(x0 + (sy - y0) / (y1 - y0) * (x1 - x0));
+                    }
+                    xs.Sort();
+                    for (var i = 0; i + 1 < xs.Count; i += 2)
+                    for (var x = Mathf.Max(0, Mathf.CeilToInt(xs[i])); x <= Mathf.Min(w - 1, (int)xs[i + 1]); x++)
+                        fill[y * w + x] = color;
+                }
             }
 
             public void Dot(float cx, float cy, float r)
@@ -244,7 +302,7 @@ namespace CalHacks.EditorTools
                 for (var y = 0; y < h; y++)
                 for (var x = 0; x < w; x++)
                 {
-                    if (alpha[y * w + x] < 8) continue;
+                    if (alpha[y * w + x] < 8 && fill[y * w + x].a == 0) continue;
                     minX = Mathf.Min(minX, x);
                     maxX = Mathf.Max(maxX, x);
                     minY = Mathf.Min(minY, y);
@@ -259,7 +317,14 @@ namespace CalHacks.EditorTools
                 var pixels = new Color32[cw * ch];
                 for (var y = 0; y < ch; y++)
                 for (var x = 0; x < cw; x++)
-                    pixels[y * cw + x] = new Color32(ink.r, ink.g, ink.b, alpha[(y + minY) * w + x + minX]);
+                {
+                    var i = (y + minY) * w + x + minX;
+                    var a = alpha[i];
+                    var under = fill[i];
+                    pixels[y * cw + x] = under.a == 0
+                        ? new Color32(ink.r, ink.g, ink.b, a)
+                        : Color32.Lerp(under, ink, a / 255f);
+                }
                 var tex = new Texture2D(cw, ch, TextureFormat.RGBA32, false);
                 tex.SetPixels32(pixels);
                 tex.Apply();

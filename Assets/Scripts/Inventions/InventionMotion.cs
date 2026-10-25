@@ -30,6 +30,8 @@ namespace CalHacks
         float carryCapacity;
         bool warnedCarry;
         bool squashed;
+        float nextSquishAt;
+        const float SquishCooldownSeconds = .4f;
         const float SpawnSquashGraceSeconds = .9f;
         const float MinSquashFallSpeed = 2.7f;
 
@@ -48,12 +50,23 @@ namespace CalHacks
             contactNormalY > .55f && movementY < -.04f &&
             aliveSeconds >= SpawnSquashGraceSeconds;
 
-        /// <summary>Called only for a downward CharacterController contact.</summary>
+        /// <summary>A stomp only kills glass or ice creatures; the rest squish and live.</summary>
+        public static bool BreaksWhenStomped(InventionSpec spec) =>
+            spec != null && spec.Has(Trait.Fragile);
+
+        /// <summary>Called only for a downward CharacterController contact. True bounces the player.</summary>
         public bool TrySquash(float fallVelocity, ControllerColliderHit hit)
         {
-            if (squashed || hit == null ||
+            if (squashed || hit == null || Time.time < nextSquishAt ||
                 !IsSquashLanding(kind, fallVelocity, hit.normal.y,
                     hit.moveDirection.y, Time.time - createdAt)) return false;
+
+            if (!BreaksWhenStomped(invention.Spec))
+            {
+                nextSquishAt = Time.time + SquishCooldownSeconds;
+                if (facingCutout != null) facingCutout.PlaySquish();
+                return true;
+            }
 
             squashed = true;
             // World-space effect survives destroying this invention.

@@ -58,6 +58,20 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void OnlyFragileCreaturesBreakWhenStomped()
+        {
+            InventionSpec Made(string material) => InventionSpec.Parse(new InterpretResponse
+            {
+                status = "ok", name = "bird", material = material,
+                traits = new string[0], components = new InterpretComponent[0],
+            });
+            Assert.IsTrue(InventionMotion.BreaksWhenStomped(Made("glass")));
+            Assert.IsTrue(InventionMotion.BreaksWhenStomped(Made("ice")));
+            Assert.IsFalse(InventionMotion.BreaksWhenStomped(Made("wood")));
+            Assert.IsFalse(InventionMotion.BreaksWhenStomped(InventionSpec.FromLabel("bird")));
+        }
+
+        [Test]
         public void LandingRequiresRealDownwardStompNotWalkOrJustSpawn()
         {
             var cat = InventionMotion.Kind.Wander;

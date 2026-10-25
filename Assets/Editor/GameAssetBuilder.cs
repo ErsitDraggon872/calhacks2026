@@ -62,6 +62,12 @@ namespace CalHacks.EditorTools
             Object.DestroyImmediate(ink);
             AlphaClip("PlayerPaper", SaveTexture(paper, "PlayerPaper"), Color.white);
 
+            // The gatekeeper is drawn the same way, in the old capsule villager's colours.
+            var guardInk = MockDrawingGenerator.Guard();
+            var guardPaper = PaperTexture.MakePaper(guardInk);
+            Object.DestroyImmediate(guardInk);
+            AlphaClip("GuardPaper", SaveTexture(guardPaper, "GuardPaper"), Color.white);
+
             // Dashed "draw here" outline at the gap, sized like GapSocket's DrawHere quad (4.6 x 2.2 m).
             // The same outline for the build ghost, sized like a build slot (BuildSlot.DefaultBox) at the same pixels per
             // metre, so the dashes match.
@@ -229,7 +235,7 @@ namespace CalHacks.EditorTools
             var width = texture != null && texture.height > 0 ? height * texture.width / texture.height : 0.9f;
             // The CharacterController rests skinWidth above the ground, and the paper has a margin under the drawn feet:
             // drop the quad by both so the feet touch the surface (the paper under them dips into it).
-            var drop = cc.skinWidth + PlayerFeetMargin() * height;
+            var drop = cc.skinWidth + FeetMargin(MockDrawingGenerator.Character()) * height;
             var quad = Visual(PrimitiveType.Quad, "Paper", visual.transform, new Vector3(0f, height * 0.5f - drop, -0.05f),
                 new Vector3(width, height, 1f), "PlayerPaper");
             quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
@@ -244,10 +250,9 @@ namespace CalHacks.EditorTools
             return root;
         }
 
-        /// <summary>Fraction of B's paper texture (the PlayerPaper drawing, rebuilt) below the drawn feet.</summary>
-        static float PlayerFeetMargin()
+        /// <summary>Fraction of the paper made from <paramref name="ink"/> (a character drawing, which this destroys) below the drawn feet.</summary>
+        static float FeetMargin(Texture2D ink)
         {
-            var ink = MockDrawingGenerator.Character();
             var paper = PaperTexture.MakePaper(ink);
             var row = PaperTexture.LowestInkRow(paper.GetPixels32(), paper.width, paper.height);
             var margin = row > 0 ? (float)row / paper.height : 0f;
@@ -340,7 +345,7 @@ namespace CalHacks.EditorTools
             return root;
         }
 
-        /// <summary>A capsule villager with a hat, standing on <paramref name="localPosition"/>.</summary>
+        /// <summary>A paper guard cutout like B (the GuardPaper drawing), standing on <paramref name="localPosition"/>.</summary>
         static GameObject Villager(Transform parent, Vector3 localPosition)
         {
             var villager = Empty("Villager", parent, localPosition);
@@ -349,8 +354,14 @@ namespace CalHacks.EditorTools
             capsule.center = new Vector3(0f, 1.75f, 0f);
             capsule.radius = 0.6f;
             capsule.height = 3.5f;
-            Visual(PrimitiveType.Capsule, "Body", villager.transform, new Vector3(0f, 1f, 0f), new Vector3(1.1f, 1f, 1.1f), "Villager");
-            Visual(PrimitiveType.Cylinder, "Hat", villager.transform, new Vector3(0f, 2.1f, 0f), new Vector3(1.3f, 0.08f, 1.3f), "Wall");
+            // A head taller than B; feet on the ground the way BuildPlayer does it.
+            var texture = Mat("GuardPaper").GetTexture("_BaseMap");
+            const float height = 2.2f;
+            var width = height * texture.width / texture.height;
+            var drop = FeetMargin(MockDrawingGenerator.Guard()) * height;
+            var quad = Visual(PrimitiveType.Quad, "Paper", villager.transform, new Vector3(0f, height * 0.5f - drop, 0f),
+                new Vector3(width, height, 1f), "GuardPaper");
+            quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
             return villager;
         }
 

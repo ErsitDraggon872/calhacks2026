@@ -155,8 +155,8 @@ namespace CalHacks
         // under the capsule gives a tilted normal); walls don't.
         void OnControllerColliderHit(ControllerColliderHit hit)
         {
-            // Andy's stomp: a real downward landing squashes a small living cutout into paper confetti.
-            // Stepping onto a freshly built one doesn't.
+            // Andy's stomp: a real downward landing on a living cutout bounces B off it. Only a fragile
+            // (glass, ice) one breaks into paper confetti; stepping onto a freshly built one does nothing.
             var motion = hit.collider.GetComponentInParent<InventionMotion>();
             if (motion != null && motion.TrySquash(Mathf.Min(verticalVelocity, airVelocity), hit))
             {

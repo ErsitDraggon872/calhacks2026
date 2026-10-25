@@ -68,8 +68,8 @@ namespace CalHacks.EditorTools
             // right up to the stairs (x 31), so there's no pocket between them to fall into behind the gate.
             Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(31f, 2.3f, 3f));
 
-            // Floating island, top at 4 m, with the exit and the goal flag. Reached by the stairs below.
-            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 3f, -1.5f), new Vector3(40f, 4f, 3f))
+            // The island: a cliff from the hub floor up to 4 m, with the exit and the goal flag. Reached by the stairs.
+            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 0f, -1.5f), new Vector3(40f, 4f, 3f))
                 .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
 
             // Island stairs, x 31..34: five 0.8 m steps climbing toward the back (z -2..3), the top one level with the
@@ -97,7 +97,7 @@ namespace CalHacks.EditorTools
             Invisible("Front Edge Start", geo, new Vector3(-6f, 0f, -1.4f), new Vector3(10f, 4f, -1f));
             Invisible("Front Edge Hub", geo, new Vector3(14.6f, 0f, -2.4f), new Vector3(40f, 8f, -2f));
             Invisible("Front Edge Island", geo, new Vector3(34f, 4f, -1.9f), new Vector3(40f, 7f, -1.5f));
-            // Under the island's left edge, so B can't walk off the stairs' right end into the space below it.
+            // At the island's left edge, so B can't walk off the stairs' right end into the strip in front of the cliff.
             Invisible("Under Island", geo, new Vector3(34f, 0f, -2f), new Vector3(34.4f, 3f, 3f));
 
             var puzzles = new GameObject("Puzzles").transform;

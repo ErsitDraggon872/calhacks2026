@@ -93,6 +93,23 @@ namespace CalHacks
             transform.localScale = FacingScale();
         }
 
+        /// <summary>Stomped but alive: flatten like paper, then spring back.</summary>
+        public void PlaySquish() => StartCoroutine(Squish());
+
+        IEnumerator Squish()
+        {
+            const float duration = 0.4f;
+            for (var t = 0f; t < duration; t += Time.deltaTime)
+            {
+                // Damped wobble: flat and wide first, a small overshoot, then rest.
+                var w = Mathf.Cos(t / duration * Mathf.PI * 2.5f) * (1f - t / duration);
+                transform.localScale = new Vector3(fullScale.x * facingSign * (1f + .3f * w),
+                    fullScale.y * (1f - .45f * w), fullScale.z);
+                yield return null;
+            }
+            transform.localScale = FacingScale();
+        }
+
         public void PlayCatReaction() => StartCoroutine(Hop());
 
         IEnumerator Hop()
