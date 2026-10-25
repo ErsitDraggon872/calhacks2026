@@ -45,6 +45,14 @@ namespace CalHacks
         float nextPlacementRetry;
         public int PendingBuildCount => pendingPlacements.Count;
         public string PlacementStatus => PendingBuildCount > 0 ? "Drawing ready! Move somewhere clear to build." : null;
+        // A free build's drawing while its label is on the way (owned by CastAsync, never destroyed here).
+        Texture2D inFlightPaper;
+        /// <summary>The drawing the build ghost shows: the next one waiting for room, else the one being read, else null.</summary>
+        public Texture2D PreviewDrawing => PendingBuildCount > 0 ? pendingPlacements.Peek().paper
+            : inFlightPaper != null ? inFlightPaper : null;
+        /// <summary>A free build's drawing is in, and the AI hasn't said what it is yet.</summary>
+        public bool Thinking => inFlightPaper != null;
+        public Material InventionMaterial => inventionMaterial;
         Transform inventionRoot;
         Checkpoint currentCheckpoint;
         Vector3 startPosition;
@@ -306,6 +314,7 @@ namespace CalHacks
             };
             Debug.Log($"[Run] CAST run_id={runId} socket={request.socket_id}");
 
+            Texture2D shown = null;
             try
             {
                 var capture = await vision.CaptureAsync(request, ct);
@@ -340,6 +349,8 @@ namespace CalHacks
                 var waits = socket == null || gap != null;
                 if (!waits && socket.ApplyCapture(capture.Data, paper)) State.StartCooldown(config.buildCooldown);
                 if (waits) Subtitles.ShowNow("Hmm, what is it...", 3f);
+                // A free build's ghost shows the drawing itself while the AI thinks.
+                if (socket == null) inFlightPaper = shown = paper;
 
                 var label = await vision.GetLabelAsync(capture.Data.id, ct);
                 if (!State.IsCurrent(runId) || ct.IsCancellationRequested)
@@ -385,6 +396,11 @@ namespace CalHacks
             {
                 Debug.LogException(e);
                 if (State.IsCurrent(runId)) FailRequest(e.Message);
+            }
+            finally
+            {
+                // A reset may already have moved on to a newer drawing; only clear this one.
+                if (shown != null && ReferenceEquals(inFlightPaper, shown)) inFlightPaper = null;
             }
         }
 
@@ -528,10 +544,11 @@ namespace CalHacks
             var envelope = slot != null ? slot.Box : config.inventionSize;
             var width = Mathf.RoundToInt(envelope.x * 100f);
             var height = Mathf.RoundToInt(envelope.y * 100f);
-            if (PendingBuildCount > 0)
+            var drawing = PreviewDrawing;
+            if (drawing != null)
             {
-                width = pendingPlacements.Peek().paper.width;
-                height = pendingPlacements.Peek().paper.height;
+                width = drawing.width;
+                height = drawing.height;
             }
             var clear = FindPlacement(width, height, null, out var bottom, out _, out var size, out var depth, out _);
             bounds = InventionPlacement.BuildBounds(bottom, size, depth);
@@ -827,6 +844,7 @@ namespace CalHacks
         public void ResetRun()
         {
             ClearPendingPlacements();
+            inFlightPaper = null;
             runCts.Cancel();
             runCts.Dispose();
             runCts = new CancellationTokenSource();

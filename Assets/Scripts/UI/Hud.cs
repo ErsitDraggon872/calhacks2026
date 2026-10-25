@@ -10,7 +10,7 @@ namespace CalHacks
         const string Reading = "reading your drawing...";
         static readonly Color ReadyFill = new Color(0.45f, 0.78f, 0.42f);
 
-        GUIStyle timer, small, big, sign, keyLabel;
+        GUIStyle timer, small, big, sign, keyLabel, tagLabel;
 
         public static string FormatTime(float seconds)
         {
@@ -62,6 +62,7 @@ namespace CalHacks
                 Sketch.Label(signRect, status, sign);
             });
             if (usable != null && !riding && !state.Finished) DrawKeyBadge(usable, scale);
+            if (!explorer && !riding && !state.Finished && !InventionCard.Visible) DrawDestinationTag(run, scale);
 
             DrawBuildBar(state, width);
 
@@ -94,6 +95,40 @@ namespace CalHacks
             Sketch.Label(rect, "E", keyLabel);
         }
 
+        /// <summary>
+        /// A note over where the next drawing goes: the obstacle in range (the gap, the guard), or the build ghost in
+        /// front of B. While the AI reads a free build it says so over the drawing's ghost.
+        /// </summary>
+        void DrawDestinationTag(RunManager run, float scale)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            var socket = run.PendingBuildCount > 0 ? null : run.NearestSocket;
+            Vector3 point;
+            string text;
+            if (socket != null)
+            {
+                point = socket.CastPoint + Vector3.up * 2.5f;
+                text = socket.Type == SocketType.Gap ? "drawing goes here ↓  ·  a bridge?"
+                    : socket.Type == SocketType.Villager ? "drawing goes here ↓  ·  food?"
+                    : "drawing goes here ↓";
+            }
+            else if (BuildGhost.Showing is Bounds ghost)
+            {
+                point = new Vector3(ghost.center.x, ghost.max.y + 0.3f, ghost.center.z);
+                text = run.Thinking ? "thinking..." : run.PendingBuildCount > 0 ? "needs room" : "your drawing appears here ↓";
+            }
+            else return;
+            var screen = cam.WorldToScreenPoint(point);
+            if (screen.z <= 0f) return;
+            var bob = Mathf.Sin(Time.unscaledTime * 3f) * 5f;
+            var w = Mathf.Ceil(tagLabel.CalcSize(new GUIContent(text)).x + 36f);
+            var centre = new Vector2(screen.x / scale, ReferenceHeight - screen.y / scale - 24f + bob);
+            var rect = new Rect(centre.x - w * 0.5f, centre.y - 20f, w, 40f);
+            Sketch.Box(rect, Sketch.Paper, 16, shadow: true);
+            Sketch.Label(rect, text, tagLabel);
+        }
+
         void DrawBuildBar(RunState state, float width)
         {
             var rect = new Rect(width - 420f, ReferenceHeight - 104f, 390f, 76f);
@@ -120,6 +155,7 @@ namespace CalHacks
             sign = Sketch.Text(28, Sketch.Ink, TextAnchor.MiddleCenter);
             big = Sketch.Text(60, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
             keyLabel = Sketch.Text(34, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
+            tagLabel = Sketch.Text(22, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
         }
     }
 }
