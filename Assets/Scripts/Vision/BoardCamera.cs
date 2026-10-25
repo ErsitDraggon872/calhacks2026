@@ -28,6 +28,10 @@ namespace CalHacks
         float lastFrameTime = float.NegativeInfinity;
         bool disconnected;
         bool wanted;
+        bool onlyInput;
+
+        /// <summary>Captures come from the webcam right now: it's the only input, or M switched to it.</summary>
+        bool ActiveInput => onlyInput || (RunManager.Instance != null && RunManager.Instance.UsingWebcam);
 
         public string DeviceName { get; private set; }
         public string Status { get; private set; } = "starting";
@@ -55,6 +59,7 @@ namespace CalHacks
             // Service the Python process owns the webcam (Windows usually lets only one process open it); with Mock
             // there is no hardware at all.
             var source = config.ResolveCaptureSource();
+            onlyInput = source == CaptureSource.Webcam;
             if (source != CaptureSource.Webcam)
             {
                 Status = $"off (capture source: {source})";
@@ -100,9 +105,16 @@ namespace CalHacks
             if (webcam.didUpdateThisFrame && webcam.width > 16)
             {
                 lastFrameTime = Time.unscaledTime;
-                latest = Copy(latest, out var w, out var h);
-                recent.Add(latest, w, h);
-                if (PreviewWanted) RefreshPreview(latest, w, h);
+                // Copying a frame out costs a few ms, so only while a capture could use it: the webcam is the
+                // input (its preview already pays for the copy). On the drawing pad, frames from before the switch
+                // would be stale anyway.
+                if (!ActiveInput) recent.Clear();
+                if (ActiveInput || PreviewWanted)
+                {
+                    latest = Copy(latest, out var w, out var h);
+                    if (ActiveInput) recent.Add(latest, w, h);
+                    if (PreviewWanted) RefreshPreview(latest, w, h);
+                }
             }
 
             Status = HasFreshFrame ? $"{DeviceName}  {webcam.width}x{webcam.height}"
