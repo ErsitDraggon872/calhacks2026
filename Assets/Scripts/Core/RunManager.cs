@@ -41,6 +41,10 @@ namespace CalHacks
         CancellationTokenSource requestCts;
         PuzzleSocket boundSocket;
         readonly List<Invention> inventions = new List<Invention>();
+        readonly Queue<(Texture2D paper, InventionSpec spec, Action<Invention> completed, Func<bool> valid)> pendingPlacements = new();
+        float nextPlacementRetry;
+        public int PendingBuildCount => pendingPlacements.Count;
+        public string PlacementStatus => PendingBuildCount > 0 ? "Drawing ready! Move somewhere clear to build." : null;
         Transform inventionRoot;
         Checkpoint currentCheckpoint;
         Vector3 startPosition;
@@ -55,7 +59,7 @@ namespace CalHacks
         public float FinalTime { get; private set; }
         public bool OverlayVisible { get; private set; }
         public bool PreviewVisible { get; private set; }
-        /// <summary>The build ghost outline in free-build hint zones. On by default; G toggles.</summary>
+        /// <summary>The free-build placement outline. On by default; G toggles.</summary>
         public bool BuildGhostVisible { get; private set; } = true;
         public string VisionName => vision?.Name ?? "-";
         public string LastProvider { get; private set; }
@@ -204,6 +208,7 @@ namespace CalHacks
 
         void OnDestroy()
         {
+            ClearPendingPlacements();
             runCts.Cancel();
             runCts.Dispose();
             if (Instance == this) Instance = null;
@@ -216,6 +221,12 @@ namespace CalHacks
             while (pendingInput.Count > 0) pendingInput.Dequeue()();
 
             UpdateInventionInput();
+
+            if (!State.Finished && !State.InFlight && Time.timeScale > 0f && Time.unscaledTime >= nextPlacementRetry)
+            {
+                nextPlacementRetry = Time.unscaledTime + .25f;
+                TryPendingPlacement();
+            }
 
             if (player != null && player.transform.position.y < config.killY) Respawn();
 
@@ -243,11 +254,15 @@ namespace CalHacks
                     closest = ability;
                 }
             }
+            // Riding locks E onto the ride's own function (if it has one); nearby drawings are ignored.
+            var ride = player != null ? player.Riding : null;
+            if (ride != null) closest = ride.RideAction != null ? ride : null;
             if (held && key.wasPressedThisFrame) closest?.TryInteract(player);
             if (Usable != closest)
             {
                 if (Usable != null) Usable.SetHighlighted(false);
-                if (closest != null) closest.SetHighlighted(true);
+                // The ride under B doesn't pulse; the sign names what E does.
+                if (closest != null && closest != ride) closest.SetHighlighted(true);
                 Usable = closest;
             }
         }
@@ -259,6 +274,11 @@ namespace CalHacks
         /// <summary>Completes when this BUILD settles; board inputs keep their capture pinned until then.</summary>
         public async Task CastAsync()
         {
+            if (PendingBuildCount > 0)
+            {
+                Subtitles.ShowNow(PlacementStatus);
+                return;
+            }
             // In a two-machine co-op room the Creator's BUILD (CreatorBuild) brings the drawings, not this machine's camera.
             // With the digital board, the room is where this machine's drawings come from, so CAST runs as usual.
             if (ThinkInkSession.InRoom && !UsesDigitalBoard) return;
@@ -403,27 +423,76 @@ namespace CalHacks
         /// <summary>
         /// Stands the drawing in the <see cref="BuildSlot"/> the explorer is in (replacing what was there), or else just in
         /// front of them on the side they face (at <paramref name="gap"/>, on their ledge against the drop, to ride across),
-        /// moved out of the level's geometry, once <see cref="InventionFeasibility"/> agrees. Null if nothing was built
-        /// (nothing is spent then).
+        /// moved out of the level's geometry, once <see cref="InventionFeasibility"/> agrees. A blocked drawing retains
+        /// its texture and attributes for automatic retry when B moves. Null means it was rejected or is waiting.
         /// </summary>
-        Invention PlaceInvention(Texture2D paper, InventionSpec spec, GapSocket gap = null)
+        Invention PlaceInvention(Texture2D paper, InventionSpec spec, GapSocket gap = null, bool retainBlocked = true,
+            Action<Invention> completed = null, Func<bool> valid = null)
         {
             if (player == null || inventionMaterial == null)
             {
                 if (inventionMaterial == null) Debug.LogError("[Run] RunManager has no Invention Material; run Game/Build Assets.");
-                Destroy(paper);
+                PaperTexture.DestroySafe(paper);
+                completed?.Invoke(null);
                 return null;
             }
+            // Recognition rejection is final; lack of room is temporary and must preserve the drawing.
+            var acceptance = InventionFeasibility.Check(spec, true);
+            if (!acceptance.Builds)
+            {
+                PaperTexture.DestroySafe(paper);
+                Subtitles.ShowNow(acceptance.Message);
+                completed?.Invoke(null);
+                return null;
+            }
+            if (retainBlocked && PendingBuildCount > 0)
+            {
+                pendingPlacements.Enqueue((paper, spec, completed, valid));
+                return null;
+            }
+            var spotClear = FindPlacement(paper.width, paper.height, gap,
+                out var bottom, out var box, out _, out var depth, out var slot);
+
+            if (!spotClear)
+            {
+                if (retainBlocked)
+                {
+                    pendingPlacements.Enqueue((paper, spec, completed, valid));
+                    Subtitles.ShowNow(PlacementStatus);
+                }
+                return null;
+            }
+            if (slot != null) RemoveInvention(slot.Occupant);
+
+            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
+            invention.Apply(spec);
+            // Free inventions come alive immediately: no placement confirmation or paused result card.
+            Subtitles.ShowNow($"{spec.Name}: {TraitWords.FreeBuildAction(spec)}"
+                + (acceptance.Verdict == Verdict.Downgraded ? "\n" + acceptance.Message : ""), 4f);
+            inventions.Add(invention);
+            if (slot != null) slot.Occupant = invention;
+            LiftPlayerOnto(invention);
+            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
+            completed?.Invoke(invention);
+            return invention;
+        }
+
+        // Both the preview and the actual spawn use this resolver, including terrain and ledge checks.
+        bool FindPlacement(int width, int height, GapSocket gap, out Vector3 bottom, out Vector2 box,
+            out Vector2 size, out float depth, out BuildSlot slot)
+        {
             var feet = player.transform.position;
-            var slot = BuildSlot.At(feet);
-            var box = slot != null ? slot.Box : config.inventionSize;
-            var depth = slot != null ? slot.Depth : config.inventionDepth;
-            var size = InventionPlacement.FitInside(paper.width, paper.height, box);
-            Vector3 bottom;
+            slot = BuildSlot.At(feet);
+            box = slot != null ? slot.Box : config.inventionSize;
+            depth = slot != null ? slot.Depth : config.inventionDepth;
+            size = InventionPlacement.FitInside(width, height, box);
             var spotClear = true;
             if (slot != null)
             {
                 bottom = slot.BottomCentreFor(size);
+                var bounds = InventionPlacement.BuildBounds(bottom, size, depth);
+                spotClear = !ObstaclesAround(bounds).Any(obstacle => InventionPlacement.Overlaps(bounds, obstacle))
+                    && Standable(bounds, bottom.y);
             }
             else
             {
@@ -447,35 +516,58 @@ namespace CalHacks
                 bottom += shift;
             }
 
-            var feasibility = InventionFeasibility.Check(spec, spotClear);
-            Debug.Log($"[Run] Free build '{spec.Name}': {feasibility.Verdict}");
-            if (!feasibility.Builds)
-            {
-                Destroy(paper);
-                Subtitles.ShowNow(feasibility.Message);
-                return null;
-            }
-            if (slot != null) RemoveInvention(slot.Occupant);
+            return spotClear;
+        }
 
-            var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
-            invention.Apply(spec);
-            InventionCard.Show(spec, TraitWords.FreeBuildAction(spec), null,
-                feasibility.Verdict == Verdict.Downgraded ? feasibility.Message : null);
-            inventions.Add(invention);
-            if (slot != null) slot.Occupant = invention;
-            LiftPlayerOnto(invention);
-            Debug.Log($"[Run] Free build #{inventions.Count} at {bottom}{(slot != null ? " in " + slot.name : "")}");
-            return invention;
+        /// <summary>Before recognition, show the size envelope; a waiting drawing previews its exact fitted bounds.</summary>
+        public bool PlacementPreview(out Bounds bounds)
+        {
+            bounds = default;
+            if (player == null || config == null) return false;
+            var slot = BuildSlot.At(player.transform.position);
+            var envelope = slot != null ? slot.Box : config.inventionSize;
+            var width = Mathf.RoundToInt(envelope.x * 100f);
+            var height = Mathf.RoundToInt(envelope.y * 100f);
+            if (PendingBuildCount > 0)
+            {
+                width = pendingPlacements.Peek().paper.width;
+                height = pendingPlacements.Peek().paper.height;
+            }
+            var clear = FindPlacement(width, height, null, out var bottom, out _, out var size, out var depth, out _);
+            bounds = InventionPlacement.BuildBounds(bottom, size, depth);
+            return clear;
+        }
+
+        void TryPendingPlacement()
+        {
+            if (PendingBuildCount == 0 || State.Finished) return;
+            var pending = pendingPlacements.Peek();
+            if (pending.valid != null && !pending.valid())
+            {
+                pendingPlacements.Dequeue();
+                PaperTexture.DestroySafe(pending.paper);
+                return;
+            }
+            // Retry beside B's current position, rather than pinning a blocked launch to the old obstacle.
+            if (PlaceInvention(pending.paper, pending.spec, retainBlocked: false, completed: pending.completed) == null) return;
+            pendingPlacements.Dequeue();
+            State.StartCooldown(config.buildCooldown);
+        }
+
+        void ClearPendingPlacements()
+        {
+            while (pendingPlacements.Count > 0) PaperTexture.DestroySafe(pendingPlacements.Dequeue().paper);
         }
 
         /// <summary>
         /// A drawing that arrived from elsewhere (the co-op Creator), with its /interpret attributes: placed and checked
         /// like a free build. Takes ownership of <paramref name="paper"/>. Null if it couldn't be built.
         /// </summary>
-        public Invention SpawnInvention(Texture2D paper, InventionSpec spec) =>
-            PlaceInvention(paper, spec, NearestInRange() as GapSocket);
+        public Invention SpawnInvention(Texture2D paper, InventionSpec spec, Action<Invention> completed = null,
+            Func<bool> valid = null) =>
+            PlaceInvention(paper, spec, NearestInRange() as GapSocket, completed: completed, valid: valid);
 
-        /// <summary>Bounds of every solid collider near <paramref name="build"/> except the explorer's: level geometry and other builds.</summary>
+        /// <summary>Terrain blocks placement; the explorer and other drawings do not.</summary>
         List<Bounds> ObstaclesAround(Bounds build)
         {
             var reach = InventionPlacement.MaxShift + 1f;
@@ -484,7 +576,8 @@ namespace CalHacks
             var obstacles = new List<Bounds>(hits.Length);
             foreach (var hit in hits)
             {
-                if (hit.GetComponentInParent<PlayerController>() == null) obstacles.Add(hit.bounds);
+                if (hit.GetComponentInParent<PlayerController>() == null && hit.GetComponentInParent<Invention>() == null)
+                    obstacles.Add(hit.bounds);
             }
             return obstacles;
         }
@@ -503,7 +596,8 @@ namespace CalHacks
             foreach (var hit in Physics.RaycastAll(new Vector3(x, y + 0.5f, z), Vector3.down, 1.1f, Physics.AllLayers,
                          QueryTriggerInteraction.Ignore))
             {
-                if (hit.normal.y > 0.5f && hit.collider.GetComponentInParent<PlayerController>() == null) return true;
+                if (hit.normal.y > 0.5f && hit.collider.GetComponentInParent<PlayerController>() == null &&
+                    hit.collider.GetComponentInParent<Invention>() == null) return true;
             }
             return false;
         }
@@ -598,6 +692,7 @@ namespace CalHacks
         public void CancelBoardBuild()
         {
             if (UsesDigitalBoard) CancelRequest();
+            ClearPendingPlacements();
         }
 
         // ---- Station buttons and operator keys ----------------------------------------------------------
@@ -731,6 +826,7 @@ namespace CalHacks
         /// <summary>F5: new run_id, cancel pending waits, restore every socket, remove free builds, reset the explorer and the camera.</summary>
         public void ResetRun()
         {
+            ClearPendingPlacements();
             runCts.Cancel();
             runCts.Dispose();
             runCts = new CancellationTokenSource();
@@ -786,6 +882,7 @@ namespace CalHacks
             State.Finish();
             FinalTime = State.Elapsed;
             CancelRequest();
+            ClearPendingPlacements();
             if (player != null) player.InputLocked = true;
             Debug.Log($"[Run] Win. run_id={State.RunId} time={Hud.FormatTime(FinalTime)}");
             Won?.Invoke();

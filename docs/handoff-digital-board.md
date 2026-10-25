@@ -16,9 +16,22 @@ The flow is browser strokes -> SpacetimeDB -> Unity board snapshot/ink extractio
 
 ## Behavior
 
+- Demo free builds place automatically, with no placement confirmation or paused result card. The dashed outline
+  shows the size envelope before recognition and the exact fitted bounds for a waiting drawing; red means blocked.
+  It uses the same resolver as spawning and is hidden while riding. G toggles it.
+- Drawings ignore one another for placement and physics, but remain solid to the explorer and terrain. Unsupported
+  space is skipped during the nearby search. If terrain leaves no room, the interpreted drawing is retained and
+  automatically retried beside B as they move; the HUD says "Drawing ready! Move somewhere clear to build."
+  No new capture or AI call is needed. Reset, room change and winning discard waiting drawings.
+- Deferred co-op inventions retain server metadata through a completion callback; duplicate updates do not queue
+  another copy, and removed rows are invalidated before spawning.
+- Autonomous walkers, hoppers and flyers sweep their ink colliders before kinematic movement. They turn at walls
+  and stop at ceilings instead of clipping; powered E rides continue using Rigidbody physics. Live fixture:
+  `tools/verify_creature_collisions.cs`, results in `Temp/creature-collision-results.txt`.
+
 - Each browser BUILD keeps an immutable frame in FIFO order, up to 8 waiting drawings. Immediate CLEAR does not erase queued work. CAST is awaited instead of assuming capture completes synchronously; busy AI requests no longer discard a drawing after 5 seconds.
 - Historical and duplicate pending rows never rebuild. F5 discards queued frames and resets the room. Room changes discard queued work and cancel the old board request. Source failures identify the digital board instead of reporting a camera error.
-- Free inventions support bounce, thrust, lift, glide, roll and attach. E activates/boards the nearest eligible drawing within 2.5 m. Space jumps off; walking off releases the rider. Loaded gliders respect their descent limit, and weak lifts cannot carry the 6 kg gameplay rider.
+- Free inventions support bounce, thrust, lift, glide, roll and attach. E activates/boards the nearest eligible drawing within 2.5 m. Boarding (E, or landing on a moving drawing) locks B on: no walking, and Space is the only way off. While riding, E only runs the ride's own function (go / stop / hold) and the HUD shows just that and "space jump off". Loaded gliders respect their descent limit, and weak lifts cannot carry the 6 kg gameplay rider.
 - Andy's updated whole-word vehicle fallback makes recognized support-only cars/carts drive. Roll-only engines run for at least 15 seconds and use target horizontal velocity. Powered lift has modest horizontal travel and capacity feedback.
 - Gap bridges remain anchored and solid only where ink exists. Gatekeeper acceptance still uses edible/hostile traits. Current invention cards remain and show E controls for rideable builds.
 - Rope/tether, hinges, push/pull, ink economy and the alternate Unity drawing interface remain deferred. Explicit backend rejection remains rejection.

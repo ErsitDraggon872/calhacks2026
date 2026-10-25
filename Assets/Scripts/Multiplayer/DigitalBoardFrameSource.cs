@@ -78,7 +78,7 @@ namespace CalHacks
         {
             var id = session.Room?.RoomId ?? 0;
             if (id == roomId) return;
-            if (processing) RunManager.Instance?.CancelBoardBuild();
+            RunManager.Instance?.CancelBoardBuild();
             roomId = id;
             ClearCaptures();
             seenBuilds.Clear();
@@ -119,6 +119,7 @@ namespace CalHacks
             if (processing || pending.Count == 0 || run == null || !HasFreshFrame) return;
             if (run.State.CanCast() == CastBlock.Finished) { ClearCaptures(); return; }
             if (run.State.CanCast() != CastBlock.None) return;
+            if (run.PendingBuildCount > 0) return;
             processing = true;
             var capture = pending.Dequeue();
             active = capture;

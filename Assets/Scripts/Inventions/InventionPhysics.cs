@@ -37,6 +37,12 @@ namespace CalHacks
         bool HoldMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Hold);
         bool ToggleMode => new[] { thrust, lift, roll }.Any(p => p?.Activation == Activation.Toggle);
 
+        /// <summary>What E does for B while riding this, or null when only Space (jump off) does anything.</summary>
+        public string RideAction => RideKey(body != null && body.isKinematic, ToggleMode, HoldMode, active);
+
+        public static string RideKey(bool parked, bool toggle, bool hold, bool active) =>
+            parked ? "E go" : toggle ? (active ? "E stop" : "E go") : hold ? "hold E" : null;
+
         public void Configure(Invention created, InventionSpec spec)
         {
             invention = created;
@@ -99,6 +105,7 @@ namespace CalHacks
             if (player == null || player.InputLocked || !HasButton) return false;
             if (player.IsRiding(this))
             {
+                // E never gets B off a ride; only Space does. A ride with nothing left to do ignores E.
                 // Standing on a parked shape is support contact, not an earlier E activation.
                 if (body != null && body.isKinematic)
                 {
@@ -111,7 +118,7 @@ namespace CalHacks
                     else BeginMotion();
                 }
                 else if (HoldMode) BeginMotion();
-                else { player.Disembark(this); rider = null; }
+                else return false;
                 return true;
             }
             if (Time.time < nextUseAt) return false;

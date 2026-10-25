@@ -47,7 +47,6 @@ namespace CalHacks
         float horizontalImpulse, forcedAirborneUntil;
         InventionPhysics riding;
         Vector3 lastPlatformPosition;
-        float rideContactTime;
         Action<InputAction.CallbackContext> onJump;
 
         public bool IsGrounded { get; private set; }
@@ -91,6 +90,7 @@ namespace CalHacks
 
         void Update()
         {
+            // A ride locks B on: B moves with it and can't walk off; only Space (or the ride failing) ends it.
             if (riding != null)
             {
                 var platform = riding;
@@ -100,10 +100,11 @@ namespace CalHacks
                 if (riding == platform)
                 {
                     lastPlatformPosition = position;
-                    if (Time.time - rideContactTime > .15f) riding = null;
+                    // Pinned by a wall while the ride carried on: don't float along beside it.
+                    if (DistanceTo(platform) > 1.2f) riding = null;
                 }
             }
-            var input = InputLocked ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
+            var input = InputLocked || riding != null ? Vector2.zero : GameInput.Move.ReadValue<Vector2>();
             var move = CameraRelative(input);
 
             const float rayStart = 0.3f;
@@ -171,11 +172,12 @@ namespace CalHacks
             if (ability != null)
             {
                 ability.PlayerContact(this, hit);
-                if (ability.MovingPlatform && hit.normal.y > .45f && verticalVelocity <= 0f && Time.time >= forcedAirborneUntil)
+                // Landing on a vehicle or creature mounts B, like pressing E; brushing another doesn't swap rides.
+                if (riding == null && ability.MovingPlatform && hit.normal.y > .45f && verticalVelocity <= 0f &&
+                    Time.time >= forcedAirborneUntil)
                 {
-                    if (riding != ability) lastPlatformPosition = ability.transform.position;
+                    lastPlatformPosition = ability.transform.position;
                     riding = ability;
-                    rideContactTime = Time.time;
                 }
             }
             if (hit.normal.y < 0.1f) return;
@@ -193,6 +195,16 @@ namespace CalHacks
 
         public bool IsRiding(InventionPhysics platform) => riding == platform;
         public bool IsRidingAnything => riding != null;
+        public InventionPhysics Riding => riding;
+
+        float DistanceTo(InventionPhysics platform)
+        {
+            var best = float.PositiveInfinity;
+            foreach (var box in platform.GetComponentsInChildren<BoxCollider>())
+                if (box.enabled) best = Mathf.Min(best, Vector3.Distance(box.ClosestPoint(transform.position), transform.position));
+            // Nothing to measure against: trust the ride rather than drop B.
+            return float.IsPositiveInfinity(best) ? 0f : best;
+        }
 
         public void Disembark(InventionPhysics platform)
         {
@@ -214,7 +226,6 @@ namespace CalHacks
                 Quaternion.LookRotation(Vector3.right * FacingSign));
             riding = platform;
             lastPlatformPosition = platform.transform.position;
-            rideContactTime = Time.time;
         }
 
         /// <summary>

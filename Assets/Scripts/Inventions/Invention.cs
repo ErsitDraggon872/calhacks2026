@@ -50,8 +50,27 @@ namespace CalHacks
             var rects = SilhouetteBoxes.Build(paper.GetPixels32(), paper.width, paper.height, invention.Size, cell);
             invention.Cutout = Cutout.Create(paper, true, mat, bottomCentre, 0f, invention.Size, go.transform);
             invention.BoxCount = AddColliders(go.transform, rects, Mathf.Max(0.1f, depth));
+            invention.IgnoreOtherInventions();
             Debug.Log($"[Invention] {invention.Size.x:0.00} x {invention.Size.y:0.00} m, {invention.BoxCount} boxes, depth {depth:0.0} m");
             return invention;
+        }
+
+        void OnEnable()
+        {
+            if (BoxCount > 0) IgnoreOtherInventions();
+        }
+
+        // Pair filtering keeps terrain and player collisions intact without changing project layers.
+        void IgnoreOtherInventions()
+        {
+            var own = GetComponentsInChildren<Collider>();
+            foreach (var other in FindObjectsByType<Invention>(FindObjectsSortMode.None))
+            {
+                if (other == this) continue;
+                foreach (var a in own)
+                foreach (var b in other.GetComponentsInChildren<Collider>())
+                    Physics.IgnoreCollision(a, b);
+            }
         }
 
         /// <summary>Gives the invention its attributes: a light if it <see cref="Trait.Glows"/>, and its surface feel.</summary>

@@ -16,6 +16,7 @@ namespace CalHacks
         Invention invention;
         InventionPhysics physicsBehavior;
         Rigidbody rb;
+        BoxCollider[] shape;
         Transform visual;
         Cutout facingCutout;
         PlayerController player;
@@ -285,6 +286,7 @@ namespace CalHacks
             {
                 if (hit.collider.transform.IsChildOf(transform) || hit.normal.y < .65f) continue;
                 if (hit.collider.GetComponentInParent<PlayerController>() != null) continue;
+                if (hit.collider.GetComponentInParent<Invention>() != null) continue;
                 if (Mathf.Abs(hit.point.y - currentBottomY) > .6f) continue;
                 highest = Mathf.Max(highest, hit.point.y);
             }
@@ -302,6 +304,7 @@ namespace CalHacks
             {
                 if (hit.collider.transform.IsChildOf(transform)) continue;
                 if (hit.collider.GetComponentInParent<PlayerController>() != null) continue;
+                if (hit.collider.GetComponentInParent<Invention>() != null) continue;
                 if (Mathf.Abs(hit.normal.y) < .4f) return true;
             }
             return false;
@@ -357,7 +360,13 @@ namespace CalHacks
                     p.y = floor + .02f + hopHeight;
                 }
             }
-            rb.MovePosition(p);
+            var safe = ConstrainMotion(p);
+            if (Mathf.Abs(safe.x - p.x) > .0001f && kind != Kind.Follow)
+            {
+                direction = -direction;
+                FaceDirection(direction);
+            }
+            rb.MovePosition(safe);
         }
 
         void Fly()
@@ -381,8 +390,51 @@ namespace CalHacks
             // Stable cruise near takeoff altitude; weak lift gradually loses height.
             float targetY = overloaded ? home.y - 1.5f :
                 home.y + .75f + Mathf.Sin(Time.fixedTime * 2.2f + phase) * .16f;
-            rb.MovePosition(new Vector3(x, Mathf.MoveTowards(p.y, targetY,
-                1.8f * Time.fixedDeltaTime), home.z));
+            var desired = new Vector3(x, Mathf.MoveTowards(p.y, targetY,
+                1.8f * Time.fixedDeltaTime), home.z);
+            var safe = ConstrainMotion(desired);
+            if (Mathf.Abs(safe.x - desired.x) > .0001f)
+            {
+                direction = -direction;
+                FaceDirection(direction);
+            }
+            rb.MovePosition(safe);
+        }
+
+        /// <summary>
+        /// Kinematic MovePosition does not stop at static walls. Sweep each ink collider before moving, checking X
+        /// and Y separately so a bird can travel sideways under a ceiling. Other drawings and the rider do not block.
+        /// </summary>
+        public Vector3 ConstrainMotion(Vector3 target)
+        {
+            var origin = rb != null ? rb.position : transform.position;
+            shape ??= GetComponentsInChildren<BoxCollider>();
+            var offset = Vector3.zero;
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var delta = target[axis] - origin[axis];
+                if (Mathf.Abs(delta) < .00001f) continue;
+                var heading = Vector3.zero;
+                heading[axis] = Mathf.Sign(delta);
+                var distance = Mathf.Abs(delta);
+                const float skin = .01f;
+                foreach (var box in shape)
+                {
+                    if (box == null || !box.enabled) continue;
+                    var bounds = box.bounds;
+                    var extents = Vector3.Max(bounds.extents - Vector3.one * skin, Vector3.one * .001f);
+                    foreach (var hit in Physics.BoxCastAll(bounds.center + offset, extents, heading,
+                                 Quaternion.identity, distance + skin, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+                    {
+                        if (hit.collider.GetComponentInParent<Invention>() != null ||
+                            hit.collider.GetComponentInParent<PlayerController>() != null) continue;
+                        if (Vector3.Dot(hit.normal, heading) >= -.001f) continue;
+                        distance = Mathf.Min(distance, Mathf.Max(0f, hit.distance - skin));
+                    }
+                }
+                offset[axis] = Mathf.Sign(delta) * distance;
+            }
+            return origin + offset;
         }
 
         void OnDestroy()

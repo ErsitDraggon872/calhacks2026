@@ -38,14 +38,19 @@ namespace CalHacks
             var banner = run.NearestSocket?.Banner;
             var explorer = ThinkInkSession.InRoom && ThinkInkSession.Instance.Role == CoopRole.Explorer && !run.UsesDigitalBoard;
             // E and SPACE only show when they'd do something: E near a usable invention, SPACE while riding one.
+            // On a ride, E is only the ride's own function (go / stop / hold), and the sign stays on the ride.
             var usable = run.Usable;
-            var riding = run.Player != null && run.Player.IsRidingAnything;
-            var controls = "draw → bring to life"
-                + (usable == null ? "" : usable.Rideable && !run.Player.IsRiding(usable) ? "  ·  E ride" : "  ·  E activate")
-                + (riding ? "  ·  space jump off" : "");
+            var ride = run.Player != null ? run.Player.Riding : null;
+            var riding = ride != null;
+            var controls = riding
+                ? (ride.RideAction != null ? ride.RideAction + "  ·  " : "") + "space jump off"
+                : "draw → bring to life"
+                    + (usable == null ? "" : usable.Rideable ? "  ·  E ride" : "  ·  E activate");
             var status = explorer ? "your partner draws  ·  you bring it to life"
                 : state.Finished ? StationSign
+                : run.PlacementStatus != null ? run.PlacementStatus
                 : state.InFlight ? Reading
+                : riding ? controls
                 : !string.IsNullOrEmpty(banner) ? banner
                 : controls;
             // The note fits its words (in 40 px steps, so a few sizes cover every sign).

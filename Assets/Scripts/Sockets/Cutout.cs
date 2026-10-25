@@ -59,7 +59,9 @@ namespace CalHacks
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
             go.name = "Cutout";
-            Destroy(go.GetComponent<Collider>());
+            var primitiveCollider = go.GetComponent<Collider>();
+            primitiveCollider.enabled = false;
+            PaperTexture.DestroySafe(primitiveCollider);
             go.transform.SetParent(parent, true);
 
             var cutout = go.AddComponent<Cutout>();
@@ -75,7 +77,8 @@ namespace CalHacks
             go.transform.SetPositionAndRotation(bottomCentre + Vector3.up * (size.y * 0.5f), Quaternion.Euler(0f, yaw, 0f));
             cutout.fullScale = new Vector3(size.x, size.y, 1f);
             go.transform.localScale = Vector3.zero;
-            cutout.StartCoroutine(cutout.PopIn());
+            if (Application.isPlaying) cutout.StartCoroutine(cutout.PopIn());
+            else go.transform.localScale = cutout.FacingScale();
             return cutout;
         }
 
@@ -151,8 +154,8 @@ namespace CalHacks
 
         void OnDestroy()
         {
-            if (material != null) Destroy(material);
-            if (ownsTexture && texture != null) Destroy(texture);
+            if (material != null) PaperTexture.DestroySafe(material);
+            if (ownsTexture && texture != null) PaperTexture.DestroySafe(texture);
         }
     }
 }

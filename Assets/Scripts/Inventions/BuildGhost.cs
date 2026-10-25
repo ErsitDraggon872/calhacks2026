@@ -3,10 +3,8 @@ using UnityEngine;
 namespace CalHacks
 {
     /// <summary>
-    /// Orange dashed outline of where the next free build will land: the front face of the <see cref="BuildSlot"/> B is
-    /// standing in. Every drawing is fitted inside that box, so the outline is honest whatever is drawn, and the slot
-    /// sits in front of anything that could hide it. Shown only inside a slot, and while
-    /// <see cref="RunManager.BuildGhostVisible"/> (G toggles).
+    /// Dashed outline of the next free build's size envelope, using the actual placement resolver. A retained drawing
+    /// previews its exact fitted bounds; red means terrain leaves no clear spot. G toggles the outline.
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public class BuildGhost : MonoBehaviour
@@ -15,6 +13,9 @@ namespace CalHacks
 
         [Tooltip("Quad showing the outline, drawn at BuildSlot.DefaultBox's aspect. Not under the flipping Visual.")]
         [SerializeField] Transform outline;
+        float nextPreview;
+        Renderer outlineRenderer;
+        MaterialPropertyBlock tint;
 
         void Awake()
         {
@@ -25,17 +26,24 @@ namespace CalHacks
         {
             if (outline == null) return;
             var run = RunManager.Instance;
-            // Checked against the slots' bounds each frame rather than trigger enter/exit, which teleports and resets skip.
-            var slot = run != null && run.BuildGhostVisible ? BuildSlot.At(transform.position) : null;
-            var show = slot != null;
+            var show = run != null && run.BuildGhostVisible && !run.State.Finished && !run.Player.IsRidingAnything &&
+                (run.PendingBuildCount > 0 || run.NearestSocket == null);
             if (outline.gameObject.activeSelf != show) outline.gameObject.SetActive(show);
             if (!show) return;
-
-            // Outline the slot's front face, nudged toward the camera so the build's own drawing doesn't cover it.
-            var bottom = slot.SlotBottom;
-            bottom.z -= slot.Depth * 0.5f + FrontNudge;
-            outline.SetPositionAndRotation(bottom + Vector3.up * (slot.Box.y * 0.5f), Quaternion.identity);
-            outline.localScale = new Vector3(slot.Box.x, slot.Box.y, 1f);
+            if (Time.unscaledTime < nextPreview) return;
+            nextPreview = Time.unscaledTime + .15f;
+            var clear = run.PlacementPreview(out var bounds);
+            outline.SetPositionAndRotation(bounds.center - Vector3.forward * FrontNudge, Quaternion.identity);
+            outline.localScale = new Vector3(bounds.size.x, bounds.size.y, 1f);
+            outlineRenderer ??= outline.GetComponent<Renderer>();
+            if (outlineRenderer != null)
+            {
+                tint ??= new MaterialPropertyBlock();
+                var color = clear ? new Color(1f, .62f, .15f) : new Color(1f, .2f, .15f);
+                tint.SetColor("_BaseColor", color);
+                tint.SetColor("_Color", color);
+                outlineRenderer.SetPropertyBlock(tint);
+            }
         }
     }
 }

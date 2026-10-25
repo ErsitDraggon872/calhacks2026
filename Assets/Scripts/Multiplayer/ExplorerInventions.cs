@@ -37,7 +37,9 @@ namespace CalHacks
 
         readonly Dictionary<ulong, Invention> spawned = new Dictionary<ulong, Invention>();
         readonly HashSet<ulong> requested = new HashSet<ulong>();
+        readonly HashSet<ulong> waiting = new HashSet<ulong>();
         ThinkInkSession session;
+        ulong roomId;
         bool resettingFromRemote;
 
         /// <summary>The latest arrival, for the HUD popup.</summary>
@@ -66,6 +68,8 @@ namespace CalHacks
                 session.InventionChanged += OnInvention;
                 session.InventionRemoved += OnRemoved;
                 session.LevelResetByPartner += OnPartnerReset;
+                session.RoomChanged += OnRoomChanged;
+                roomId = session.Room?.RoomId ?? 0;
             }
         }
 
@@ -75,6 +79,7 @@ namespace CalHacks
             session.InventionChanged -= OnInvention;
             session.InventionRemoved -= OnRemoved;
             session.LevelResetByPartner -= OnPartnerReset;
+            session.RoomChanged -= OnRoomChanged;
             session = null;
         }
 
@@ -105,6 +110,7 @@ namespace CalHacks
 
         void Spawn(InventionRow row)
         {
+            if (waiting.Contains(row.InventionId)) return;
             var run = RunManager.Instance;
             var paper = PaperTexture.FromBase64(row.ImagePngBase64);
             if (run == null || paper == null)
@@ -112,12 +118,18 @@ namespace CalHacks
                 Debug.LogWarning($"[Coop] Can't spawn invention {row.InventionId}: {(run == null ? "no RunManager" : "bad PNG")}");
                 return;
             }
-            var invention = run.SpawnInvention(paper, SpecFrom(row.PhysicsJson));
-            if (invention == null)
+            waiting.Add(row.InventionId);
+            var roomId = session.Room?.RoomId;
+            run.SpawnInvention(paper, SpecFrom(row.PhysicsJson), invention =>
             {
-                session.UpdateInventionState(row.InventionId, "failed");
-                return;
-            }
+                waiting.Remove(row.InventionId);
+                if (invention == null) { session?.UpdateInventionState(row.InventionId, "failed"); return; }
+                FinishSpawn(row, invention);
+            }, () => this != null && session != null && session.Room?.RoomId == roomId && waiting.Contains(row.InventionId));
+        }
+
+        void FinishSpawn(InventionRow row, Invention invention)
+        {
             var remote = invention.gameObject.AddComponent<RemoteInvention>();
             remote.InventionId = row.InventionId;
             remote.CaptureId = row.CaptureId;
@@ -151,6 +163,7 @@ namespace CalHacks
 
         void OnRemoved(InventionRow row)
         {
+            waiting.Remove(row.InventionId);
             requested.Remove(row.InventionId);
             if (spawned.Remove(row.InventionId, out var invention) && invention != null) RunManager.Instance?.RemoveInvention(invention);
         }
@@ -158,6 +171,7 @@ namespace CalHacks
         /// <summary>This Explorer pressed F5: the room resets too (full Ink, empty board, no inventions).</summary>
         void OnLocalReset()
         {
+            waiting.Clear();
             if (resettingFromRemote || session == null || session.Role != CoopRole.Explorer) return;
             spawned.Clear();
             requested.Clear();
@@ -172,6 +186,7 @@ namespace CalHacks
             {
                 spawned.Clear();
                 requested.Clear();
+                waiting.Clear();
                 RunManager.Instance.ResetRun();
             }
             finally
@@ -181,5 +196,18 @@ namespace CalHacks
         }
 
         void OnWon() => session?.SetPuzzleCompleted(true);
+
+        void OnRoomChanged()
+        {
+            var nextRoom = session?.Room?.RoomId ?? 0;
+            if (nextRoom == roomId) return;
+            roomId = nextRoom;
+            RunManager.Instance?.CancelBoardBuild();
+            waiting.Clear();
+            requested.Clear();
+            foreach (var invention in spawned.Values)
+                if (invention != null) RunManager.Instance?.RemoveInvention(invention);
+            spawned.Clear();
+        }
     }
 }
