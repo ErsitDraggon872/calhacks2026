@@ -38,7 +38,7 @@ namespace CalHacks
             var frame = camera.Grab(out var w, out var h);
             if (frame == null) return Fail(camera.DeviceName + ": " + camera.Status);
 
-            var ink = InkExtractor.Extract(frame, w, h, crop, config.inkThreshold, config.minInkPx);
+            var ink = InkExtractor.Extract(frame, w, h, crop, config.inkThreshold, config.minInkPx, config.autoInkThreshold);
             var response = new CaptureResponse
             {
                 id = "cam-" + ++nextId,

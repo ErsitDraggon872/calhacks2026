@@ -37,7 +37,7 @@ namespace CalHacks
 
             if (boardCamera == null) boardCamera = BoardCamera.Instance != null ? BoardCamera.Instance : FindFirstObjectByType<BoardCamera>();
             if (boardCamera == null) return;
-            var frame = boardCamera.Grab(out var w, out var h);
+            var frame = boardCamera.GrabLatest(out var w, out var h);
             if (frame == null) return;
 
             var board = InkExtractor.BoardRect(w, h, config.boardCrop);
@@ -45,7 +45,7 @@ namespace CalHacks
             var sh = Mathf.Max(1, Mathf.RoundToInt(sw * (float)board.height / board.width));
             var small = Shrink(frame, w, board, sw, sh);
             var minInk = Mathf.Max(4, Mathf.RoundToInt(config.minInkPx * (float)(sw * sh) / (board.width * board.height)));
-            var ink = InkExtractor.Extract(small, sw, sh, new Rect(0f, 0f, 1f, 1f), config.inkThreshold, minInk);
+            var ink = InkExtractor.Extract(small, sw, sh, new Rect(0f, 0f, 1f, 1f), config.inkThreshold, minInk, config.autoInkThreshold);
 
             // Black ink on white, in place on the board (the extractor returns the ink's bounding box).
             var preview = new Color32[sw * sh];

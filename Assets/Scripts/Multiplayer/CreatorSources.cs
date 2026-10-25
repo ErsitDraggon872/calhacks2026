@@ -72,7 +72,7 @@ namespace CalHacks
                 error = "Camera: " + camera.Status;
                 return null;
             }
-            var ink = InkExtractor.Extract(frame, w, h, config.boardCrop, config.inkThreshold, config.minInkPx);
+            var ink = InkExtractor.Extract(frame, w, h, config.boardCrop, config.inkThreshold, config.minInkPx, config.autoInkThreshold);
             if (ink.Empty)
             {
                 error = "The board looks empty. Draw something first!";

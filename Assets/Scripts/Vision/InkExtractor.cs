@@ -33,6 +33,13 @@ namespace CalHacks
         const float FrameContact = 0.25f;
         /// <summary>A blob this much of the crop's width or height across is the frame or the room, not a drawing.</summary>
         const float FrameSpan = 0.75f;
+        /// <summary>Auto threshold: ink is this much darker than the typical board pixel (relative to the board around it).</summary>
+        const float InkBelowBoard = 0.22f;
+        /// <summary>Auto threshold: never looser than this. Past about 0.75, paper creases and the shadow of a sheet's
+        /// edge start counting as ink in real C270 frames.</summary>
+        const float MaxThreshold = 0.7f;
+        /// <summary>Auto threshold: ink this far below the cut draws fully opaque.</summary>
+        const float InkRamp = 0.25f;
 
         /// <summary>
         /// The board crop in frame pixels. Board space everywhere (preview outline, capture, /interpret) is the upright
@@ -47,7 +54,11 @@ namespace CalHacks
             return new RectInt(x0, y0, x1 - x0, y1 - y0);
         }
 
-        public static InkResult Extract(Color32[] frame, int frameW, int frameH, Rect crop, float threshold, int minInkPx)
+        /// <param name="threshold">Ink is darker than this fraction of the board around it. With
+        /// <paramref name="autoThreshold"/>, the strictest the cut gets.</param>
+        /// <param name="autoThreshold">Loosen the cut (up to <see cref="MaxThreshold"/>) as far as this frame's own
+        /// board grain allows, so faint strokes come through.</param>
+        public static InkResult Extract(Color32[] frame, int frameW, int frameH, Rect crop, float threshold, int minInkPx, bool autoThreshold = false)
         {
             var board = BoardRect(frameW, frameH, crop);
             var x0 = board.x;
@@ -64,13 +75,15 @@ namespace CalHacks
             }
 
             var background = Background(lum, w, h);
+            var inkRatio = threshold * 0.5f;
+            if (autoThreshold) threshold = AutoThreshold(lum, background, threshold, out inkRatio);
 
-            // Ink strength 0-255: 0 at the threshold, full at half of it.
+            // Ink strength 0-255: 0 at the threshold, full at the ink's own brightness.
             var alpha = new byte[w * h];
             for (var i = 0; i < lum.Length; i++)
             {
-                var cut = background[i] * threshold;
-                if (lum[i] < cut) alpha[i] = (byte)(Mathf.Clamp01(2f * (1f - lum[i] / cut)) * 255f);
+                var ratio = lum[i] / background[i];
+                if (ratio < threshold) alpha[i] = (byte)(Mathf.Clamp01((threshold - ratio) / (threshold - inkRatio)) * 255f);
             }
 
             // Solid ink: pixels with enough inked neighbours, so camera noise doesn't count.
@@ -78,9 +91,10 @@ namespace CalHacks
             for (var y = 0; y < h; y++)
             for (var x = 0; x < w; x++)
                 solid[y * w + x] = alpha[y * w + x] > 0 && Neighbours(alpha, w, h, x, y) >= 4;
+            BridgeGaps(solid, alpha, w, h, Mathf.Max(1, Mathf.RoundToInt(Mathf.Min(w, h) / 360f)));
 
             var keep = KeepDrawing(solid, w, h, out var inkPx, out var minX, out var minY, out var maxX, out var maxY);
-            if (inkPx > 0) inkPx += FillDarkHoles(keep, alpha, lum, background, w, h, threshold);
+            if (inkPx > 0) inkPx += FillDarkHoles(keep, alpha, lum, background, w, h, threshold, inkRatio);
             if (inkPx < minInkPx) return new InkResult { Empty = true, InkPx = inkPx };
 
             var cx0 = Mathf.Max(0, minX - Margin);
@@ -217,6 +231,83 @@ namespace CalHacks
             return keep;
         }
 
+        /// <summary>
+        /// The ink cut for this frame: a fixed step below the typical (median) board pixel, each relative to the board
+        /// around it. A dim, grainy frame sits lower, so its faint strokes still fall under the cut; it's never stricter
+        /// than <paramref name="fallback"/>. <paramref name="inkRatio"/> is where ink draws fully opaque.
+        /// </summary>
+        static float AutoThreshold(byte[] lum, float[] background, float fallback, out float inkRatio)
+        {
+            const int Buckets = 256;
+            var histogram = new int[Buckets];
+            for (var i = 0; i < lum.Length; i++) histogram[Mathf.Min(Buckets - 1, (int)(lum[i] / background[i] * Buckets))]++;
+            var median = 0;
+            for (var seen = 0; median < Buckets - 1; median++)
+            {
+                seen += histogram[median];
+                if (seen * 2 >= lum.Length) break;
+            }
+            var cut = Mathf.Clamp((median + 0.5f) / Buckets - InkBelowBoard, fallback, MaxThreshold);
+
+            // Full strength at the faint ink just under the cut, not at the darkest thing in the frame.
+            double sum = 0;
+            var count = 0;
+            for (var i = 0; i < lum.Length; i++)
+            {
+                var ratio = lum[i] / background[i];
+                if (ratio >= cut || ratio < cut - InkRamp) continue;
+                sum += ratio;
+                count++;
+            }
+            inkRatio = Mathf.Min(count > 0 ? (float)(sum / count) : cut - InkRamp, cut - 0.02f);
+            return cut;
+        }
+
+        /// <summary>
+        /// A faint pen skips: a non-ink pixel with ink on both sides within <paramref name="gap"/> pixels, along a row,
+        /// column or diagonal, is ink too, as strong as the ink it bridges. A stroke's own corners and edges have ink
+        /// on one side only, so they stay as they are.
+        /// </summary>
+        static void BridgeGaps(bool[] solid, byte[] alpha, int w, int h, int gap)
+        {
+            var bridged = new List<int>();
+            var strength = new List<byte>();
+            for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                if (solid[y * w + x]) continue;
+                for (var axis = 0; axis < 4; axis++)
+                {
+                    var dx = axis == 1 ? 0 : 1;
+                    var dy = axis == 0 ? 0 : axis == 3 ? -1 : 1;
+                    var a = Reach(x, y, dx, dy);
+                    if (a < 0) continue;
+                    var b = Reach(x, y, -dx, -dy);
+                    if (b < 0) continue;
+                    bridged.Add(y * w + x);
+                    strength.Add((byte)((alpha[a] + alpha[b]) / 2));
+                    break;
+                }
+            }
+            for (var i = 0; i < bridged.Count; i++)
+            {
+                solid[bridged[i]] = true;
+                alpha[bridged[i]] = (byte)Mathf.Max(alpha[bridged[i]], strength[i]);
+            }
+
+            int Reach(int x, int y, int dx, int dy)
+            {
+                for (var step = 1; step <= gap; step++)
+                {
+                    var nx = x + dx * step;
+                    var ny = y + dy * step;
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) return -1;
+                    if (solid[ny * w + nx]) return ny * w + nx;
+                }
+                return -1;
+            }
+        }
+
         static RectInt Union(RectInt a, RectInt b)
         {
             var x0 = Mathf.Min(a.xMin, b.xMin);
@@ -254,7 +345,7 @@ namespace CalHacks
         /// dark, closer to the ink than to the board: a filled-in shape. The inside of an outline stays empty.
         /// Returns how many pixels were added.
         /// </summary>
-        static int FillDarkHoles(bool[] keep, byte[] alpha, byte[] lum, float[] background, int w, int h, float threshold)
+        static int FillDarkHoles(bool[] keep, byte[] alpha, byte[] lum, float[] background, int w, int h, float threshold, float inkRatio)
         {
             double inkSum = 0, boardSum = 0;
             var inkCount = 0;
@@ -297,7 +388,7 @@ namespace CalHacks
                 foreach (var i in region)
                 {
                     keep[i] = true;
-                    alpha[i] = (byte)(Mathf.Clamp01(2f * (1f - lum[i] / (board * threshold))) * 255f);
+                    alpha[i] = (byte)(Mathf.Clamp01((threshold - lum[i] / board) / (threshold - inkRatio)) * 255f);
                 }
                 added += region.Count;
             }

@@ -5,13 +5,15 @@ namespace CalHacks
 {
     /// <summary>
     /// Owns the whiteboard webcam when the capture source is Webcam. Opens it once and keeps it running so a BUILD
-    /// grabs the current frame instantly. Everything downstream (preview, capture, ink cut-out) uses the upright frame
-    /// from <see cref="Grab"/>, so the preview always shows exactly the pixels a capture will use.
+    /// grabs the current frame instantly. Everything downstream (preview, capture, ink cut-out) uses the same upright
+    /// frame, so the preview shows the pixels a capture will use (a capture averages the last few to cancel grain).
     /// </summary>
     public class BoardCamera : MonoBehaviour, IBoardFrameSource
     {
         /// <summary>A frame older than this means the camera has stalled.</summary>
         const float FreshFrameSeconds = 1f;
+        /// <summary>A capture averages this many of the latest frames (about 0.13 s at 30 fps) to cancel low-light grain.</summary>
+        const int AveragedFrames = 4;
 
         public static BoardCamera Instance { get; private set; }
 
@@ -19,6 +21,8 @@ namespace CalHacks
 
         WebCamTexture webcam;
         Color32[] raw;
+        Color32[] latest;
+        readonly FrameAverager recent = new FrameAverager(AveragedFrames);
         Texture2D preview;
         float nextDeviceCheck;
         float lastFrameTime = float.NegativeInfinity;
@@ -96,7 +100,9 @@ namespace CalHacks
             if (webcam.didUpdateThisFrame && webcam.width > 16)
             {
                 lastFrameTime = Time.unscaledTime;
-                if (PreviewWanted) RefreshPreview();
+                latest = Copy(latest, out var w, out var h);
+                recent.Add(latest, w, h);
+                if (PreviewWanted) RefreshPreview(latest, w, h);
             }
 
             Status = HasFreshFrame ? $"{DeviceName}  {webcam.width}x{webcam.height}"
@@ -124,6 +130,7 @@ namespace CalHacks
 
             DeviceName = device.name;
             lastFrameTime = float.NegativeInfinity;
+            recent.Clear();
             webcam = new WebCamTexture(device.name, config.cameraWidth, config.cameraHeight, 30);
             webcam.Play();
             Debug.Log($"[Camera] Opened '{device.name}'. Devices: {string.Join(", ", devices.Select(d => d.name))}");
@@ -161,10 +168,8 @@ namespace CalHacks
             return !name.Contains("integrated") && !name.Contains("virtual") && !name.Contains("built-in");
         }
 
-        void RefreshPreview()
+        void RefreshPreview(Color32[] pixels, int w, int h)
         {
-            var pixels = Grab(out var w, out var h);
-            if (pixels == null) return;
             if (preview == null || preview.width != w || preview.height != h)
             {
                 if (preview != null) Destroy(preview);
@@ -175,26 +180,40 @@ namespace CalHacks
         }
 
         /// <summary>
-        /// Copies the current frame upright (rotation and mirroring undone): board space, origin bottom-left.
-        /// Null unless a fresh frame is available.
+        /// The board for a capture: the last few frames averaged, upright (rotation and mirroring undone), board space,
+        /// origin bottom-left. Null unless a fresh frame is available.
         /// </summary>
         public Color32[] Grab(out int width, out int height)
         {
             width = height = 0;
             if (!HasFreshFrame) return null;
+            return recent.Count >= 2 ? recent.Average(out width, out height) : GrabLatest(out width, out height);
+        }
+
+        /// <summary>Just the current frame, upright: for the live previews, which want it sharp and cheap.</summary>
+        public Color32[] GrabLatest(out int width, out int height)
+        {
+            width = height = 0;
+            return HasFreshFrame ? Copy(null, out width, out height) : null;
+        }
+
+        /// <summary>The webcam's current frame, upright, into <paramref name="into"/> when it's the right size.</summary>
+        Color32[] Copy(Color32[] into, out int width, out int height)
+        {
             var w = webcam.width;
             var h = webcam.height;
             if (raw == null || raw.Length != w * h) raw = new Color32[w * h];
             webcam.GetPixels32(raw);
-            return Upright(raw, w, h, webcam.videoRotationAngle, webcam.videoVerticallyMirrored, out width, out height);
+            if (into == null || into.Length != w * h) into = new Color32[w * h];
+            Upright(raw, into, w, h, webcam.videoRotationAngle, webcam.videoVerticallyMirrored, out width, out height);
+            return into;
         }
 
-        static Color32[] Upright(Color32[] src, int w, int h, int rotation, bool mirrored, out int outW, out int outH)
+        static void Upright(Color32[] src, Color32[] dst, int w, int h, int rotation, bool mirrored, out int outW, out int outH)
         {
             var quarterTurns = ((rotation % 360 + 360) % 360) / 90;
             outW = quarterTurns % 2 == 0 ? w : h;
             outH = quarterTurns % 2 == 0 ? h : w;
-            var dst = new Color32[src.Length];
             for (var y = 0; y < h; y++)
             for (var x = 0; x < w; x++)
             {
@@ -209,7 +228,6 @@ namespace CalHacks
                 }
                 dst[dy * outW + dx] = src[sy * w + x];
             }
-            return dst;
         }
     }
 }

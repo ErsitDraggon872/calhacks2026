@@ -29,6 +29,20 @@ namespace CalHacks.Tests
                 frame[y * W + x] = new Color32(20, 20, 25, 255);
         }
 
+        static void Stroke(Color32[] frame, int x0, int y0, int x1, int y1, byte v)
+        {
+            for (var y = y0; y < y1; y++)
+            for (var x = x0; x < x1; x++)
+                frame[y * W + x] = new Color32(v, v, v, 255);
+        }
+
+        static Texture2D Fixture(string name)
+        {
+            var texture = new Texture2D(2, 2);
+            Assert.IsTrue(texture.LoadImage(File.ReadAllBytes(Path.Combine(Application.dataPath, "Scripts/Tests/EditMode/Fixtures", name))));
+            return texture;
+        }
+
         [Test]
         public void BlankBoardIsEmpty()
         {
@@ -65,14 +79,12 @@ namespace CalHacks.Tests
         }
 
         [Test]
-        public void RealWhiteboardWithHandShadowKeepsTheWholeFace()
+        public void RealWhiteboardWithHandShadowKeepsTheWholeFace([Values(false, true)] bool autoThreshold)
         {
             // Hand-held C270 frame: a face (box, two eyes, mouth) with the drawer's hand shadow over the mouth,
             // the board's wooden frame on the left. The face spans about x 260-635, y 80-395 (from the top).
-            var png = File.ReadAllBytes(Path.Combine(Application.dataPath, "Scripts/Tests/EditMode/Fixtures/whiteboard_face_hand_shadow.png"));
-            var texture = new Texture2D(2, 2);
-            Assert.IsTrue(texture.LoadImage(png));
-            var result = InkExtractor.Extract(texture.GetPixels32(), texture.width, texture.height, Full, 0.6f, 400);
+            var texture = Fixture("whiteboard_face_hand_shadow.png");
+            var result = InkExtractor.Extract(texture.GetPixels32(), texture.width, texture.height, Full, 0.6f, 400, autoThreshold);
             Object.DestroyImmediate(texture);
 
             Assert.IsFalse(result.Empty);
@@ -154,6 +166,47 @@ namespace CalHacks.Tests
             Assert.AreEqual(0, result.Y);
             Assert.AreEqual(80 + 16, result.Width);
             Assert.AreEqual(156 + 8, result.Height);
+        }
+
+        [Test]
+        public void DimLowContrastStrokeIsFoundWithAutoThreshold()
+        {
+            // Dim room: the marker is 65% as bright as the paper, too faint for the fixed 0.6 cut.
+            var frame = Board((x, y) => 120);
+            Stroke(frame, 100, 80, 160, 86, 78);
+            Assert.IsTrue(InkExtractor.Extract(frame, W, H, Full, 0.6f, 50).Empty);
+
+            var result = InkExtractor.Extract(frame, W, H, Full, 0.6f, 50, true);
+            Assert.IsFalse(result.Empty);
+            Assert.AreEqual(60 * 6 - 4, result.InkPx);
+            Assert.AreEqual(60 + 16, result.Width);
+            Assert.AreEqual(255, result.Pixels[(8 + 3) * result.Width + 8 + 30].a, "a dim stroke still draws solid");
+        }
+
+        [Test]
+        public void NoisyBlankBoardStaysEmptyWithAutoThreshold()
+        {
+            // Low-light sensor noise on an empty board: no ink to find, so no split between ink and paper.
+            var frame = Board((x, y) => (byte)(128 + (int)((uint)(x * 73856093 ^ y * 19349663) % 25)));
+            Assert.IsTrue(InkExtractor.Extract(frame, W, H, Full, 0.6f, 50, true).Empty);
+        }
+
+        [Test]
+        public void SmallGapsInAnOutlineAreBridged()
+        {
+            // A faint pen skips: the box outline has a 1 px gap in each side (the bridge reach scales with the crop:
+            // 1 px here, 2 px at 720p). The gaps are drawn in, so the cut-out shows one closed outline, not two brackets.
+            var frame = Board((x, y) => 230);
+            Stroke(frame, 120, 80, 200, 86);
+            Stroke(frame, 120, 150, 200, 156);
+            Stroke(frame, 120, 80, 126, 116);
+            Stroke(frame, 120, 117, 126, 156);
+            Stroke(frame, 194, 80, 200, 116);
+            Stroke(frame, 194, 117, 200, 156);
+            var result = InkExtractor.Extract(frame, W, H, Full, 0.6f, 50);
+            Assert.IsFalse(result.Empty);
+            Assert.Greater(result.Pixels[(8 + 116 - 80) * result.Width + 8 + 3].a, 0, "left gap");
+            Assert.Greater(result.Pixels[(8 + 116 - 80) * result.Width + 8 + 77].a, 0, "right gap");
         }
 
         [Test]

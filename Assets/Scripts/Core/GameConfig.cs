@@ -63,6 +63,10 @@ namespace CalHacks
         public Rect boardCrop = new Rect(0f, 0f, 1f, 1f);
         [Tooltip("A pixel is ink when its brightness is below the local board brightness times this.")]
         [Range(0.1f, 0.95f)] public float inkThreshold = 0.6f;
+        [Tooltip("Experimental: loosen the ink threshold (up to 0.7) when the board's grain allows it. Fills faint " +
+                 "strokes on a clean board, but in a dim, grainy frame it can pull in the desk or a clip. " +
+                 "inkThreshold stays the floor.")]
+        public bool autoInkThreshold = false;
         [Tooltip("Fewer ink pixels than this counts as an empty board.")]
         public int minInkPx = 400;
 
