@@ -44,6 +44,7 @@ namespace CalHacks.EditorTools
             Lit("Rock", new Color(0.60f, 0.46f, 0.66f));      // plum: the high ledge
             Lit("Sandstone", new Color(0.85f, 0.62f, 0.36f)); // the floating island
             Lit("Wood", new Color(0.47f, 0.31f, 0.20f));      // poles
+            Lit("Metal", new Color(0.55f, 0.57f, 0.60f));     // the launchpad and its gantry
             Lit("Player", new Color(0.25f, 0.5f, 0.92f));
             Lit("Villager", new Color(0.92f, 0.55f, 0.25f));
             Lit("Flag", new Color(0.85f, 0.30f, 0.27f));      // checkpoint flag; Checkpoint turns it green when reached

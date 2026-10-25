@@ -42,8 +42,9 @@ namespace CalHacks.EditorTools
         /// <summary>
         /// Side-view demo level along +X, with depth (Z) toward the back. Start ledge (front path + raised back terrace)
         /// → the gap (every drawing becomes a bridge, solid where it's inked) → the hub: checkpoint, then two puzzles in
-        /// either order up to a floating island with the exit: a high ledge (build a step) and the gatekeeper (feed them
-        /// and they open the gate to the island stairs).
+        /// either order up to a floating island: a high ledge (build a step) and the gatekeeper (feed them and they open
+        /// the gate to the island stairs) → the launch deck: draw a rocket, ride it up the cliff and hop off onto the
+        /// finish ledge with the exit.
         /// The camera looks along +Z, so nothing solid stands in front (−Z) of the paths; invisible walls stop B
         /// walking off the front edge.
         /// </summary>
@@ -68,8 +69,15 @@ namespace CalHacks.EditorTools
             // right up to the stairs (x 31), so there's no pocket between them to fall into behind the gate.
             Walkable("Rock", geo, "High Ledge", new Vector3(24f, 0f, 0.5f), new Vector3(31f, 2.3f, 3f));
 
-            // The island: a cliff from the hub floor up to 4 m, with the exit and the goal flag. Reached by the stairs.
-            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 0f, -1.5f), new Vector3(40f, 4f, 3f))
+            // The island: a cliff from the hub floor up to 4 m, reached by the stairs. It's the launch deck: the pad
+            // stands against the finish cliff at its right end.
+            Walkable("Rock", geo, "Floating Island", new Vector3(34f, 0f, -1.5f), new Vector3(43f, 4f, 3f))
+                .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
+
+            // The finish ledge, 4.5 m above the deck, with the exit and the goal flag: out of reach of a build plus a jump
+            // (~8.1 m), but the weakest rocket (B's feet peak ~8.1 m) plus a hop off it clears it. A rocket built facing
+            // the cliff is pushed flush against this face and rises beside it.
+            Walkable("Rock", geo, "Finish Ledge", new Vector3(43f, 0f, -1.5f), new Vector3(52f, 8.5f, 3f))
                 .GetComponent<MeshRenderer>().sharedMaterial = GameAssetBuilder.Mat("Sandstone");
 
             // Island stairs, x 31..34: five 0.8 m steps climbing toward the back (z -2..3), the top one level with the
@@ -87,16 +95,20 @@ namespace CalHacks.EditorTools
             // solid. It runs well past both ends so the Wide framing never sees round it.
             Box("Wall", geo, new Vector3(-30f, -16f, 3f), new Vector3(70f, 2.8f, 3.6f)).name = "Back Wall";
             Box("Wall", geo, new Vector3(-7f, -1f, -2f), new Vector3(-6f, 3.5f, 3f)).name = "Left End";
-            Box("Wall", geo, new Vector3(40f, -1f, -2f), new Vector3(41f, 6f, 3f)).name = "Right End";
+            Box("Wall", geo, new Vector3(52f, -1f, -2f), new Vector3(53f, 14f, 3f)).name = "Right End";
+            // A strong rocket climbs ~20 m: it mustn't carry B out over the end.
+            Invisible("Right Cap", geo, new Vector3(52f, 14f, -2f), new Vector3(53f, 30f, 3f));
 
-            // Invisible back edge above the wall: B can't step off the back of the high ledge or the island.
-            Invisible("Back Edge", geo, new Vector3(-7f, 2.8f, 3f), new Vector3(41f, 10f, 3.6f));
+            // Invisible back edge above the wall: B can't step off the back of the high ledge, the island or a rocket.
+            Invisible("Back Edge", geo, new Vector3(-7f, 2.8f, 3f), new Vector3(53f, 30f, 3.6f));
             Hills();
 
             // Invisible front edges: B can't walk off toward the camera. The gap's own rails cover the bridge.
             Invisible("Front Edge Start", geo, new Vector3(-6f, 0f, -1.4f), new Vector3(10f, 4f, -1f));
             Invisible("Front Edge Hub", geo, new Vector3(14.6f, 0f, -2.4f), new Vector3(40f, 8f, -2f));
-            Invisible("Front Edge Island", geo, new Vector3(34f, 4f, -1.9f), new Vector3(40f, 7f, -1.5f));
+            // These two run high, so B hopping off a rocket can't drift off toward the camera either.
+            Invisible("Front Edge Island", geo, new Vector3(34f, 4f, -1.9f), new Vector3(43f, 30f, -1.5f));
+            Invisible("Front Edge Finish", geo, new Vector3(43f, 8.5f, -1.9f), new Vector3(52f, 30f, -1.5f));
             // At the island's left edge, so B can't walk off the stairs' right end into the strip in front of the cliff.
             Invisible("Under Island", geo, new Vector3(34f, 0f, -2f), new Vector3(34.4f, 3f, 3f));
 
@@ -113,9 +125,15 @@ namespace CalHacks.EditorTools
             // The gatekeeper, on the front path beside the gate at the foot of the island stairs (gate x 30.6..31,
             // z -2..0.5). Anything edible opens it. Their 2.5 m BUILD range keeps the high ledge's builds out of it.
             Place("GatekeeperSocket", puzzles, new Vector3(29.6f, 0f, -1f));
-            // Centred on the island's depth (z -1.5..3), so B touches the 3.2 m-deep trigger wherever B crosses it.
-            Place("Exit", puzzles, new Vector3(38f, 4f, 0.75f));
-            GoalFlag(puzzles, new Vector3(39.3f, 4f, 1.8f));
+            // The launch deck: a checkpoint at the top of the stairs (a missed hop off the rocket lands back here), and
+            // the hint by the pad. The pad itself is only looks; the drawn rocket flies on its own.
+            Place("Checkpoint", puzzles, new Vector3(35.5f, 4f, 0.5f)).name = "Checkpoint 2";
+            AddHint(puzzles, "Hint Launchpad", new Vector3(38f, 4f, -1.5f), new Vector3(43f, 7f, 3f),
+                "Way too high! Draw something to ride up.");
+            Launchpad();
+            // Centred on the finish ledge's depth (z -1.5..3), so B touches the 3.2 m-deep trigger wherever B crosses it.
+            Place("Exit", puzzles, new Vector3(49f, 8.5f, 0.75f));
+            GoalFlag(puzzles, new Vector3(51.3f, 8.5f, 1.8f));
 
             // Start back from the gap, near the left end, so B walks up to it (BUILD reaches the gap from x 7.3).
             Rig(new Vector3(0.5f, 0f, 0f));
@@ -147,6 +165,8 @@ namespace CalHacks.EditorTools
             var player = Place("Player", null, start);
             var cam = Place("CameraRig", null, start);
             var game = Place("Game", null, Vector3.zero);
+            // The co-op room and the digital board's UI (hand-made prefab, not built by GameAssetBuilder).
+            Place("Coop", null, Vector3.zero);
 
             var follow = cam.GetComponent<CameraFollow>();
             GameAssetBuilder.Fields(follow, ("target", player.transform));
@@ -205,6 +225,21 @@ namespace CalHacks.EditorTools
             Prop(PrimitiveType.Cylinder, "Pole", flag, new Vector3(0f, 1.5f, 0f), new Vector3(0.12f, 1.5f, 0.12f), "Wood");
             Prop(PrimitiveType.Cube, "Cloth", flag, new Vector3(0.6f, 2.6f, 0f), new Vector3(1.1f, 0.7f, 0.05f), "Exit");
             Prop(PrimitiveType.Sphere, "Knob", flag, new Vector3(0f, 3.05f, 0f), new Vector3(0.25f, 0.25f, 0.25f), "Exit");
+        }
+
+        /// <summary>
+        /// The launchpad on the deck against the finish cliff (looks only, no colliders): a metal slab with a yellow
+        /// stripe, and a gantry tower behind the path.
+        /// </summary>
+        static void Launchpad()
+        {
+            var pad = new GameObject("Launchpad").transform;
+            Prop(PrimitiveType.Cube, "Pad", pad, new Vector3(41.7f, 4.04f, 0.75f), new Vector3(2.6f, 0.08f, 3.6f), "Metal");
+            Prop(PrimitiveType.Cube, "Stripe", pad, new Vector3(41.7f, 4.085f, -0.9f), new Vector3(2.6f, 0.02f, 0.3f), "Exit");
+            Prop(PrimitiveType.Cube, "Gantry", pad, new Vector3(40.6f, 7.5f, 2.7f), new Vector3(0.4f, 7f, 0.4f), "Metal");
+            Prop(PrimitiveType.Cube, "Gantry Arm Low", pad, new Vector3(41.2f, 6.5f, 2.7f), new Vector3(1.2f, 0.15f, 0.15f), "Metal");
+            Prop(PrimitiveType.Cube, "Gantry Arm High", pad, new Vector3(41.2f, 9.5f, 2.7f), new Vector3(1.2f, 0.15f, 0.15f), "Metal");
+            Prop(PrimitiveType.Sphere, "Beacon", pad, new Vector3(40.6f, 11.15f, 2.7f), new Vector3(0.3f, 0.3f, 0.3f), "Flag");
         }
 
         /// <summary>
