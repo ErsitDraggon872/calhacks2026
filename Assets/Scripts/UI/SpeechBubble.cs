@@ -22,8 +22,8 @@ namespace CalHacks
         string line;
         float lineUntil;
         Transform player;
-        GUIStyle style, boxStyle;
-        Texture2D boxTexture, tailTexture;
+        GUIStyle style;
+        Texture2D tailTexture;
 
         public void Say(string text, float seconds = 3.5f)
         {
@@ -67,48 +67,48 @@ namespace CalHacks
             var content = new GUIContent(text);
             var boxWidth = Mathf.Min(MaxWidth, style.CalcSize(content).x + 40f);
             var boxHeight = style.CalcHeight(content, boxWidth - 40f) + 28f;
-            const float tail = 22f;
+            const float tail = 26f;
             var rect = new Rect(tip.x - boxWidth * 0.5f, tip.y - tail - boxHeight, boxWidth, boxHeight);
             rect.x = Mathf.Clamp(rect.x, 10f, width - boxWidth - 10f);
             rect.y = Mathf.Max(rect.y, 90f);
+            // Stay left of the co-op panel instead of sliding under it; the tail still finds the head below.
+            if (rect.Overlaps(CoopHud.Occupied)) rect.x = Mathf.Max(10f, CoopHud.Occupied.x - 10f - boxWidth);
+            var tailX = Mathf.Clamp(tip.x - tail * 0.5f, rect.x + 14f, rect.xMax - 14f - tail);
 
-            GUI.Box(rect, GUIContent.none, boxStyle);
-            GUI.DrawTexture(new Rect(tip.x - tail * 0.5f, rect.yMax, tail, tail), tailTexture);
-            GUI.Label(new Rect(rect.x + 20f, rect.y + 14f, rect.width - 40f, rect.height - 28f), content, style);
+            // Paper note like the top sign; the tail is drawn over the note's bottom outline so the two read as one shape.
+            Sketch.Box(rect, Sketch.Paper, 21, shadow: true);
+            GUI.DrawTexture(new Rect(tailX, rect.yMax - 4f, tail, tail + 4f), tailTexture);
+            Sketch.Label(new Rect(rect.x + 20f, rect.y + 14f, rect.width - 40f, rect.height - 28f), text, style);
             GUI.matrix = Matrix4x4.identity;
         }
 
         void EnsureStyles()
         {
             if (style != null) return;
-            style = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 30,
-                alignment = TextAnchor.MiddleCenter,
-                wordWrap = true,
-                normal = { textColor = new Color(0.08f, 0.08f, 0.08f) },
-            };
-            Sketch.HoldColor(style);
-            boxTexture = new Texture2D(1, 1);
-            boxTexture.SetPixel(0, 0, new Color(1f, 1f, 1f, 0.95f));
-            boxTexture.Apply();
-            boxStyle = new GUIStyle { normal = { background = boxTexture } };
-            tailTexture = Tail(32);
+            style = Sketch.Text(28, Sketch.Ink, TextAnchor.MiddleCenter);
+            style.wordWrap = true;
+            tailTexture = Tail(26, 30);
         }
 
-        /// <summary>A white downward-pointing triangle, the bubble's tail.</summary>
-        static Texture2D Tail(int size)
+        /// <summary>The bubble's tail: a paper wedge pointing down, inked down both sides and open at the top.</summary>
+        static Texture2D Tail(int width, int height)
         {
-            var texture = new Texture2D(size, size) { wrapMode = TextureWrapMode.Clamp };
-            for (var y = 0; y < size; y++)
+            var texture = new Texture2D(width, height) { wrapMode = TextureWrapMode.Clamp };
+            var half = width * 0.5f;
+            // The slanted sides' unit normal, for the pixel distance to each side.
+            var length = Mathf.Sqrt(half * half + height * height);
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
             {
                 // Texture rows go bottom-up: the point is at row 0, the full width at the top.
-                var half = (y + 0.5f) / size * size * 0.5f;
-                for (var x = 0; x < size; x++)
-                {
-                    var inside = Mathf.Abs(x + 0.5f - size * 0.5f) <= half;
-                    texture.SetPixel(x, y, inside ? new Color(1f, 1f, 1f, 0.95f) : Color.clear);
-                }
+                var px = Mathf.Abs(x + 0.5f - half);
+                var py = y + 0.5f;
+                var side = (px * height - py * half) / length;
+                var paper = Mathf.Clamp01(0.5f - side);
+                var ink = Mathf.Clamp01(2f - Mathf.Abs(side)) * (y < height - 4 ? 1f : 0f);
+                var c = Color.Lerp(Sketch.Paper, Sketch.Ink, ink);
+                c.a = Mathf.Max(paper, ink);
+                texture.SetPixel(x, y, c);
             }
             texture.Apply();
             return texture;
@@ -116,7 +116,6 @@ namespace CalHacks
 
         void OnDestroy()
         {
-            if (boxTexture != null) Destroy(boxTexture);
             if (tailTexture != null) Destroy(tailTexture);
         }
     }

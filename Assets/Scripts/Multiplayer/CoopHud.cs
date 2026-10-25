@@ -25,9 +25,13 @@ namespace CalHacks
             if (UnityEngine.InputSystem.Keyboard.current?.f4Key.wasPressedThisFrame == true) hidden = !hidden;
         }
 
+        /// <summary>The space the panel (and the button under it) covers, in 1080p HUD units; empty while it's not shown.</summary>
+        public static Rect Occupied { get; private set; }
+
         void OnGUI()
         {
             var session = ThinkInkSession.Instance;
+            Occupied = Rect.zero;
             if (session == null || hidden) return;
             EnsureStyles();
             var scale = Screen.height / ReferenceHeight;
@@ -63,6 +67,7 @@ namespace CalHacks
                 y += 60f;
             }
             cardHeight = y + 4f - card.y;
+            Occupied = new Rect(card.x - 10f, card.y - 10f, card.width + 20f, cardHeight + 110f);
             if (session.Room != null && session.Role == CoopRole.Explorer) BringToLife(x, card.y + cardHeight + 16f, w);
             GUI.matrix = Matrix4x4.identity;
         }
