@@ -68,12 +68,15 @@ namespace CalHacks
     {
         const float ReferenceHeight = 1080f;
 
+        // The verdict is a highlighter swipe behind ink text: pastel text would vanish on cream paper.
+        static readonly Color WorkedSwipe = new Color(0.56f, 0.88f, 0.5f, 0.8f);
+        static readonly Color FailedSwipe = new Color(1f, 0.56f, 0.46f, 0.75f);
+
         static InventionCard instance;
 
         CardText card;
         bool visible;
         GUIStyle header, title, body, traits, action, button;
-        Texture2D panel;
 
         public static bool Visible => instance != null && instance.visible;
 
@@ -104,7 +107,6 @@ namespace CalHacks
         {
             if (instance == this) instance = null;
             if (visible) Time.timeScale = 1f;
-            if (panel != null) Destroy(panel);
         }
 
         void OnGUI()
@@ -131,54 +133,67 @@ namespace CalHacks
             var actionHeight = string.IsNullOrEmpty(card.Action) ? 0f : action.CalcHeight(new GUIContent(card.Action), inner) + 12f;
             var h = 40f + 46f + 96f + bodyHeight + traitsHeight + actionHeight + 20f + 70f + 34f;
             var rect = new Rect(x, 150f, w, h);
-            GUI.DrawTexture(rect, panel);
 
-            var y = rect.y + 40f;
-            GUI.Label(new Rect(x + 40f, y, inner, 46f), CardText.Header, header);
-            y += 46f;
-            GUI.Label(new Rect(x + 40f, y, inner, 96f), card.Title, title);
-            y += 96f;
-            if (bodyHeight > 0f)
+            // A big taped-up paper note, like the win banner.
+            Sketch.Tilted(rect.center, -1f, () =>
             {
-                GUI.Label(new Rect(x + 40f, y, inner, bodyHeight), card.Body, body);
-                y += bodyHeight;
-            }
-            if (traitsHeight > 0f)
-            {
-                GUI.Label(new Rect(x + 40f, y + 4f, inner, 40f), card.Traits, traits);
-                y += traitsHeight;
-            }
-            if (actionHeight > 0f)
-            {
-                action.normal.textColor = card.Worked == true ? new Color(0.55f, 0.95f, 0.6f)
-                    : card.Worked == false ? new Color(1f, 0.62f, 0.5f)
-                    : new Color(1f, 0.86f, 0.42f);
-                Sketch.HoldColor(action);
-                GUI.Label(new Rect(x + 40f, y + 12f, inner, actionHeight - 12f), card.Action, action);
-                y += actionHeight;
-            }
-            y += 20f;
-            if (GUI.Button(new Rect(x + (w - 300f) * 0.5f, y, 300f, 70f), "LET'S PLAY", button)) Dismiss();
+                Sketch.Box(rect, Sketch.Paper, 31, shadow: true);
+                Sketch.Tape(new Vector2(rect.x + 110f, rect.y + 2f), -5f, 130f, 28f);
+                Sketch.Tape(new Vector2(rect.xMax - 110f, rect.y + 2f), 4f, 130f, 28f);
+
+                var y = rect.y + 40f;
+                Sketch.Label(new Rect(x + 40f, y, inner, 46f), CardText.Header, header);
+                y += 46f;
+                Sketch.Label(new Rect(x + 40f, y, inner, 96f), card.Title, title);
+                y += 96f;
+                if (bodyHeight > 0f)
+                {
+                    Sketch.Label(new Rect(x + 40f, y, inner, bodyHeight), card.Body, body);
+                    y += bodyHeight;
+                }
+                if (traitsHeight > 0f)
+                {
+                    Sketch.Label(new Rect(x + 40f, y + 4f, inner, 40f), card.Traits, traits);
+                    y += traitsHeight;
+                }
+                if (actionHeight > 0f)
+                {
+                    var line = new Rect(x + 40f, y + 12f, inner, actionHeight - 12f);
+                    DrawSwipe(line, card.Worked == true ? WorkedSwipe : card.Worked == false ? FailedSwipe : Sketch.Marker);
+                    Sketch.Label(line, card.Action, action);
+                    y += actionHeight;
+                }
+                y += 20f;
+                if (Sketch.Button(new Rect(x + (w - 300f) * 0.5f, y, 300f, 70f), "LET'S PLAY", Sketch.Marker, 32, button)) Dismiss();
+            });
             GUI.matrix = Matrix4x4.identity;
+        }
+
+        /// <summary>A highlighter stroke behind the action line's words, a little off-level as if swiped by hand.</summary>
+        void DrawSwipe(Rect line, Color color)
+        {
+            var textWidth = Mathf.Min(line.width, action.CalcSize(new GUIContent(card.Action)).x);
+            var swipe = new Rect(line.center.x - textWidth * 0.5f - 16f, line.y + 2f, textWidth + 32f, line.height - 4f);
+            Sketch.Tilted(swipe.center, 0.8f, () =>
+            {
+                var old = GUI.color;
+                GUI.color = color;
+                GUI.DrawTexture(swipe, Texture2D.whiteTexture);
+                GUI.color = old;
+            });
         }
 
         void EnsureStyles()
         {
             if (header != null) return;
-            GUIStyle Centered(int size, FontStyle fontStyle, Color color) => Sketch.HoldColor(new GUIStyle(GUI.skin.label)
-            {
-                fontSize = size, fontStyle = fontStyle, alignment = TextAnchor.MiddleCenter, wordWrap = true,
-                normal = { textColor = color },
-            });
-            header = Centered(32, FontStyle.Bold, new Color(0.6f, 0.95f, 0.85f));
-            title = Centered(80, FontStyle.Bold, Color.white);
-            body = Centered(34, FontStyle.Normal, new Color(0.9f, 0.92f, 0.95f));
-            traits = Centered(30, FontStyle.Bold, new Color(0.6f, 0.95f, 0.85f));
-            action = Centered(42, FontStyle.Bold, new Color(1f, 0.86f, 0.42f));
-            button = new GUIStyle(GUI.skin.button) { fontSize = 32, fontStyle = FontStyle.Bold };
-            panel = new Texture2D(1, 1);
-            panel.SetPixel(0, 0, new Color(0.27f, 0.32f, 0.39f, 0.94f));
-            panel.Apply();
+            header = Sketch.Text(30, Sketch.Muted, TextAnchor.MiddleCenter, bold: true);
+            title = Sketch.Text(76, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
+            body = Sketch.Text(32, Sketch.Ink, TextAnchor.MiddleCenter);
+            body.wordWrap = true;
+            traits = Sketch.Text(28, Sketch.Muted, TextAnchor.MiddleCenter, bold: true);
+            action = Sketch.Text(38, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
+            action.wordWrap = true;
+            button = Sketch.Text(32, Sketch.Ink, TextAnchor.MiddleCenter, bold: true);
         }
     }
 }
