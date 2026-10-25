@@ -136,6 +136,27 @@ namespace CalHacks.Tests
         }
 
         [Test]
+        public void DrawingThatPokesTheFrameEdgeIsKept()
+        {
+            // A box outline whose tail runs off the bottom of the frame, around an eye: touching the edge at one
+            // stroke's width doesn't make it the board's frame. The wall along the left edge and a bit of the room in
+            // the far corner, off on its own, still go.
+            var frame = Board((x, y) => x < 25 ? (byte)30 : (byte)230);
+            Stroke(frame, 120, 80, 200, 86);
+            Stroke(frame, 120, 150, 200, 156);
+            Stroke(frame, 120, 80, 126, 156);
+            Stroke(frame, 194, 80, 200, 156);
+            Stroke(frame, 160, 0, 166, 80);    // the tail, down to y = 0
+            Stroke(frame, 150, 110, 160, 120); // the eye
+            Stroke(frame, 290, 0, 320, 6);     // the room, in the corner
+            var result = InkExtractor.Extract(frame, W, H, Full, 0.6f, 50);
+            Assert.IsFalse(result.Empty);
+            Assert.AreEqual(0, result.Y);
+            Assert.AreEqual(80 + 16, result.Width);
+            Assert.AreEqual(156 + 8, result.Height);
+        }
+
+        [Test]
         public void CropLimitsTheSearch()
         {
             var frame = Board((x, y) => 230);
