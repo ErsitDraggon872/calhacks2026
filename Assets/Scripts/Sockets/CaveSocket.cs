@@ -26,7 +26,7 @@ namespace CalHacks
         public override SocketType Type => SocketType.Light;
         public override IReadOnlyList<Trait> SolvingTraits => Lights;
         public override string Goal => "light up the dark cave";
-        public override string Banner => "THE DARK CAVE  ·  DRAW SOMETHING THAT GLOWS → BUILD";
+        public override string Banner => "draw something that glows";
         public override string Verdict(InventionSpec spec, LabelOutcome outcome) =>
             outcome == LabelOutcome.Solve ? "GIVES LIGHT → THE CAVE LIGHTS UP" : "NO LIGHT → STILL DARK";
 

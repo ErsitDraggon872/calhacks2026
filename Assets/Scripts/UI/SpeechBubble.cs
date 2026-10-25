@@ -88,6 +88,7 @@ namespace CalHacks
                 wordWrap = true,
                 normal = { textColor = new Color(0.08f, 0.08f, 0.08f) },
             };
+            Sketch.HoldColor(style);
             boxTexture = new Texture2D(1, 1);
             boxTexture.SetPixel(0, 0, new Color(1f, 1f, 1f, 0.95f));
             boxTexture.Apply();

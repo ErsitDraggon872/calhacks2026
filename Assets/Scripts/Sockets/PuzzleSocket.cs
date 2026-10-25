@@ -43,7 +43,7 @@ namespace CalHacks
         public virtual IReadOnlyList<Trait> SolvingTraits => Array.Empty<Trait>();
         /// <summary>The puzzle in words, sent with the drawing as POST /interpret's tie-breaker (never what decides it).</summary>
         public virtual string Goal => "";
-        /// <summary>The station sign while B is in range, e.g. "THE GREAT GAP  ·  DRAW → BUILD → CROSS". "" for the default.</summary>
+        /// <summary>The station sign while B is in range, e.g. "draw a way across". "" for the default.</summary>
         public virtual string Banner => "";
         public bool Solved { get; private set; }
         public abstract SocketType Type { get; }

@@ -42,7 +42,7 @@ namespace CalHacks
             var w = PanelWidth - Pad * 2f;
 
             var connection = session.IsLocal ? "local server" : "key " + KeyText(session.KeyState);
-            GUI.Label(new Rect(x, y, w, 26f), $"<color={LinkColor(session.Link)}>●</color> {session.Link.ToString().ToLowerInvariant()}  ·  {connection}", small);
+            Sketch.Label(new Rect(x, y, w, 26f), $"<color={LinkColor(session.Link)}>●</color> {session.Link.ToString().ToLowerInvariant()}  ·  {connection}", small);
             y += 30f;
 
             if (session.Room == null)
@@ -51,7 +51,7 @@ namespace CalHacks
             }
             else
             {
-                GUI.Label(new Rect(x, y, w, 44f), $"Room <b>{session.Room.RoomCode}</b>", title);
+                Sketch.Label(new Rect(x, y, w, 44f), $"Room <b>{session.Room.RoomCode}</b>", title);
                 if (Sketch.Link(new Rect(x + w - 90f, y, 90f, 44f), "leave", link)) session.LeaveRoom();
                 y += 50f;
                 y = session.Role == CoopRole.Creator ? Creator(x, y, w) : Explorer(x, y, w);
@@ -59,7 +59,7 @@ namespace CalHacks
 
             if (ShowError(session))
             {
-                GUI.Label(new Rect(x, y, w, 56f), session.LastError, error);
+                Sketch.Label(new Rect(x, y, w, 56f), session.LastError, error);
                 y += 60f;
             }
             cardHeight = y + 4f - card.y;
@@ -86,7 +86,7 @@ namespace CalHacks
             Sketch.Box(codeRect, Color.white, 6);
             var cursor = GUI.skin.settings.cursorColor;
             GUI.skin.settings.cursorColor = Sketch.Ink;
-            code = GUI.TextField(codeRect, code, 4, field).ToUpperInvariant();
+            Sketch.Crisp(codeRect, field, r => code = GUI.TextField(r, code, 4, field).ToUpperInvariant());
             GUI.skin.settings.cursorColor = cursor;
             if (Sketch.Button(new Rect(x + 136f, y, w - 136f, 46f), "join (explorer plays)", Sketch.Paper, 7, button)) session.JoinRoom(code);
             y += 62f;
@@ -110,7 +110,7 @@ namespace CalHacks
             GUI.enabled = true;
             if (Sketch.Link(new Rect(x + w - 80f, y, 80f, 48f), "clear", link)) build.ClearDrawing();
             y += 60f;
-            GUI.Label(new Rect(x, y, w, 26f), build.Status, small);
+            Sketch.Label(new Rect(x, y, w, 26f), build.Status, small);
             y += 30f;
             return Preview(x, y, w, build.UsesWebcam ? "board, as your partner sees it" : "sent to your partner");
         }
@@ -120,7 +120,7 @@ namespace CalHacks
             var arrival = ExplorerInventions.LastArrival;
             if (arrival != null && Time.unscaledTime - ExplorerInventions.LastArrivalTime < PopupSeconds)
             {
-                GUI.Label(new Rect(x, y, w, 30f), $"new: <b>{(arrival.Name != "" ? arrival.Name : "drawing")}</b>", text);
+                Sketch.Label(new Rect(x, y, w, 30f), $"new: <b>{(arrival.Name != "" ? arrival.Name : "drawing")}</b>", text);
                 y += 34f;
             }
             return Preview(x, y, w, UsingWebcam ? "webcam, live" : "drawing pad, live");
@@ -142,12 +142,12 @@ namespace CalHacks
                 GUI.enabled = ready;
                 var labelRect = ready ? new Rect(rect.x, rect.y, rect.width - 70f, rect.height) : rect;
                 if (Sketch.Button(rect, "", ready ? Sketch.Marker : Sketch.Spent, 3, cta)) run.Cast();
-                GUI.Label(labelRect, label, cta);
+                Sketch.Label(labelRect, label, cta);
                 GUI.enabled = true;
                 if (!ready) return;
                 var key = new Rect(rect.xMax - 78f, rect.center.y - 16f, 62f, 32f);
                 Sketch.Box(key, Sketch.Paper, 9);
-                GUI.Label(key, "enter", keyCap);
+                Sketch.Label(key, "enter", keyCap);
             });
         }
 
@@ -175,12 +175,12 @@ namespace CalHacks
                 Sketch.Box(frame, Color.white, 2, shadow: true);
                 var image = new Rect(frame.x + 6f, frame.y + 6f, frame.width - 12f, frame.height - 12f);
                 if (texture != null) GUI.DrawTextureWithTexCoords(image, texture, uv);
-                else GUI.Label(image, UsingWebcam ? "warming up the webcam..." : "waiting for the drawing pad...", placeholder);
+                else Sketch.Label(image, UsingWebcam ? "warming up the webcam..." : "waiting for the drawing pad...", placeholder);
                 Sketch.Tape(new Vector2(frame.x + 14f, frame.y + 4f), -38f);
                 Sketch.Tape(new Vector2(frame.xMax - 14f, frame.y + 4f), 38f);
             });
             y = frame.yMax + 8f;
-            GUI.Label(new Rect(x + 4f, y, w, 26f), caption, small);
+            Sketch.Label(new Rect(x + 4f, y, w, 26f), caption, small);
             return y + 30f;
         }
 

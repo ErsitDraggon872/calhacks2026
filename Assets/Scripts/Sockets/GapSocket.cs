@@ -28,7 +28,7 @@ namespace CalHacks
 
         public override SocketType Type => SocketType.Gap;
         public override string Goal => "get B across the gap";
-        public override string Banner => "THE GREAT GAP  ·  DRAW → BUILD → CROSS";
+        public override string Banner => "draw a way across";
         // Shape solves the gap, not meaning: whatever it is, the lines are the bridge.
         public override string Verdict(InventionSpec spec, LabelOutcome outcome) => "YOUR LINES → A BRIDGE. WALK ACROSS!";
 

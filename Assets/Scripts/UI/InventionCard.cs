@@ -145,6 +145,7 @@ namespace CalHacks
                 action.normal.textColor = card.Worked == true ? new Color(0.55f, 0.95f, 0.6f)
                     : card.Worked == false ? new Color(1f, 0.62f, 0.5f)
                     : new Color(1f, 0.86f, 0.42f);
+                Sketch.HoldColor(action);
                 GUI.Label(new Rect(x + 40f, y + 12f, inner, actionHeight - 12f), card.Action, action);
                 y += actionHeight;
             }
@@ -156,11 +157,11 @@ namespace CalHacks
         void EnsureStyles()
         {
             if (header != null) return;
-            GUIStyle Centered(int size, FontStyle fontStyle, Color color) => new GUIStyle(GUI.skin.label)
+            GUIStyle Centered(int size, FontStyle fontStyle, Color color) => Sketch.HoldColor(new GUIStyle(GUI.skin.label)
             {
                 fontSize = size, fontStyle = fontStyle, alignment = TextAnchor.MiddleCenter, wordWrap = true,
                 normal = { textColor = color },
-            };
+            });
             header = Centered(32, FontStyle.Bold, new Color(0.6f, 0.95f, 0.85f));
             title = Centered(80, FontStyle.Bold, Color.white);
             body = Centered(34, FontStyle.Normal, new Color(0.9f, 0.92f, 0.95f));

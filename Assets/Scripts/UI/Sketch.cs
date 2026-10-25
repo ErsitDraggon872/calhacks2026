@@ -14,6 +14,7 @@ namespace CalHacks
         public static readonly Color Ink = new Color(0.12f, 0.11f, 0.09f);
         public static readonly Color Muted = new Color(0.54f, 0.50f, 0.45f);
         public static readonly Color Marker = new Color(1f, 0.82f, 0.25f);
+        public static readonly Color MarkerHover = new Color(1f, 0.66f, 0.2f);
         public static readonly Color Spent = new Color(0.82f, 0.80f, 0.76f);
         static readonly Color TapeColor = new Color(0.91f, 0.85f, 0.66f, 0.8f);
         static readonly Color Shadow = new Color(0f, 0f, 0f, 0.18f);
@@ -44,12 +45,60 @@ namespace CalHacks
             }
         }
 
-        public static GUIStyle Text(int size, Color color, TextAnchor alignment = TextAnchor.MiddleLeft, bool bold = false) =>
-            new GUIStyle(GUI.skin.label)
+        public static GUIStyle Text(int size, Color color, TextAnchor alignment = TextAnchor.MiddleLeft, bool bold = false)
+        {
+            var style = new GUIStyle(GUI.skin.label)
             {
                 font = Hand, fontSize = size, fontStyle = bold ? FontStyle.Bold : FontStyle.Normal, alignment = alignment,
-                richText = true, wordWrap = false, clipping = TextClipping.Overflow, normal = { textColor = color },
+                richText = true, wordWrap = false, clipping = TextClipping.Overflow,
             };
+            Tint(style, color);
+            return style;
+        }
+
+        /// <summary>
+        /// Gives every state the normal text colour. A style copied from GUI.skin.label only sets <c>normal</c>, so under
+        /// the mouse a label falls back to the skin's pale grey hover colour.
+        /// </summary>
+        public static GUIStyle HoldColor(GUIStyle style)
+        {
+            Tint(style, style.normal.textColor);
+            return style;
+        }
+
+        static void Tint(GUIStyle style, Color color)
+        {
+            foreach (var state in new[] { style.normal, style.hover, style.active, style.focused, style.onNormal, style.onHover, style.onActive, style.onFocused })
+                state.textColor = color;
+        }
+
+        /// <summary>
+        /// GUI.Label, but rendered at the on-screen size. The HUDs lay out at 1080p under a scaled GUI.matrix, which
+        /// rasterises glyphs at the 1080p size and then resamples them, blurring text at any other resolution. This takes
+        /// the scale back out of the matrix (keeping any tilt) and scales the rect and font size instead.
+        /// </summary>
+        public static void Label(Rect rect, string text, GUIStyle style) => Crisp(rect, style, r => GUI.Label(r, text, style));
+
+        /// <summary>Runs <paramref name="draw"/> with the matrix scale moved into the rect and the style's font size.</summary>
+        public static void Crisp(Rect rect, GUIStyle style, Action<Rect> draw)
+        {
+            var old = GUI.matrix;
+            var scale = old.GetColumn(0).magnitude;
+            if (Mathf.Approximately(scale, 1f))
+            {
+                draw(rect);
+                return;
+            }
+            var size = style.fontSize;
+            GUI.matrix = old * Matrix4x4.Scale(new Vector3(1f / scale, 1f / scale, 1f));
+            style.fontSize = Mathf.Max(1, Mathf.RoundToInt(size * scale));
+            try { draw(new Rect(rect.x * scale, rect.y * scale, rect.width * scale, rect.height * scale)); }
+            finally
+            {
+                style.fontSize = size;
+                GUI.matrix = old;
+            }
+        }
 
         /// <summary>A paper box whose marker outline runs along <paramref name="rect"/>'s edge.</summary>
         public static void Box(Rect rect, Color fill, int seed, bool shadow = false)
@@ -66,23 +115,35 @@ namespace CalHacks
             GUI.DrawTexture(outer, texture);
         }
 
-        /// <summary>A paper button with a drop shadow; lighter on hover. False while GUI.enabled is off.</summary>
+        /// <summary>
+        /// A paper button with a drop shadow. Under the mouse it turns marker yellow (a marker-yellow button turns orange)
+        /// so it reads as clickable. False while GUI.enabled is off.
+        /// </summary>
         public static bool Button(Rect rect, string label, Color fill, int seed, GUIStyle style)
         {
             var hover = GUI.enabled && rect.Contains(Event.current.mousePosition);
-            Box(rect, hover ? Color.Lerp(fill, Color.white, 0.35f) : fill, seed, shadow: true);
-            GUI.Label(rect, label, style);
+            Box(rect, hover ? (fill == Marker ? MarkerHover : Marker) : fill, seed, shadow: true);
+            Label(rect, label, style);
             return GUI.Button(rect, GUIContent.none, GUIStyle.none);
         }
 
-        /// <summary>An underlined text link.</summary>
+        /// <summary>An underlined text link; under the mouse it goes ink-dark on a highlighter swipe.</summary>
         public static bool Link(Rect rect, string label, GUIStyle style)
         {
-            GUI.Label(rect, label, style);
+            var hover = GUI.enabled && rect.Contains(Event.current.mousePosition);
+            var color = style.normal.textColor;
             var width = style.CalcSize(new GUIContent(label)).x;
             var x = style.alignment == TextAnchor.MiddleRight || style.alignment == TextAnchor.UpperRight ? rect.xMax - width : rect.x;
             var old = GUI.color;
-            GUI.color = style.normal.textColor;
+            if (hover)
+            {
+                GUI.color = Marker;
+                GUI.DrawTexture(new Rect(x - 5f, rect.center.y - style.fontSize * 0.6f, width + 10f, style.fontSize * 1.3f), Texture2D.whiteTexture);
+                Tint(style, Ink);
+            }
+            Label(rect, label, style);
+            Tint(style, color);
+            GUI.color = hover ? Ink : color;
             GUI.DrawTexture(new Rect(x, rect.center.y + style.fontSize * 0.55f, width, 2f), Texture2D.whiteTexture);
             GUI.color = old;
             return GUI.Button(rect, GUIContent.none, GUIStyle.none);

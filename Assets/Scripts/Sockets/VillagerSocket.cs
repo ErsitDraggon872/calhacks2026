@@ -33,7 +33,7 @@ namespace CalHacks
         public override SocketType Type => SocketType.Villager;
         public override IReadOnlyList<Trait> SolvingTraits => Wants;
         public override string Goal => $"something the {socketId} will accept";
-        public override string Banner => bubble != null ? "" : $"THE HUNGRY {socketId.ToUpperInvariant()}  ·  DRAW SOMETHING TO EAT → BUILD";
+        public override string Banner => bubble != null ? "" : $"the {socketId} is hungry  ·  draw something to eat";
 
         public override string Verdict(InventionSpec spec, LabelOutcome outcome)
         {

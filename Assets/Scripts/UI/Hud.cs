@@ -29,9 +29,9 @@ namespace CalHacks
 
             var tag = new Rect(30f, 22f, 210f, run.InputName != null ? 88f : 58f);
             Sketch.Box(tag, Sketch.Paper, 11, shadow: true);
-            GUI.Label(new Rect(tag.x + 16f, tag.y + 4f, tag.width - 32f, 50f), FormatTime(run.State.Elapsed), timer);
+            Sketch.Label(new Rect(tag.x + 16f, tag.y + 4f, tag.width - 32f, 50f), FormatTime(run.State.Elapsed), timer);
             if (run.InputName != null)
-                GUI.Label(new Rect(tag.x + 16f, tag.y + 52f, tag.width - 32f, 28f), $"{run.InputName.ToLowerInvariant()}  ·  M", small);
+                Sketch.Label(new Rect(tag.x + 16f, tag.y + 52f, tag.width - 32f, 28f), $"{run.InputName.ToLowerInvariant()}  ·  M", small);
 
             var state = run.State;
             // Near an obstacle the sign names it and what to draw, so it's clear where the drawing will go.
@@ -54,7 +54,7 @@ namespace CalHacks
             Sketch.Tilted(signRect.center, -0.6f, () =>
             {
                 Sketch.Box(signRect, Sketch.Paper, 12, shadow: true);
-                GUI.Label(signRect, status, sign);
+                Sketch.Label(signRect, status, sign);
             });
             if (usable != null && !riding && !state.Finished) DrawKeyBadge(usable, scale);
 
@@ -67,8 +67,8 @@ namespace CalHacks
                 {
                     Sketch.Box(rect, Sketch.Paper, 16, shadow: true);
                     Sketch.Tape(new Vector2(rect.center.x, rect.y + 2f), 3f, 120f, 26f);
-                    GUI.Label(new Rect(rect.x, rect.y + 24f, rect.width, 130f), "You made it!\n" + FormatTime(run.FinalTime), big);
-                    GUI.Label(new Rect(rect.x, rect.y + 178f, rect.width, 56f), "press F5 to play again", sign);
+                    Sketch.Label(new Rect(rect.x, rect.y + 24f, rect.width, 130f), "You made it!\n" + FormatTime(run.FinalTime), big);
+                    Sketch.Label(new Rect(rect.x, rect.y + 178f, rect.width, 56f), "press F5 to play again", sign);
                 });
             }
             GUI.matrix = Matrix4x4.identity;
@@ -86,7 +86,7 @@ namespace CalHacks
             var centre = new Vector2(screen.x / scale, ReferenceHeight - screen.y / scale - 30f + bob);
             var rect = new Rect(centre.x - 28f, centre.y - 28f, 56f, 56f);
             Sketch.Box(rect, Sketch.Marker, 15, shadow: true);
-            GUI.Label(rect, "E", keyLabel);
+            Sketch.Label(rect, "E", keyLabel);
         }
 
         void DrawBuildBar(RunState state, float width)
@@ -97,7 +97,7 @@ namespace CalHacks
             var text = state.InFlight ? Reading
                 : ready ? "ready to invent"
                 : $"recharging {state.CooldownRemaining:0.0}s";
-            GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 40f), text, sign);
+            Sketch.Label(new Rect(rect.x, rect.y + 4f, rect.width, 40f), text, sign);
             var bar = new Rect(rect.x + 22f, rect.y + 48f, rect.width - 44f, 14f);
             Sketch.Box(bar, Color.white, 14);
             var fill = state.InFlight ? 0f : state.CooldownFraction;

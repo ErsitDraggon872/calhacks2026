@@ -51,7 +51,7 @@ namespace CalHacks
         void EnsureStyles()
         {
             if (style != null) return;
-            style = new GUIStyle(GUI.skin.label) { fontSize = 24, wordWrap = true, normal = { textColor = new Color(0.7f, 1f, 0.7f) } };
+            style = Sketch.HoldColor(new GUIStyle(GUI.skin.label) { fontSize = 24, wordWrap = true, normal = { textColor = new Color(0.7f, 1f, 0.7f) } });
             panel = new Texture2D(1, 1);
             panel.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.8f));
             panel.Apply();
