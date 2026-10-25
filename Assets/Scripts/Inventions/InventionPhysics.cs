@@ -147,6 +147,7 @@ namespace CalHacks
         void BeginMotion()
         {
             if (body == null || (active && Time.time < poweredUntil && !ToggleMode && !HoldMode)) return;
+            if (!active) Juice.Play(JuiceSound.Whoosh, thrust != null ? 1f : 0.5f);
             active = true;
             body.isKinematic = false;
             body.useGravity = thrust == null || lift != null;
@@ -190,6 +191,7 @@ namespace CalHacks
             {
                 active = false;
                 body.useGravity = true;
+                if (thrust != null && Time.time >= poweredUntil) Juice.Play(JuiceSound.Sputter);
                 if (thrust != null && rider != null && rider.IsRiding(this))
                     Subtitles.ShowNow("Out of fuel! Try a bigger booster or jump off.", 3.5f);
             }
@@ -246,6 +248,7 @@ namespace CalHacks
             player.Launch(new Vector3(Mathf.Sin(angle), Mathf.Cos(angle), 0f) *
                 bounce.LaunchSpeed * Mathf.Lerp(.6f, 1f, attributes.force));
             nextBounceAt = Time.time + Mathf.Max(.3f, attributes.cooldown_s);
+            Juice.Play(JuiceSound.Boing);
         }
 
         void OnDestroy()

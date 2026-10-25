@@ -51,6 +51,9 @@ namespace CalHacks
         Vector3 lastPlatformPosition;
         float rideContactTime;
         Action<InputAction.CallbackContext> onJump;
+        // Footstep and landing sounds: metres walked since the last step, and the fall speed (m/s) a landing taps at.
+        const float StepLength = 0.9f, LandTapSpeed = 3.5f;
+        float stepTravel;
 
         public bool IsGrounded { get; private set; }
         public bool InputLocked { get; set; }
@@ -127,10 +130,12 @@ namespace CalHacks
                     forcedAirborneUntil = Time.time + .2f;
                     verticalVelocity = Mathf.Sqrt(2f * gravity * JumpHeight);
                     jumpPressedAt = float.NegativeInfinity;
+                    Juice.Play(JuiceSound.Jump);
                 }
                 else if (surface.Bounce > 0f && (ground == null || ground.Abilities == null))
                 {
                     verticalVelocity = surface.Bounce;
+                    Juice.Play(JuiceSound.Boing, 0.6f);
                 }
             }
             else
@@ -151,8 +156,16 @@ namespace CalHacks
             var landed = (flags & CollisionFlags.Below) != 0;
             if (landed)
             {
+                if (airVelocity < -LandTapSpeed) Juice.Play(JuiceSound.Land);
                 ground = standingOn;
                 airVelocity = 0f;
+            }
+            // A soft paper tap every StepLength walked on the ground.
+            stepTravel = IsGrounded && riding == null ? stepTravel + new Vector2(walkVelocity.x, walkVelocity.z).magnitude * Time.deltaTime : 0f;
+            if (stepTravel >= StepLength)
+            {
+                stepTravel = 0f;
+                Juice.Play(JuiceSound.Step);
             }
             FollowDrawingPlane(landed);
 

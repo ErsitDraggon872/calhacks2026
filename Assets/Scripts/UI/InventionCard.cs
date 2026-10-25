@@ -88,6 +88,7 @@ namespace CalHacks
             instance.card = text;
             instance.visible = true;
             Time.timeScale = 0f;
+            Juice.Play(worked == true ? JuiceSound.Chime : worked == false ? JuiceSound.Thud : JuiceSound.Reveal);
         }
 
         public static void Hide()

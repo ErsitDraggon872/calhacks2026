@@ -133,6 +133,7 @@ namespace CalHacks
         {
             Solved = true;
             if (solutionCollider != null) solutionCollider.enabled = true;
+            Juice.PlayAfterCard(JuiceSound.Ding);
             OnSolved();
         }
 
@@ -154,6 +155,7 @@ namespace CalHacks
         {
             if (CurrentCutout != null) Destroy(CurrentCutout.gameObject);
             CurrentCutout = CreateCutout(texture, ownsTexture);
+            if (CurrentCutout != null) Juice.Appear(CurrentCutout.transform.position, CurrentCutout.Size);
         }
 
         protected virtual Cutout CreateCutout(Texture2D texture, bool ownsTexture) =>

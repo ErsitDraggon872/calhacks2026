@@ -60,6 +60,7 @@ namespace CalHacks
                 !IsSquashLanding(kind, fallVelocity, hit.normal.y,
                     hit.moveDirection.y, Time.time - createdAt)) return false;
 
+            Juice.Play(JuiceSound.Crumple);
             if (!BreaksWhenStomped(invention.Spec))
             {
                 nextSquishAt = Time.time + SquishCooldownSeconds;

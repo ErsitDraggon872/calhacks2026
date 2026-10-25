@@ -58,6 +58,8 @@ namespace CalHacks
             // The invention reads the pixels and owns the texture it's given.
             var paper = ownsTexture ? texture : Instantiate(texture);
             bridge = Invention.Create(paper, bottom, size, depth, cutoutMaterial, transform);
+            // The planks clack into place as play resumes after the card.
+            Juice.PlayAfterCard(JuiceSound.Clack);
             return bridge.Cutout;
         }
 

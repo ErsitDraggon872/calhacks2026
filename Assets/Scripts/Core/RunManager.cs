@@ -163,6 +163,7 @@ namespace CalHacks
             if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
             inventionRoot = new GameObject("Inventions").transform;
             if (GetComponent<InventionCard>() == null) gameObject.AddComponent<InventionCard>();
+            if (GetComponent<Juice>() == null) gameObject.AddComponent<Juice>();
 
             var start = startPoint != null ? startPoint : player != null ? player.transform : transform;
             startPosition = start.position;
@@ -521,6 +522,7 @@ namespace CalHacks
 
             var invention = Invention.Create(paper, box, bottom, depth, inventionMaterial, inventionRoot, config.inventionCell);
             invention.Apply(spec);
+            Juice.Appear(bottom + Vector3.up * (invention.Size.y * 0.5f), invention.Size);
             // Placement needs no confirming; once it stands, the card says what it is and pauses until LET'S PLAY.
             InventionCard.Show(spec, TraitWords.FreeBuildAction(spec), null,
                 acceptance.Verdict == Verdict.Downgraded ? acceptance.Message : null);
@@ -971,6 +973,7 @@ namespace CalHacks
             currentCheckpoint = checkpoint;
             checkpoint.SetReached(true);
             Subtitles.Show("Checkpoint!", 1.5f);
+            Juice.Play(JuiceSound.Checkpoint);
             // The run's first checkpoint is where the world opens up: zoom out to show it, then back in.
             if (first && cameraFollow != null) cameraFollow.Reveal();
         }

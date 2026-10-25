@@ -67,7 +67,9 @@ namespace CalHacks
             if (food != null && villager != null)
             {
                 food.HandTo(villager.position + Vector3.up * 1.2f);
-                yield return new WaitForSeconds(0.7f);
+                yield return new WaitForSeconds(0.6f);
+                Juice.Play(JuiceSound.Munch);
+                yield return new WaitForSeconds(0.1f);
             }
             if (villager != null && stepAsidePoint != null)
             {
@@ -116,6 +118,7 @@ namespace CalHacks
                 villager.position = start;
             }
             if (drawing == null) yield break;
+            Juice.Play(JuiceSound.Snip);
             InventionMotion.SpawnPaperPoof(drawing.transform.position);
             Destroy(drawing.gameObject);
         }
