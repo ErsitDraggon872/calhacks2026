@@ -64,11 +64,12 @@ namespace CalHacks
         protected override void OnCaptured(CaptureResponse capture) => Refresh();
 
         /// <summary>
-        /// Where a drawing that isn't a bridge stands: on B's ledge against the gap, <paramref name="width"/> wide.
+        /// Where a drawing that isn't a bridge stands: on B's ledge against the gap, at the bridge's depth (the path's
+        /// middle), <paramref name="width"/> wide.
         /// <paramref name="away"/> is the way from the gap onto that ledge.
         /// </summary>
         public Vector3 LaunchSpot(Vector3 feet, float width, out float away) =>
-            InventionPlacement.LedgeBottomCentre(feet, anchor.position.x, span.x, anchor.position.y, width, out away);
+            InventionPlacement.LedgeBottomCentre(feet, anchor.position, span.x, width, out away);
 
         // The bridge stands before its attributes are known; they arrive with the label.
         protected override void OnSpec(InventionSpec spec)

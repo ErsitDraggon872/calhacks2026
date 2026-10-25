@@ -47,16 +47,16 @@ namespace CalHacks
 
         /// <summary>
         /// Bottom-centre of an invention <paramref name="width"/> wide standing on the ledge B is on, beside a drop
-        /// <paramref name="dropWidth"/> wide centred on <paramref name="dropCentreX"/> with ledges at <paramref name="ledgeY"/>:
-        /// its far edge at the drop's edge, at B's depth, so B can ride it across instead of it falling in.
-        /// <paramref name="away"/> is the way from the drop onto that ledge (+1 right, -1 left).
+        /// <paramref name="dropWidth"/> wide whose middle, at ledge height and the path's depth, is <paramref name="drop"/>:
+        /// its far edge at the drop's edge, centred on the path (which is barely deeper than a build, so centred on B it
+        /// pokes into the level's edges and gets pushed out of B's reach), so B can ride it across instead of it falling
+        /// in. <paramref name="away"/> is the way from the drop onto that ledge (+1 right, -1 left).
         /// </summary>
-        public static Vector3 LedgeBottomCentre(Vector3 feet, float dropCentreX, float dropWidth, float ledgeY, float width,
-            out float away)
+        public static Vector3 LedgeBottomCentre(Vector3 feet, Vector3 drop, float dropWidth, float width, out float away)
         {
-            away = feet.x < dropCentreX ? -1f : 1f;
-            var edge = dropCentreX + away * Mathf.Max(0f, dropWidth) * 0.5f;
-            return new Vector3(edge + away * Mathf.Max(0f, width) * 0.5f, ledgeY, feet.z);
+            away = feet.x < drop.x ? -1f : 1f;
+            var edge = drop.x + away * Mathf.Max(0f, dropWidth) * 0.5f;
+            return new Vector3(edge + away * Mathf.Max(0f, width) * 0.5f, drop.y, drop.z);
         }
 
         /// <summary>

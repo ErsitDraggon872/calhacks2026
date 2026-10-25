@@ -51,17 +51,35 @@ namespace CalHacks.Tests
         {
             foreach (var width in new[] { 0.5f, 2f, 3f })
             {
-                var left = InventionPlacement.LedgeBottomCentre(new Vector3(9.5f, 0f, 0.3f), 12.3f, 4.9f, 0f, width, out var away);
+                var left = InventionPlacement.LedgeBottomCentre(new Vector3(9.5f, 0f, -0.3f), GapAnchor, 4.9f, width, out var away);
                 Assert.AreEqual(-1f, away);
                 Assert.AreEqual(12.3f - 2.45f, left.x + width * 0.5f, 1e-4f, $"width {width}");
                 Assert.AreEqual(0f, left.y, 1e-4f);
-                Assert.AreEqual(0.3f, left.z, 1e-4f);
+                Assert.AreEqual(0f, left.z, 1e-4f, "on the path's middle, not B's depth");
 
-                var right = InventionPlacement.LedgeBottomCentre(new Vector3(15f, 0f, 0f), 12.3f, 4.9f, 0f, width, out away);
+                var right = InventionPlacement.LedgeBottomCentre(new Vector3(15f, 0f, 0.4f), GapAnchor, 4.9f, width, out away);
                 Assert.AreEqual(1f, away);
                 Assert.AreEqual(12.3f + 2.45f, right.x - width * 0.5f, 1e-4f, $"width {width}");
             }
         }
+
+        [Test]
+        public void LedgeBuildFitsTheStartPathWhereverBStands()
+        {
+            // The start path is z -1..1, between its invisible front edge and the raised terrace: a 2 m deep build
+            // centred on B (anywhere but z 0) poked into one of them and was pushed out in front of the edge.
+            var front = Box(new Vector3(-6f, 0f, -1.4f), new Vector3(10f, 4f, -1f));
+            var terrace = Box(new Vector3(-6f, -1f, 1f), new Vector3(10f, 0.8f, 3f));
+            foreach (var z in new[] { -0.6f, -0.08f, 0f, 0.5f })
+            {
+                var bottom = InventionPlacement.LedgeBottomCentre(new Vector3(9.3f, 0.05f, z), GapAnchor, 4.9f, 3f, out var away);
+                var build = InventionPlacement.BuildBounds(bottom, new Vector2(3f, 1.64f), 2f);
+                Assert.IsTrue(InventionPlacement.ClearSpot(build, new[] { front, terrace }, away, out var shift), $"B at z {z}");
+                Assert.AreEqual(Vector3.zero, shift, $"B at z {z}");
+            }
+        }
+
+        static readonly Vector3 GapAnchor = new Vector3(12.3f, 0f, 0f);
 
         // The level's high-ledge slot: 3 x 1.2 m against the ledge's left face (x 24), at the ledge's depth.
         static readonly Vector3 SlotBottom = new Vector3(22.5f, 0f, 1.75f);
