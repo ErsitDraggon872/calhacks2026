@@ -126,25 +126,40 @@ namespace CalHacks
                 GUI.Label(new Rect(x, y + 34f, w, 34f), arrival.Message, text);
                 y += 70f;
             }
-            return Preview(x, y, w, "Creator's whiteboard (live)");
+            return Preview(x, y, w, UsingWebcam ? "Whiteboard webcam (live)" : "Creator's whiteboard (live)");
+        }
+
+        static bool UsingWebcam => RunManager.Instance != null && RunManager.Instance.UsingWebcam;
+
+        /// <summary>The live board: the webcam's board crop after M, else the browser whiteboard. Null if none yet.</summary>
+        static Texture PreviewTexture(out Rect uv)
+        {
+            uv = new Rect(0f, 0f, 1f, 1f);
+            if (!UsingWebcam) return WhiteboardPreview.Instance?.Texture;
+            var cam = BoardCamera.Instance;
+            if (cam == null || !cam.HasFreshFrame || cam.Preview == null) return null;
+            uv = cam.Crop;
+            return cam.Preview;
         }
 
         float PreviewHeight()
         {
-            var texture = WhiteboardPreview.Instance?.Texture;
-            return texture == null ? 0f : 34f + (PanelWidth - 32f) * texture.height / texture.width + 10f;
+            var texture = PreviewTexture(out var uv);
+            return texture == null ? 0f : 34f + (PanelWidth - 32f) * Aspect(texture, uv) + 10f;
         }
 
         float Preview(float x, float y, float w, string caption)
         {
-            var texture = WhiteboardPreview.Instance?.Texture;
+            var texture = PreviewTexture(out var uv);
             if (texture == null) return y;
             GUI.Label(new Rect(x, y, w, 30f), caption, text);
             y += 34f;
-            var h = w * texture.height / texture.width;
-            GUI.DrawTexture(new Rect(x, y, w, h), texture);
+            var h = w * Aspect(texture, uv);
+            GUI.DrawTextureWithTexCoords(new Rect(x, y, w, h), texture, uv);
             return y + h + 10f;
         }
+
+        static float Aspect(Texture texture, Rect uv) => texture.height * uv.height / (texture.width * uv.width);
 
         static string KeyText(SyncKeyState state) => state switch
         {

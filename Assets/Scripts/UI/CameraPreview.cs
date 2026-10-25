@@ -23,7 +23,8 @@ namespace CalHacks
             var run = RunManager.Instance;
             if (run == null || !run.PreviewVisible)
             {
-                if (BoardCamera.Instance != null) BoardCamera.Instance.PreviewWanted = false;
+                // The co-op panel shows the webcam in place of the browser whiteboard while M has switched to it.
+                if (BoardCamera.Instance != null) BoardCamera.Instance.PreviewWanted = run != null && run.UsingWebcam;
                 return;
             }
             EnsureStyles();

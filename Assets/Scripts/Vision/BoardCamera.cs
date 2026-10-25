@@ -31,6 +31,8 @@ namespace CalHacks
         public bool PreviewWanted { get; set; }
         /// <summary>The latest upright frame, while <see cref="PreviewWanted"/>. Null until one arrives.</summary>
         public Texture2D Preview => preview;
+        /// <summary>The whiteboard inside each frame (GameConfig.boardCrop), normalized, origin bottom-left.</summary>
+        public Rect Crop => config.boardCrop;
 
         /// <summary>The camera is delivering frames right now, not merely opened.</summary>
         public bool HasFreshFrame => webcam != null && !disconnected && webcam.isPlaying &&
